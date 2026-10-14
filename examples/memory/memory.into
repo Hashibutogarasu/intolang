@@ -1,0 +1,27 @@
+import "intolang://builtin/std";
+
+into mem1 = 0;
+
+print(mem1); // compile error
+
+init {
+    print(mem1); // prints 0 to console
+}
+
+init {
+    print(mem1); // compile error because mem1 was destructed
+}
+
+now into mem2 = 2; // create a variable to memory
+print(mem2); // can print to console
+
+const now into mem3 = 3;
+mem3 = 4; // compile error because mem3 is constant
+
+late into mem4 = 4;
+print(mem4); // if the variable was used, the memory will create. init block is optional
+
+now into mem5 = 5;
+unload mem5; // Destroy a variable from memory
+
+print(mem6); // compile error because the variable was unloaded
