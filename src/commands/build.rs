@@ -9,16 +9,21 @@ struct Package {
     alias: Option<String>,
     #[serde(rename = "builtConfig", default)]
     built_config: BuildConfig,
-    runs: String,
+    runs: Option<String>,
+    library: Option<String>,
 }
 
-#[derive(Deserialize, Default)]
+#[derive(Deserialize)]
 struct BuildConfig {
     #[serde(default = "default_dist")]
     dist: String,
 }
 
 fn default_dist() -> String { "./dist".into() }
+
+impl Default for BuildConfig {
+    fn default() -> Self { Self { dist: default_dist() } }
+}
 
 pub(super) fn run(package_path: PathBuf, test_mode: bool) -> Result<()> {
     let manifest = if package_path.is_dir() {
@@ -31,12 +36,18 @@ pub(super) fn run(package_path: PathBuf, test_mode: bool) -> Result<()> {
     let package_dir = manifest.parent().context("Manifest has no parent directory")?;
     let package: Package = serde_json::from_slice(&std::fs::read(&manifest)?)
         .with_context(|| format!("Invalid package manifest: {}", manifest.display()))?;
+    if package.runs.is_some() == package.library.is_some() {
+        anyhow::bail!("Package manifest must specify exactly one of `runs` or `library`");
+    }
     let embedded_packages = compiler::builtin_packages_dir();
     if test_mode {
         return run_tests(package_dir, &embedded_packages);
     }
 
-    let entry = package_dir.join(&package.runs);
+    if let Some(library) = package.library.as_deref() {
+        return build_library(package_dir, &package, &library, &embedded_packages);
+    }
+    let entry = package_dir.join(package.runs.expect("runs/library validation above"));
     let source = std::fs::read_to_string(&entry)
         .with_context(|| format!("Could not read package entry point: {}", entry.display()))?;
     let output_dir = package_dir.join(&package.built_config.dist)
@@ -51,6 +62,37 @@ pub(super) fn run(package_path: PathBuf, test_mode: bool) -> Result<()> {
         .context("Could not compile Into entry point")?;
     std::fs::create_dir_all(&output_dir)?;
     compiler::compile(&message, &output).context("Compilation failed")?;
+    println!("Built {}", output.display());
+    Ok(())
+}
+
+fn build_library(
+    package_dir: &Path,
+    package: &Package,
+    library: &str,
+    embedded_packages: &Path,
+) -> Result<()> {
+    let required_entry = package_dir.join("src/main/lib.into");
+    let library_entry = package_dir.join(library);
+    if library_entry != required_entry || !required_entry.is_file() {
+        anyhow::bail!("Library packages require src/main/lib.into as their library entry point");
+    }
+    let source = std::fs::read_to_string(&required_entry)
+        .with_context(|| format!("Could not read library entry point: {}", required_entry.display()))?;
+    let functions = backend::lower_library(&source, &required_entry, embedded_packages)
+        .context("Could not compile Into library entry point")?;
+    let output_dir = package_dir.join(&package.built_config.dist)
+        .join(std::env::consts::OS).join(std::env::consts::ARCH);
+    let basename = package.alias.as_deref().unwrap_or(&package.name).replace(' ', "-");
+    #[cfg(target_os = "linux")]
+    let filename = format!("lib{basename}.so");
+    #[cfg(target_os = "macos")]
+    let filename = format!("lib{basename}.dylib");
+    #[cfg(target_os = "windows")]
+    let filename = format!("{basename}.dll");
+    let output = output_dir.join(filename);
+    std::fs::create_dir_all(&output_dir)?;
+    compiler::compile_library(&functions, &output).context("Native library compilation failed")?;
     println!("Built {}", output.display());
     Ok(())
 }

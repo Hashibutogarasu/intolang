@@ -8,10 +8,12 @@ use std::path::PathBuf;
 pub(super) fn run() -> Result<()> {
     let mut argv = std::env::args_os();
     let _program = argv.next();
-    if argv.next().as_deref().is_some_and(|arg| arg == "new") {
+    let command = argv.next();
+    if command.as_deref().is_some_and(|arg| arg == "new") {
         return new::run();
     }
-    let args = Args::parse();
+    let explicit_build = command.as_deref().is_some_and(|arg| arg == "build");
+    let args = Args::parse(explicit_build);
     if args.format_mode {
         format::run(args.package, args.format_depth)
     } else {
@@ -34,15 +36,18 @@ struct Args {
 }
 
 impl Args {
-    fn parse() -> Self {
+    fn parse(explicit_build: bool) -> Self {
         use clap::Parser;
         use std::ffi::OsString;
 
-        let argv = std::env::args_os().map(|arg| match arg.to_str() {
+        let argv = std::env::args_os().enumerate().filter_map(|(index, arg)| {
+            if explicit_build && index == 1 { return None; }
+            Some(match arg.to_str() {
             Some("-test") => OsString::from("--test"),
             Some("-format") => OsString::from("--format"),
             Some("-depth") => OsString::from("--depth"),
             _ => arg,
+            })
         });
         Self::parse_from(argv)
     }

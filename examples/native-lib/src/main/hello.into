@@ -1,0 +1,9 @@
+import "intolang://builtin/std";
+
+pub fun publicHello() {
+    print("hello");
+}
+
+fun privateHello() {
+    print("private hello");
+}

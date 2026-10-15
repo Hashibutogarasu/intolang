@@ -1,0 +1,13 @@
+{
+  "LICENCE": "MIT",
+  "alias": "native-lib",
+  "builtConfig": {
+    "dist": "./dist"
+  },
+  "name": "Native Library Example",
+  "packages": {
+    "intolang": "0.0.1"
+  },
+  "library": "src/main/lib.into",
+  "version": "0.1.0"
+}

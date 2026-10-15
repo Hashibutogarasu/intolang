@@ -1,4 +1,5 @@
 mod imports;
+mod library;
 mod formatter;
 mod lexer;
 mod parser;
@@ -7,6 +8,7 @@ mod validation;
 
 pub use lexer::{Token, TokenKind, tokenize};
 pub use tests::TestSummary;
+pub use library::NativeFunction;
 
 /// Format Into source text using the backend's canonical layout.
 pub fn format_source(source: &str) -> String {
@@ -42,4 +44,13 @@ pub fn run_tests(
     packages_dir: &std::path::Path,
 ) -> anyhow::Result<TestSummary> {
     tests::run(source, source_path, packages_dir)
+}
+
+/// Lower the public modules selected by a library package's `lib.into` file.
+pub fn lower_library(
+    source: &str,
+    source_path: &std::path::Path,
+    packages_dir: &std::path::Path,
+) -> anyhow::Result<Vec<NativeFunction>> {
+    library::lower(source, source_path, packages_dir)
 }
