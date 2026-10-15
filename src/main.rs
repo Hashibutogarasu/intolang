@@ -8,6 +8,8 @@ use std::{ffi::OsString, path::{Path, PathBuf}};
 struct Args {
     #[arg(long = "test")]
     test_mode: bool,
+    #[arg(long = "format")]
+    format_mode: bool,
     /// Package directory or path to its into-package.json
     package: PathBuf,
 }
@@ -35,6 +37,18 @@ fn main() -> color_eyre::Result<()> {
 fn run() -> Result<()> {
     let args = parse_args();
     let manifest = if args.package.is_dir() { args.package.join("into-package.json") } else { args.package };
+    if args.format_mode {
+        if manifest.extension().is_none_or(|extension| extension != "into") {
+            anyhow::bail!("Format mode expects an .into file path");
+        }
+        let source = std::fs::read_to_string(&manifest)
+            .with_context(|| format!("Could not read Into source: {}", manifest.display()))?;
+        let formatted = backend::format_source(&source);
+        std::fs::write(&manifest, formatted)
+            .with_context(|| format!("Could not write formatted Into source: {}", manifest.display()))?;
+        println!("Formatted {}", manifest.display());
+        return Ok(());
+    }
     let manifest = std::fs::canonicalize(&manifest)
         .with_context(|| format!("Could not find package manifest: {}", manifest.display()))?;
     let package_dir = manifest.parent().context("Manifest has no parent directory")?;
@@ -80,7 +94,11 @@ fn run() -> Result<()> {
 
 fn parse_args() -> Args {
     let argv = std::env::args_os().map(|arg| {
-        if arg == OsString::from("-test") { OsString::from("--test") } else { arg }
+        match arg.to_str() {
+            Some("-test") => OsString::from("--test"),
+            Some("-format") => OsString::from("--format"),
+            _ => arg,
+        }
     });
     Args::parse_from(argv)
 }

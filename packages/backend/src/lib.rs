@@ -1,4 +1,5 @@
 mod imports;
+mod formatter;
 mod lexer;
 mod parser;
 mod tests;
@@ -6,6 +7,11 @@ mod validation;
 
 pub use lexer::{Token, TokenKind, tokenize};
 pub use tests::TestSummary;
+
+/// Format Into source text using the backend's canonical layout.
+pub fn format_source(source: &str) -> String {
+    formatter::format_source(source)
+}
 
 /// Parse and lower an Into source file to its observable output.
 pub fn lower(source: &str) -> anyhow::Result<String> {
