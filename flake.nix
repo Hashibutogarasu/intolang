@@ -3,10 +3,15 @@
 
   inputs = {
     nixpkgs.url = "https://channels.nixos.org/nixpkgs-unstable/nixexprs.tar.zst";
+    codex-cli-nix.url = "github:sadjow/codex-cli-nix";
   };
 
   outputs =
-    { self, nixpkgs }:
+    {
+      self,
+      nixpkgs,
+      codex-cli-nix,
+    }:
     let
       systems = [
         "x86_64-linux"
@@ -33,10 +38,12 @@
         let
           pkgs = nixpkgs.legacyPackages.${system};
           llvm = pkgs.llvmPackages_23.llvm;
+          codex = codex-cli-nix.packages.${system}.default;
         in
         {
           default = pkgs.mkShell {
             packages = [
+              codex
               llvm
               pkgs.libxml2
               pkgs.zlib
