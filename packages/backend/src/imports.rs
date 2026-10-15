@@ -1,21 +1,28 @@
 use anyhow::{Result, anyhow, bail};
 use std::{collections::HashSet, path::Path};
 
-/// Resolve `intolang://<alias>/<module>` using package manifests and exports.
+/// Resolve Into package and native-language module imports using package exports.
 pub(super) fn resolve(source: &str, packages_dir: &Path) -> Result<HashSet<String>> {
     let mut imported_functions = HashSet::new();
     for line in source.lines() {
         let line = line.trim();
         let Some(uri) = line.strip_prefix("import ").and_then(|v| v.strip_prefix('"'))
             .and_then(|v| v.split_once('"').map(|(uri, _)| uri)) else { continue; };
-        let Some(path) = uri.strip_prefix("intolang://") else { continue; };
-        let mut segments = path.split('/');
-        let alias = segments.next().unwrap_or_default();
-        let module = segments.collect::<Vec<_>>().join("/");
+        let Some((scheme, path)) = uri.split_once("://") else {
+            bail!("Invalid import URI: {uri}");
+        };
+        let (alias, module) = match scheme {
+            "intolang" => {
+                let mut segments = path.split('/');
+                (segments.next().unwrap_or_default(), segments.collect::<Vec<_>>().join("/"))
+            }
+            "c" | "cpp" => (scheme, path.to_owned()),
+            _ => continue,
+        };
         if alias.is_empty() || module.is_empty() { bail!("Invalid Into package import: {uri}"); }
 
         let package = find_by_alias(packages_dir, alias)?
-            .ok_or_else(|| anyhow!("Imported builtin package `{alias}` is not bundled"))?;
+            .ok_or_else(|| anyhow!("Imported package or language module `{alias}` is not bundled"))?;
         let info_path = package.join("src/main/into-info.into");
         let info = std::fs::read_to_string(&info_path)
             .map_err(|_| anyhow!("Package `{alias}` has no into-info.into"))?;

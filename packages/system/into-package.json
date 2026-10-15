@@ -1,0 +1,10 @@
+{
+  "name": "Into System Modules",
+  "alias": "system",
+  "version": "0.1.0",
+  "LICENCE": "MIT",
+  "modules": {
+    "c": "modules/c",
+    "cpp": "modules/cpp"
+  }
+}

@@ -1,0 +1,3 @@
+pub cpp fun std_string_create(value: String): Pointer;
+pub cpp fun std_string_data(value: Pointer): String;
+pub cpp fun std_string_destroy(value: Pointer): Void;

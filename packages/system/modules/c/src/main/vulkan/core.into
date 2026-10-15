@@ -1,0 +1,2 @@
+pub c fun vkCreateInstance(createInfo: Pointer, allocator: Pointer, instance: Pointer): Int32;
+pub c fun vkDestroyInstance(instance: Pointer, allocator: Pointer): Void;

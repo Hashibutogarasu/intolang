@@ -1,0 +1,2 @@
+export "c://wayland/client";
+export "c://vulkan/core";

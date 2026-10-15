@@ -1,0 +1,3 @@
+pub cpp/standard/string/std_string_create.;
+pub cpp/standard/string/std_string_data.;
+pub cpp/standard/string/std_string_destroy.;
