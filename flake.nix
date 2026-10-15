@@ -45,9 +45,13 @@
             packages = [
               codex
               llvm
+              pkgs.yt-dlp
+              pkgs.ffmpeg
               pkgs.libxml2
               pkgs.zlib
               pkgs.pkg-config
+              pkgs.wayland
+              pkgs.wayland-protocols
             ];
 
             LLVM_SYS_231_PREFIX = "${llvm.dev}";

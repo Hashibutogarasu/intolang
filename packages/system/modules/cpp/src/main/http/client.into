@@ -1,0 +1,12 @@
+enum Method {
+    GET,
+}
+
+pub HttpResponse() {
+    html: String;
+}
+
+pub cpp class HttpClient {
+    #[link("cpp", "src/main/native/http/client.cpp", "http")]
+    pub cpp fun http(method: Method, url: String): HttpResponse;
+}

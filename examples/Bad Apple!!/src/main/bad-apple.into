@@ -1,0 +1,5 @@
+import "cpp://wayland/window";
+
+init {
+    presentFrames("res/frames");
+}

@@ -3,15 +3,33 @@ use std::path::Path;
 
 /// Link an LLVM-generated object with the rust-lld binary embedded at build time.
 pub fn link(object: &Path, output: &Path) -> Result<()> {
-    link_with_args(object, output, false)
+    link_with_args(object, &[], output, false, &[], false)
 }
 
 /// Link an LLVM-generated object as a native shared library.
 pub fn link_shared(object: &Path, output: &Path) -> Result<()> {
-    link_with_args(object, output, true)
+    link_with_args(object, &[], output, false, &[], true)
 }
 
-fn link_with_args(object: &Path, output: &Path, shared: bool) -> Result<()> {
+/// Link a generated object with helper objects and optional system libraries.
+pub fn link_objects(
+    object: &Path,
+    extra_objects: &[std::path::PathBuf],
+    output: &Path,
+    cxx: bool,
+    libraries: &[&str],
+) -> Result<()> {
+    link_with_args(object, extra_objects, output, cxx, libraries, false)
+}
+
+fn link_with_args(
+    object: &Path,
+    extra_objects: &[std::path::PathBuf],
+    output: &Path,
+    cxx: bool,
+    libraries: &[&str],
+    shared: bool,
+) -> Result<()> {
     let lld_dir = std::env::temp_dir().join(format!("intolang-lld-{}", std::process::id()));
     std::fs::create_dir_all(&lld_dir)?;
     let lld_path = lld_dir.join("ld.lld");
@@ -22,11 +40,16 @@ fn link_with_args(object: &Path, output: &Path, shared: bool) -> Result<()> {
         std::fs::set_permissions(&lld_path, std::fs::Permissions::from_mode(0o755))?;
     }
     let prefix = format!("-B{}/", lld_dir.display());
-    let cc = std::env::var("CC").unwrap_or_else(|_| "cc".into());
-    let mut command = std::process::Command::new(cc);
+    let linker = if cxx { "CXX" } else { "CC" };
+    let default_driver = if cxx { "c++" } else { "cc" };
+    let driver = std::env::var(linker).unwrap_or_else(|_| default_driver.into());
+    let mut command = std::process::Command::new(driver);
     command.arg(prefix).arg("-fuse-ld=lld");
     if shared { command.arg("-shared"); }
-    let result = command.arg(object).arg("-o").arg(output)
+    command.arg(object);
+    for extra in extra_objects { command.arg(extra); }
+    for library in libraries { command.arg(format!("-l{library}")); }
+    let result = command.arg("-o").arg(output)
         .output().context("could not start C compiler driver")?;
     std::fs::remove_dir_all(lld_dir).ok();
     if !result.status.success() {

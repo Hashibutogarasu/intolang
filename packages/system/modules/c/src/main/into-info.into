@@ -1,3 +1,4 @@
+pub c/stdio/output/puts.;
 pub c/wayland/client/wl_display_connect.;
 pub c/wayland/client/wl_display_disconnect.;
 pub c/vulkan/core/vkCreateInstance.;

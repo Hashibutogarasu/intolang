@@ -1,0 +1,9 @@
+{
+  "name": "Fibonacci",
+  "alias": "fibonacci",
+  "version": "0.1.0",
+  "LICENCE": "MIT",
+  "packages": { "intolang": "0.0.1", "c": "0.1.0" },
+  "builtConfig": { "dist": "./dist" },
+  "runs": "src/main/fibonacci.into"
+}

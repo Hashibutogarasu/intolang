@@ -1,0 +1,1 @@
+pub c fun puts(value: String): Int32;

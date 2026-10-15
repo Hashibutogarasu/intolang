@@ -1,0 +1,15 @@
+import "c://stdio/output";
+
+init {
+    puts("Fibonacci constellation");
+    puts(" 0          0  #");
+    puts(" 1          1  ##");
+    puts(" 2          1  ###");
+    puts(" 3          2  ####");
+    puts(" 4          3  #####");
+    puts(" 5          5  ######");
+    puts(" 6          8  #######");
+    puts(" 7         13  ########");
+    puts(" 8         21  #########");
+    puts(" 9         34  ##########");
+}

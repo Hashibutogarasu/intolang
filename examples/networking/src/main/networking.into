@@ -1,0 +1,8 @@
+import "cpp://http/client";
+import "intolang://builtin/std";
+
+into res = http(Method.GET, "http://example.com");
+
+init {
+    print(res.html);
+}
