@@ -1,1 +1,2 @@
+#[link("cpp", "src/main/native/wayland/window.cpp", "presentFrames")]
 pub cpp fun presentFrames(frameDirectory: String): Void;

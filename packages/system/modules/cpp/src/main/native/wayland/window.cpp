@@ -16,6 +16,10 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 #include <wayland-client.h>
+#include "xdg-shell-client-protocol.h"
+extern "C" {
+#include "xdg-shell-protocol.c"
+}
 #endif
 
 #ifdef __linux__
@@ -23,10 +27,11 @@ namespace {
 struct Window {
     wl_display *display = nullptr;
     wl_compositor *compositor = nullptr;
-    wl_shell *shell = nullptr;
+    xdg_wm_base *wm_base = nullptr;
     wl_shm *shm = nullptr;
     wl_surface *surface = nullptr;
-    wl_shell_surface *role = nullptr;
+    xdg_surface *xdg_surface = nullptr;
+    xdg_toplevel *toplevel = nullptr;
     wl_buffer *buffer = nullptr;
     int fd = -1;
     uint32_t *pixels = nullptr;
@@ -37,17 +42,22 @@ void registry_global(void *data, wl_registry *registry, uint32_t name, const cha
     auto *window = static_cast<Window *>(data);
     if (std::string(interface) == "wl_compositor")
         window->compositor = static_cast<wl_compositor *>(wl_registry_bind(registry, name, &wl_compositor_interface, std::min(version, 4u)));
-    else if (std::string(interface) == "wl_shell")
-        window->shell = static_cast<wl_shell *>(wl_registry_bind(registry, name, &wl_shell_interface, 1));
+    else if (std::string(interface) == "xdg_wm_base")
+        window->wm_base = static_cast<xdg_wm_base *>(wl_registry_bind(registry, name, &xdg_wm_base_interface, 1));
     else if (std::string(interface) == "wl_shm")
         window->shm = static_cast<wl_shm *>(wl_registry_bind(registry, name, &wl_shm_interface, 1));
 }
 void registry_remove(void *, wl_registry *, uint32_t) {}
 const wl_registry_listener registry_listener{registry_global, registry_remove};
-void shell_ping(void *, wl_shell_surface *role, uint32_t serial) { wl_shell_surface_pong(role, serial); }
-void shell_configure(void *, wl_shell_surface *, uint32_t, int32_t, int32_t) {}
-void shell_popup_done(void *) {}
-const wl_shell_surface_listener shell_listener{shell_ping, shell_configure, shell_popup_done};
+void wm_ping(void *, xdg_wm_base *base, uint32_t serial) { xdg_wm_base_pong(base, serial); }
+const xdg_wm_base_listener wm_listener{wm_ping};
+void surface_configure(void *, xdg_surface *surface, uint32_t serial) { xdg_surface_ack_configure(surface, serial); }
+const xdg_surface_listener surface_listener{surface_configure};
+void toplevel_configure(void *, xdg_toplevel *, int32_t, int32_t, wl_array *) {}
+void toplevel_close(void *data, xdg_toplevel *) { static_cast<Window *>(data)->released = true; }
+void toplevel_bounds(void *, xdg_toplevel *, int32_t, int32_t) {}
+void toplevel_capabilities(void *, xdg_toplevel *, wl_array *) {}
+const xdg_toplevel_listener toplevel_listener{toplevel_configure, toplevel_close, toplevel_bounds, toplevel_capabilities};
 void buffer_release(void *data, wl_buffer *) { static_cast<Window *>(data)->released = true; }
 const wl_buffer_listener buffer_listener{buffer_release};
 
@@ -57,14 +67,21 @@ bool create_window(Window &window) {
     wl_registry *registry = wl_display_get_registry(window.display);
     wl_registry_add_listener(registry, &registry_listener, &window);
     wl_display_roundtrip(window.display);
-    if (!window.compositor || !window.shell || !window.shm) return false;
+    if (!window.compositor || !window.wm_base || !window.shm) return false;
+    xdg_wm_base_add_listener(window.wm_base, &wm_listener, &window);
     window.surface = wl_compositor_create_surface(window.compositor);
-    window.role = wl_shell_get_shell_surface(window.shell, window.surface);
-    if (!window.surface || !window.role) return false;
-    wl_shell_surface_add_listener(window.role, &shell_listener, &window);
-    wl_shell_surface_set_title(window.role, "Into Wayland Frame Viewer");
-    wl_shell_surface_set_toplevel(window.role);
-    constexpr int width = 640, height = 360;
+    if (!window.surface) return false;
+    window.xdg_surface = xdg_wm_base_get_xdg_surface(window.wm_base, window.surface);
+    if (!window.xdg_surface) return false;
+    xdg_surface_add_listener(window.xdg_surface, &surface_listener, &window);
+    window.toplevel = xdg_surface_get_toplevel(window.xdg_surface);
+    if (!window.toplevel) return false;
+    xdg_toplevel_add_listener(window.toplevel, &toplevel_listener, &window);
+    xdg_toplevel_set_title(window.toplevel, "Into Wayland Frame Viewer");
+    xdg_toplevel_set_app_id(window.toplevel, "intolang.bad-apple");
+    wl_surface_commit(window.surface);
+    if (wl_display_roundtrip(window.display) < 0) return false;
+    constexpr int width = 854, height = 480;
     size_t bytes = width * height * sizeof(uint32_t);
     window.fd = static_cast<int>(syscall(SYS_memfd_create, "into-frame", MFD_CLOEXEC));
     if (window.fd < 0 || ftruncate(window.fd, bytes) < 0) return false;
@@ -74,10 +91,6 @@ bool create_window(Window &window) {
     window.buffer = wl_shm_pool_create_buffer(pool, 0, width, height, width * 4, WL_SHM_FORMAT_XRGB8888);
     wl_shm_pool_destroy(pool);
     wl_buffer_add_listener(window.buffer, &buffer_listener, &window);
-    wl_surface_attach(window.surface, window.buffer, 0, 0);
-    wl_surface_damage(window.surface, 0, 0, width, height);
-    wl_surface_commit(window.surface);
-    wl_display_roundtrip(window.display);
     return true;
 }
 
@@ -96,14 +109,14 @@ std::vector<std::string> parse_json_rows(const std::string &json) {
 }
 
 void show_frame(Window &window, const std::vector<std::string> &rows) {
-    constexpr int width = 640, height = 360, cell = 8;
+    constexpr int width = 854, height = 480, cell = 10;
     std::fill(window.pixels, window.pixels + width * height, 0xff000000u);
     for (int y = 0; y < std::min<int>(45, rows.size()); ++y)
         for (int x = 0; x < std::min<int>(80, rows[y].size()); ++x) {
             if (rows[y][x] == ' ' || rows[y][x] == '.' || rows[y][x] == '0') continue;
             for (int dy = 0; dy < cell; ++dy)
                 for (int dx = 0; dx < cell; ++dx)
-                    window.pixels[(y * cell + dy) * width + x * cell + dx] = 0xffffffffu;
+                    window.pixels[(15 + y * cell + dy) * width + 27 + x * cell + dx] = 0xffffffffu;
         }
     window.released = false;
     wl_surface_attach(window.surface, window.buffer, 0, 0);
@@ -120,7 +133,7 @@ void show_frame(Window &window, const std::vector<std::string> &rows) {
 
 void destroy_window(Window &window) {
     if (window.display) wl_display_disconnect(window.display);
-    if (window.pixels) munmap(window.pixels, 640 * 360 * sizeof(uint32_t));
+    if (window.pixels) munmap(window.pixels, 854 * 480 * sizeof(uint32_t));
     if (window.fd >= 0) close(window.fd);
 }
 }

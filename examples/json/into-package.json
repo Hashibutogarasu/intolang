@@ -1,0 +1,9 @@
+{
+  "name": "JSON Module Example",
+  "alias": "json-example",
+  "version": "0.1.0",
+  "LICENCE": "MIT",
+  "packages": { "system": "0.1.0", "json": "0.1.0" },
+  "builtConfig": { "dist": "./dist" },
+  "runs": "src/main/json-example.into"
+}

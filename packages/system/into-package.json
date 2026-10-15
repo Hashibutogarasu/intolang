@@ -5,6 +5,7 @@
   "LICENCE": "MIT",
   "modules": {
     "c": "modules/c",
-    "cpp": "modules/cpp"
+    "cpp": "modules/cpp",
+    "json": "modules/json"
   }
 }

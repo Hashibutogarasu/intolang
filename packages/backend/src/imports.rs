@@ -25,8 +25,7 @@ pub(super) fn resolve(source: &str, packages_dir: &Path) -> Result<HashSet<Strin
                 let mut segments = path.split('/');
                 (segments.next().unwrap_or_default(), segments.collect::<Vec<_>>().join("/"))
             }
-            "c" | "cpp" => (scheme, path.to_owned()),
-            _ => continue,
+            _ => (scheme, path.to_owned()),
         };
         if alias.is_empty() || module.is_empty() { bail!("Invalid Into package import: {uri}"); }
 
@@ -63,7 +62,6 @@ pub(super) fn resolve_links(source: &str, packages_dir: &Path) -> Result<std::co
         let Some(uri) = line.strip_prefix("import ").and_then(|v| v.strip_prefix('"'))
             .and_then(|v| v.split_once('"').map(|(uri, _)| uri)) else { continue; };
         let Some((alias, module)) = uri.split_once("://") else { continue; };
-        if !matches!(alias, "c" | "cpp") { continue; }
         let Some(package) = find_by_alias(packages_dir, alias)? else { continue; };
         let declaration = package.join("src/main").join(format!("{module}.into"));
         let Ok(contents) = std::fs::read_to_string(declaration) else { continue; };
@@ -108,7 +106,7 @@ fn parse_link_attribute(line: &str, default_language: &str, _package: &Path) -> 
     let args = args.split(',').map(|part| part.trim().trim_matches('"')).collect::<Vec<_>>();
     if args.len() != 3 { bail!("link attribute expects language, source path, and target function: {line}"); }
     let language = args[0];
-    if !matches!(language, "c" | "cpp") { bail!("Unsupported link language `{language}`"); }
+            if !matches!(language, "c" | "cpp") { bail!("Unsupported link language `{language}`"); }
     let source = Path::new(args[1]);
     if source.is_absolute() || source.components().any(|component| matches!(component, std::path::Component::ParentDir)) {
         bail!("Native source path must remain inside the imported package: {}", source.display());

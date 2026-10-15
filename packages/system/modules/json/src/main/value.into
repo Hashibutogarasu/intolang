@@ -1,0 +1,25 @@
+enum JsonKind { Null, Boolean, Number, String, Array, Object }
+
+pub JsonValue() {
+    kind: Int32;
+    text: String;
+}
+
+pub JsonDocument() {
+    root: JsonValue;
+}
+
+#[link("cpp", "src/main/native/json/value.cpp", "json_parse")]
+pub cpp fun json_parse(source: String): JsonDocument;
+
+#[link("cpp", "src/main/native/json/value.cpp", "json_root")]
+pub cpp fun json_root(document: JsonDocument): JsonValue;
+
+#[link("cpp", "src/main/native/json/value.cpp", "json_get")]
+pub cpp fun json_get(value: JsonValue, key: String): JsonValue;
+
+#[link("cpp", "src/main/native/json/value.cpp", "json_at")]
+pub cpp fun json_at(value: JsonValue, index: Int32): JsonValue;
+
+#[link("cpp", "src/main/native/json/value.cpp", "json_length")]
+pub cpp fun json_length(value: JsonValue): Int32;

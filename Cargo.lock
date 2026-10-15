@@ -199,6 +199,7 @@ dependencies = [
  "backend",
  "lld",
  "llvm-sys",
+ "serde_json",
 ]
 
 [[package]]

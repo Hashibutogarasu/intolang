@@ -1,12 +1,13 @@
 # Into System Modules
 
 This project contains the language-specific system module projects under
-`modules/c` and `modules/cpp`. Their package aliases are the import schemes:
+`modules/c`, `modules/cpp`, and `modules/json`. Their package aliases are the import schemes:
 
 ```into
 import "c://wayland/client";
 import "c://vulkan/core";
 import "cpp://standard/string";
+import "json://value";
 ```
 
 Each project publishes its module surface through `src/main/lib.into` and

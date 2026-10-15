@@ -17,7 +17,7 @@ pub fn link_objects(
     extra_objects: &[std::path::PathBuf],
     output: &Path,
     cxx: bool,
-    libraries: &[&str],
+    libraries: &[String],
 ) -> Result<()> {
     link_with_args(object, extra_objects, output, cxx, libraries, false)
 }
@@ -27,7 +27,7 @@ fn link_with_args(
     extra_objects: &[std::path::PathBuf],
     output: &Path,
     cxx: bool,
-    libraries: &[&str],
+    libraries: &[String],
     shared: bool,
 ) -> Result<()> {
     let lld_dir = std::env::temp_dir().join(format!("intolang-lld-{}", std::process::id()));

@@ -6,6 +6,9 @@
   "packages": {
     "system": "0.1.0"
   },
+  "nativeDependencies": {
+    "src/main/native/wayland/window.cpp": ["wayland-client"]
+  },
   "library": "src/main/lib.into",
   "builtConfig": {
     "dist": "./dist"

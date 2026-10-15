@@ -15,6 +15,7 @@ struct Variable {
     lazy: bool,
     unloaded: bool,
     declared_in_init: bool,
+    native: bool,
 }
 
 type ClassFields = HashMap<String, Vec<(String, String)>>;
@@ -95,6 +96,7 @@ pub(super) fn lower_named(source: &str, packages_dir: Option<&Path>, source_path
                     lazy: prefix == "late",
                     unloaded: false,
                     declared_in_init: in_init,
+                    native: parse_call(rhs).is_some_and(|(function, _)| native_links.contains_key(function)),
                 });
             }
             continue;
@@ -106,6 +108,15 @@ pub(super) fn lower_named(source: &str, packages_dir: Option<&Path>, source_path
                 variable.unloaded = true;
             }
             continue;
+        }
+        if let Some((function, args)) = parse_call(line.trim_end_matches(';')) {
+            if imported_functions.contains(function) {
+                if let Some(link) = native_links.get(function) {
+                    emit_link_call(&mut output, link, args, &enum_values, &values, "")
+                        .map_err(|message| diagnostic(source_path, line_number, if in_init { "init" } else { "module" }, &message))?;
+                    continue;
+                }
+            }
         }
         if let Some((symbol, arg)) = imported_call(line, &imported_functions) {
             let value = arg.trim();
@@ -318,7 +329,7 @@ fn emit_link_call(
     output.push_str(assigned_to);
     for arg in args.split(',').map(str::trim).filter(|arg| !arg.is_empty()) {
         let (kind, value) = if arg.starts_with('"') && arg.ends_with('"') {
-            ("s", arg[1..arg.len() - 1].to_owned())
+            ("s", decode_string_literal(&arg[1..arg.len() - 1]))
         } else if let Ok(number) = arg.parse::<i32>() {
             ("i", number.to_string())
         } else if let Some((enum_name, variant)) = arg.split_once('.') {
@@ -326,18 +337,40 @@ fn emit_link_call(
                 .ok_or_else(|| format!("Undefined enum variant `{arg}`"))?;
             ("i", value.to_string())
         } else if let Some(variable) = values.get(arg) {
-            ("s", variable.value.clone())
+            if variable.native {
+                ("p", arg.to_owned())
+            } else {
+                ("s", variable.value.clone())
+            }
         } else {
             return Err(format!("Unsupported native argument `{arg}`"));
         };
         output.push('\t');
         output.push_str(kind);
         output.push(':');
-        if kind == "i" { output.push_str(&value); }
+        if kind == "i" || kind == "p" { output.push_str(&value); }
         else { for byte in value.bytes() { output.push_str(&format!("{byte:02x}")); } }
     }
     output.push('\n');
     Ok(())
+}
+
+fn decode_string_literal(value: &str) -> String {
+    let mut output = String::new();
+    let mut chars = value.chars();
+    while let Some(ch) = chars.next() {
+        if ch != '\\' { output.push(ch); continue; }
+        match chars.next() {
+            Some('n') => output.push('\n'),
+            Some('r') => output.push('\r'),
+            Some('t') => output.push('\t'),
+            Some('"') => output.push('"'),
+            Some('\\') => output.push('\\'),
+            Some(other) => { output.push('\\'); output.push(other); }
+            None => output.push('\\'),
+        }
+    }
+    output
 }
 
 fn imported_call<'a>(line: &'a str, imported_functions: &std::collections::HashSet<String>) -> Option<(&'a str, &'a str)> {

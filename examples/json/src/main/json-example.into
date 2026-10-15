@@ -1,0 +1,9 @@
+import "json://value";
+import "intolang://builtin/std";
+
+init {
+    into document = json_parse("{\"message\":\"JSON module is ready\"}");
+    into root = json_root(document);
+    into message = json_get(root, "message");
+    print(message.text);
+}

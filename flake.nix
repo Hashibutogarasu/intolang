@@ -52,6 +52,8 @@
               pkgs.pkg-config
               pkgs.wayland
               pkgs.wayland-protocols
+              pkgs.wayland-scanner
+              pkgs.weston
             ];
 
             LLVM_SYS_231_PREFIX = "${llvm.dev}";
@@ -60,6 +62,7 @@
               pkgs.zlib
               pkgs.libxml2
               pkgs.stdenv.cc.cc.lib
+              pkgs.wayland
             ];
           };
         }
