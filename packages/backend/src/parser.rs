@@ -58,6 +58,7 @@ pub(super) fn lower_named(source: &str, packages_dir: Option<&Path>, source_path
     }
     let mut in_init = false;
     let mut init_has_run = false;
+    let mut blocks = Vec::new();
 
     for (index, raw) in source.lines().enumerate() {
         let line_number = index + 1;
@@ -65,8 +66,52 @@ pub(super) fn lower_named(source: &str, packages_dir: Option<&Path>, source_path
         let line = code.trim();
         if line.starts_with("import ") || line.is_empty() { continue; }
         if enum_lines.contains(&line_number) { continue; }
-        if line.starts_with("init") && line.contains('{') { in_init = true; init_has_run = true; continue; }
-        if line == "}" { in_init = false; continue; }
+        if line.starts_with("init") && line.contains('{') { in_init = true; init_has_run = true; blocks.push('i'); continue; }
+        if line == "} else {" {
+            if blocks.last() != Some(&'f') { return Err(diagnostic(source_path, line_number, if in_init { "init" } else { "module" }, "`else` must follow an `if` block")); }
+            output.push('\u{1e}'); output.push_str("NATIVE_IF_ELSE\n");
+            continue;
+        }
+        if line == "}" {
+            match blocks.pop() {
+                Some('w') => { output.push('\u{1e}'); output.push_str("NATIVE_LOOP_END\n"); }
+                Some('f') => { output.push('\u{1e}'); output.push_str("NATIVE_IF_END\n"); }
+                Some('i') => in_init = false,
+                _ => return Err(diagnostic(source_path, line_number, if in_init { "init" } else { "module" }, "Unexpected closing brace")),
+            }
+            continue;
+        }
+        if let Some(condition) = line.strip_prefix("if ").and_then(|v| v.strip_suffix('{')).map(str::trim) {
+            let condition = condition.strip_prefix('(').and_then(|v| v.strip_suffix(')')).unwrap_or(condition).trim();
+            let (variable, operator, literal) = parse_comparison(condition).ok_or_else(|| diagnostic(source_path, line_number, if in_init { "init" } else { "module" }, "if condition must compare a value with an integer"))?;
+            if !values.get(variable).is_some_and(|value| value.native && value.value == "Int32") || literal.parse::<i32>().is_err() {
+                return Err(diagnostic(source_path, line_number, if in_init { "init" } else { "module" }, "if condition requires an Int32 value and integer literal"));
+            }
+            output.push('\u{1e}'); output.push_str("NATIVE_IF_BEGIN\t"); output.push_str(variable);
+            output.push('\t'); output.push_str(operator); output.push('\t'); output.push_str(literal); output.push('\n');
+            blocks.push('f');
+            continue;
+        }
+        if let Some(condition) = line.strip_prefix("while ").and_then(|v| v.strip_suffix('{')).map(str::trim) {
+            let condition = condition.strip_prefix('(').and_then(|v| v.strip_suffix(')')).unwrap_or(condition).trim();
+            let Some((function, args)) = parse_call(condition) else {
+                return Err(diagnostic(source_path, line_number, if in_init { "init" } else { "module" }, "while condition must be a function call returning Boolean"));
+            };
+            if !imported_functions.contains(function) {
+                return Err(diagnostic(source_path, line_number, if in_init { "init" } else { "module" }, &format!("Function `{function}` is not imported")));
+            }
+            let link = native_links.get(function).ok_or_else(|| diagnostic(source_path, line_number, if in_init { "init" } else { "module" }, &format!("Function `{function}` has no native link")))?;
+            if link.return_type != "Boolean" {
+                return Err(diagnostic(source_path, line_number, if in_init { "init" } else { "module" }, &format!("while condition `{function}` must return Boolean")));
+            }
+            let marker_start = output.len();
+            emit_link_call(&mut output, link, args, &enum_values, &values, "")
+                .map_err(|message| diagnostic(source_path, line_number, if in_init { "init" } else { "module" }, &message))?;
+            let marker = output[marker_start..].replacen("NATIVE_LINK_ASSIGN", "NATIVE_LOOP_BEGIN", 1);
+            output.replace_range(marker_start.., &marker);
+            blocks.push('w');
+            continue;
+        }
 
         let declaration = line.trim_end_matches(';');
         let (prefix, decl) = if let Some(rest) = declaration.strip_prefix("const now into ") { ("now", rest) }
@@ -77,16 +122,32 @@ pub(super) fn lower_named(source: &str, packages_dir: Option<&Path>, source_path
         if !prefix.is_empty() {
             if let Some((name, rhs)) = decl.split_once('=') {
                 let rhs = rhs.trim();
+                let mut native_value = false;
                 let value = if let Some((function, args)) = parse_call(rhs) {
                     if imported_functions.contains(function) {
                         if let Some(link) = native_links.get(function) {
                             emit_link_call(&mut output, link, args, &enum_values, &values, name.trim())
                                 .map_err(|message| diagnostic(source_path, line_number, if in_init { "init" } else { "module" }, &message))?;
+                            native_value = true;
                             link.return_type.clone()
                         } else {
                             return Err(diagnostic(source_path, line_number, if in_init { "init" } else { "module" }, &format!("Imported function `{function}` has no #[link] attribute")));
                         }
                     } else { rhs.trim_matches('"').to_owned() }
+                } else if let Some((left, op, right)) = parse_arithmetic(rhs) {
+                    let Some(left_value) = values.get(left).filter(|value| value.native && value.value == "Int32") else {
+                        return Err(diagnostic(source_path, line_number, if in_init { "init" } else { "module" }, "Arithmetic requires an Int32 value"));
+                    };
+                    let right_operand = if let Ok(number) = right.parse::<i32>() { format!("i:{number}") }
+                        else if values.get(right).is_some_and(|value| value.native && value.value == "Int32") { format!("p:{right}") }
+                        else { return Err(diagnostic(source_path, line_number, if in_init { "init" } else { "module" }, "Arithmetic requires an Int32 operand")); };
+                    let operation = match op { '+' => "add", '-' => "sub", '*' => "mul", '/' => "div", _ => unreachable!() };
+                    output.push('\u{1e}'); output.push_str("NATIVE_ARITH\t"); output.push_str(name.trim());
+                    output.push('\t'); output.push_str(left); output.push('\t'); output.push_str(operation);
+                    output.push('\t'); output.push_str(&right_operand); output.push('\n');
+                    let _ = left_value;
+                    native_value = true;
+                    "Int32".to_owned()
                 } else { rhs.trim_matches('"').to_owned() };
                 let memory = prefix != "local";
                 values.insert(name.trim().to_owned(), Variable {
@@ -96,7 +157,7 @@ pub(super) fn lower_named(source: &str, packages_dir: Option<&Path>, source_path
                     lazy: prefix == "late",
                     unloaded: false,
                     declared_in_init: in_init,
-                    native: parse_call(rhs).is_some_and(|(function, _)| native_links.contains_key(function)),
+                    native: native_value,
                 });
             }
             continue;
@@ -280,6 +341,31 @@ fn strip_line_comment(line: &str) -> &str {
 fn parse_call(expression: &str) -> Option<(&str, &str)> {
     let (name, args) = expression.split_once('(')?;
     Some((name.trim(), args.strip_suffix(')')?))
+}
+
+fn parse_arithmetic(expression: &str) -> Option<(&str, char, &str)> {
+    if expression.starts_with('"') { return None; }
+    for op in ['+', '-', '*', '/'] {
+        if let Some((left, right)) = expression.split_once(op) {
+            let left = left.trim();
+            let right = right.trim();
+            if !left.is_empty() && !right.is_empty() && !right.contains(op) {
+                return Some((left, op, right));
+            }
+        }
+    }
+    None
+}
+
+fn parse_comparison(expression: &str) -> Option<(&str, &str, &str)> {
+    for operator in [">=", "<=", "==", "!=", ">", "<"] {
+        if let Some((left, right)) = expression.split_once(operator) {
+            let left = left.trim();
+            let right = right.trim();
+            if !left.is_empty() && !right.is_empty() { return Some((left, operator, right)); }
+        }
+    }
+    None
 }
 
 fn parse_classes(source: &str) -> ClassFields {

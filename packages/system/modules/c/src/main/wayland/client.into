@@ -1,2 +1,0 @@
-pub c fun wl_display_connect(name: String?): Pointer;
-pub c fun wl_display_disconnect(display: Pointer): Void;

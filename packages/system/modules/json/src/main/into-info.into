@@ -1,5 +1,11 @@
+pub json/value/readFile.;
+pub json/value/readTextFile.;
 pub json/value/json_parse.;
-pub json/value/json_root.;
 pub json/value/json_get.;
 pub json/value/json_at.;
 pub json/value/json_length.;
+pub json/value/json_iterator.;
+pub json/value/json_iterator_has_next.;
+pub json/value/json_iterator_next.;
+pub json/value/json_iterator_index.;
+pub json/value/json_number.;

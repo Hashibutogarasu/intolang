@@ -2,8 +2,13 @@ import "json://value";
 import "intolang://builtin/std";
 
 init {
-    into document = json_parse("{\"message\":\"JSON module is ready\"}");
-    into root = json_root(document);
+    into root = readFile("res/sample.json", Format.JSON);
     into message = json_get(root, "message");
     print(message.text);
+    into values = json_get(root, "values");
+    into iterator = json_iterator(values);
+    while (json_iterator_has_next(iterator)) {
+        into value = json_iterator_next(iterator);
+        print(value.text);
+    }
 }

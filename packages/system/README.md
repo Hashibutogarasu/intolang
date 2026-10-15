@@ -1,11 +1,13 @@
 # Into System Modules
 
 This project contains the language-specific system module projects under
-`modules/c`, `modules/cpp`, and `modules/json`. Their package aliases are the import schemes:
+`modules/c`, `modules/cpp`, and `modules/json`. The separate Wayland and Vulkan
+third-party packages live in `packages/wayland` and `packages/vulkan`.
 
 ```into
-import "c://wayland/client";
-import "c://vulkan/core";
+import "wayland://client";
+import "vulkan://core";
+import "wayland://window";
 import "cpp://standard/string";
 import "json://value";
 ```

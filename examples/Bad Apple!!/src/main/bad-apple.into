@@ -1,5 +1,40 @@
-import "cpp://wayland/window";
+import "wayland://window";
+import "cpp://standard/filesystem";
+import "cpp://standard/time";
+import "json://value";
 
 init {
-    presentFrames("res/frames");
+    into frames = filesystem_list("res/frames");
+    into window = wayland_window_create(854, 480, "Bad Apple!!");
+
+    while (filesystem_has_next(frames)) {
+        into path = filesystem_next(frames);
+        into json = readFile(path, Format.JSON);
+        into rows = json_get(json, "rows");
+        into row_iterator = json_iterator(rows);
+        wayland_window_clear(window, 0);
+
+        while (json_iterator_has_next(row_iterator)) {
+            into row = json_iterator_next(row_iterator);
+            into row_index = json_iterator_index(row_iterator);
+            into pixel_iterator = json_iterator(row);
+
+            while (json_iterator_has_next(pixel_iterator)) {
+                into pixel = json_iterator_next(pixel_iterator);
+                into brightness = json_number(pixel);
+                into column = json_iterator_index(pixel_iterator);
+                into x = column * 10;
+                into y = row_index * 10;
+
+                if (brightness > 32) {
+                    wayland_window_fill_rect(window, x, y, 10, 10, 16777215);
+                }
+            }
+        }
+
+        wayland_window_present(window);
+        sleep(67);
+    }
+
+    wayland_window_destroy(window);
 }

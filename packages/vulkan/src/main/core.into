@@ -1,0 +1,5 @@
+#[link("c", "src/main/native/vulkan/core.c", "vulkan_create_instance")]
+pub c fun vulkan_create_instance(createInfo: Pointer, allocator: Pointer, instance: Pointer): Int32;
+
+#[link("c", "src/main/native/vulkan/core.c", "vulkan_destroy_instance")]
+pub c fun vulkan_destroy_instance(instance: Pointer, allocator: Pointer): Void;

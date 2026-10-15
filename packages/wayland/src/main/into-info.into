@@ -1,0 +1,6 @@
+pub wayland/window/wayland_window_create.;
+pub wayland/window/wayland_window_clear.;
+pub wayland/window/wayland_window_fill_rect.;
+pub wayland/window/wayland_window_present.;
+pub wayland/window/wayland_window_is_open.;
+pub wayland/window/wayland_window_destroy.;

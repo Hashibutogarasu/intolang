@@ -1,0 +1,5 @@
+#[link("c", "src/main/native/client.c", "wayland_display_connect")]
+pub c fun wayland_display_connect(name: String?): Pointer;
+
+#[link("c", "src/main/native/client.c", "wayland_display_disconnect")]
+pub c fun wayland_display_disconnect(display: Pointer): Void;

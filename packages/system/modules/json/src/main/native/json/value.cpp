@@ -1,6 +1,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -12,11 +13,11 @@ struct JsonValue {
     std::vector<JsonValue *> items;
     std::unordered_map<std::string, JsonValue *> properties;
 };
-struct JsonDocument { JsonValue *root; };
+struct JsonIterator { JsonValue *value; size_t index; };
 
 namespace {
 std::vector<std::unique_ptr<JsonValue>> values;
-std::vector<std::unique_ptr<JsonDocument>> documents;
+std::vector<std::unique_ptr<JsonIterator>> iterators;
 std::vector<std::unique_ptr<std::string>> strings;
 
 JsonValue *make_value(int32_t kind, std::string text = {}) {
@@ -96,14 +97,19 @@ public:
 };
 }
 
-extern "C" JsonDocument *json_parse(const char *source) {
-    auto document = std::make_unique<JsonDocument>();
-    document->root = Parser(source).parse();
-    auto *result = document.get();
-    documents.push_back(std::move(document));
-    return result;
+extern "C" JsonValue *json_parse(const char *source) { return Parser(source).parse(); }
+extern "C" JsonValue *json_read_file(const char *path, int32_t format) {
+    std::ifstream input(path ? path : "", std::ios::binary);
+    std::string contents{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+    if (format == 0) return make_value(3, std::move(contents));
+    return Parser(contents.c_str()).parse();
 }
-extern "C" JsonValue *json_root(JsonDocument *document) { return document ? document->root : nullptr; }
+extern "C" const char *json_read_text_file(const char *path) {
+    thread_local std::string contents;
+    std::ifstream input(path ? path : "", std::ios::binary);
+    contents.assign(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+    return contents.c_str();
+}
 extern "C" JsonValue *json_get(JsonValue *value, const char *key) {
     if (!value || !key) return nullptr;
     auto found = value->properties.find(key);
@@ -117,4 +123,31 @@ extern "C" int32_t json_length(JsonValue *value) {
     if (value->kind == 4) return static_cast<int32_t>(value->items.size());
     if (value->kind == 5) return static_cast<int32_t>(value->properties.size());
     return 0;
+}
+extern "C" JsonIterator *json_iterator(JsonValue *value) {
+    auto iterator = std::make_unique<JsonIterator>(JsonIterator{value, 0});
+    auto *result = iterator.get();
+    iterators.push_back(std::move(iterator));
+    return result;
+}
+extern "C" bool json_iterator_has_next(JsonIterator *iterator) {
+    if (!iterator || !iterator->value) return false;
+    if (iterator->value->kind == 4) return iterator->index < iterator->value->items.size();
+    if (iterator->value->kind == 3) return iterator->index < std::strlen(iterator->value->text);
+    return false;
+}
+extern "C" JsonValue *json_iterator_next(JsonIterator *iterator) {
+    if (!json_iterator_has_next(iterator)) return nullptr;
+    if (iterator->value->kind == 4) return iterator->value->items[iterator->index++];
+    const unsigned char byte = static_cast<unsigned char>(iterator->value->text[iterator->index++]);
+    return make_value(2, std::to_string(byte));
+}
+extern "C" int32_t json_iterator_index(JsonIterator *iterator) {
+    return iterator && iterator->index > 0 ? static_cast<int32_t>(iterator->index - 1) : 0;
+}
+extern "C" int32_t json_number(JsonValue *value) {
+    if (!value || value->kind != 2) return 0;
+    char *end = nullptr;
+    long parsed = std::strtol(value->text, &end, 10);
+    return end == value->text ? 0 : static_cast<int32_t>(parsed);
 }
