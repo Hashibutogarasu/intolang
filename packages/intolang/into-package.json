@@ -1,0 +1,10 @@
+{
+  "name": "Into Language",
+  "alias": "builtin",
+  "version": "0.0.1",
+  "LICENCE": "MIT",
+  "builtConfig": {
+    "dist": "./dist"
+  },
+  "supported-platforms": ["linux", "windows", "macos", "android"]
+}

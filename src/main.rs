@@ -1,156 +1,60 @@
-extern crate llvm_sys as llvm;
-#[macro_use]
-extern crate anyhow;
-
-use std::ffi::CString;
-use std::mem::MaybeUninit;
-
-use llvm::analysis::{LLVMVerifierFailureAction, LLVMVerifyModule};
-use llvm::core::*;
-use llvm::target::{LLVM_InitializeNativeAsmPrinter, LLVM_InitializeNativeTarget};
-use llvm::target_machine::*;
-use llvm::*;
-
 use anyhow::{Context, Result};
+use clap::Parser;
+use serde::Deserialize;
+use std::path::PathBuf;
 
-unsafe fn gen_code(ctx: *mut LLVMContext, m: *mut LLVMModule, b: *mut LLVMBuilder) -> Result<()> {
-    let emp_str = CString::new("")?;
-    let mut param_ty = vec![LLVMPointerType(LLVMInt8TypeInContext(ctx), 0)];
-    let printf_ty = LLVMFunctionType(LLVMVoidTypeInContext(ctx), param_ty.as_mut_ptr(), 0, 1);
-    let name = CString::new("printf")?;
-    let printf_body = LLVMAddFunction(m, name.as_ptr(), printf_ty);
+#[derive(Parser)]
+#[command(name = "intolang", about = "Build an Into package")]
+struct Args {
+    /// Package directory or path to its into-package.json
+    package: PathBuf,
+}
 
-    let mut param_ty = vec![];
-    let main_ty = LLVMFunctionType(LLVMInt64TypeInContext(ctx), param_ty.as_mut_ptr(), 0, 0);
-    let name = CString::new("main")?;
-    let main_body = LLVMAddFunction(m, name.as_ptr(), main_ty);
+#[derive(Deserialize)]
+struct Package {
+    name: String,
+    #[serde(default)]
+    alias: Option<String>,
+    #[serde(rename = "builtConfig", default)]
+    built_config: BuildConfig,
+    runs: String,
+}
 
-    let name = CString::new("entry")?;
-    let bb_entry = LLVMAppendBasicBlockInContext(ctx, main_body, name.as_ptr());
-    LLVMPositionBuilderAtEnd(b, bb_entry);
+#[derive(Deserialize)]
+struct BuildConfig { #[serde(default = "default_dist")] dist: String }
+impl Default for BuildConfig { fn default() -> Self { Self { dist: default_dist() } } }
+fn default_dist() -> String { "./dist".into() }
 
-    let s = CString::new("Hello, World!\n")?;
-    let mut arg = vec![LLVMBuildGlobalString(b, s.as_ptr(), emp_str.as_ptr())];
-    LLVMBuildCall2(
-        b,
-        printf_ty,
-        printf_body,
-        arg.as_mut_ptr(),
-        1,
-        emp_str.as_ptr(),
-    );
+fn main() -> color_eyre::Result<()> {
+    color_eyre::install()?;
+    run().map_err(|error| color_eyre::eyre::eyre!("{error:#}"))
+}
 
-    LLVMBuildRet(b, LLVMConstInt(LLVMInt64TypeInContext(ctx), 0, 1));
+fn run() -> Result<()> {
+    let args = Args::parse();
+    let manifest = if args.package.is_dir() { args.package.join("into-package.json") } else { args.package };
+    let manifest = std::fs::canonicalize(&manifest)
+        .with_context(|| format!("Could not find package manifest: {}", manifest.display()))?;
+    let package_dir = manifest.parent().context("Manifest has no parent directory")?;
+    let package: Package = serde_json::from_slice(&std::fs::read(&manifest)?)
+        .with_context(|| format!("Invalid package manifest: {}", manifest.display()))?;
+    let entry = package_dir.join(&package.runs);
+    let source = std::fs::read_to_string(&entry)
+        .with_context(|| format!("Could not read package entry point: {}", entry.display()))?;
+    let output_dir = package_dir.join(&package.built_config.dist)
+        .join(std::env::consts::OS).join(std::env::consts::ARCH);
+    let executable = package.alias.as_deref().unwrap_or(&package.name).replace(' ', "-");
+    #[cfg(windows)]
+    let executable = format!("{executable}.exe");
+    let output = output_dir.join(executable);
+    if output.exists() { std::fs::remove_file(&output)?; }
 
-    let mut err = MaybeUninit::uninit().assume_init();
-    let is_err = LLVMVerifyModule(
-        m,
-        LLVMVerifierFailureAction::LLVMPrintMessageAction,
-        &mut err,
-    );
-    if is_err != 0 {
-        let err = CString::from_raw(err);
-        let err_ = err.clone();
-        LLVMDisposeMessage(err.into_raw());
-        return Err(anyhow!("Failed to verify main module: {}", err_.to_str()?));
-    }
+    let embedded_packages = compiler::builtin_packages_dir();
+    let message = backend::lower_file(&source, &entry, Some(&embedded_packages))
+        .context("Could not compile Into entry point")?;
+    std::fs::create_dir_all(&output_dir)?;
+    compiler::compile(&message, &output).context("Compilation failed")?;
+    println!("Built {}", output.display());
     Ok(())
 }
 
-unsafe fn get_target_machine() -> Result<*mut LLVMOpaqueTargetMachine> {
-    LLVM_InitializeNativeTarget();
-    LLVM_InitializeNativeAsmPrinter();
-
-    let cpu = LLVMGetHostCPUName();
-    let feat = LLVMGetHostCPUFeatures();
-    let triple = LLVMGetDefaultTargetTriple();
-
-    let mut target = MaybeUninit::uninit().assume_init();
-    let mut err = MaybeUninit::uninit().assume_init();
-
-    let is_err = LLVMGetTargetFromTriple(triple, &mut target, &mut err);
-    if is_err != 0 {
-        let err = CString::from_raw(err);
-        let err_ = err.clone();
-        LLVMDisposeMessage(err.into_raw());
-        return Err(anyhow!(
-            "Failed to get target from triple: {}",
-            err_.to_str()?
-        ));
-    }
-
-    let tm = LLVMCreateTargetMachine(
-        target,
-        triple,
-        cpu,
-        feat,
-        LLVMCodeGenOptLevel::LLVMCodeGenLevelDefault,
-        LLVMRelocMode::LLVMRelocPIC,
-        LLVMCodeModel::LLVMCodeModelDefault,
-    );
-    LLVMDisposeMessage(cpu);
-    LLVMDisposeMessage(feat);
-    LLVMDisposeMessage(triple);
-    Ok(tm)
-}
-
-fn compile(cc: String) -> Result<()> {
-    unsafe {
-        let ctx = LLVMContextCreate();
-        let mod_name = CString::new("test")?;
-        let m = LLVMModuleCreateWithNameInContext(mod_name.as_ptr(), ctx);
-        let b = LLVMCreateBuilderInContext(ctx);
-
-        gen_code(ctx, m, b).context("Error while generating body")?;
-
-        let tm = get_target_machine().context("Failed while getting target machine")?;
-
-        let mut err = MaybeUninit::uninit().assume_init();
-        let is_err = LLVMTargetMachineEmitToFile(
-            tm,
-            m,
-            CString::new("test.o")?.into_raw(),
-            LLVMCodeGenFileType::LLVMObjectFile,
-            &mut err,
-        );
-        if is_err != 0 {
-            let err = CString::from_raw(err);
-            let err_ = err.clone();
-            LLVMDisposeMessage(err.into_raw());
-            return Err(anyhow!("Failed to emit object file: {}", err_.to_str()?));
-        }
-        LLVMDisposeTargetMachine(tm);
-        LLVMDisposeBuilder(b);
-        LLVMDisposeModule(m);
-        LLVMContextDispose(ctx);
-    }
-
-    let ext = if cfg!(windows) { ".exe" } else { "" };
-    let compiling = std::process::Command::new(cc)
-        .args(vec!["test.o".into(), "-o".into(), format!("test{}", ext)])
-        .output()?;
-
-    let stderr = String::from_utf8(compiling.stderr)?;
-    let status = compiling
-        .status
-        .code()
-        .ok_or(anyhow!("Apparently the compiler was killed"))?;
-    if status != 0 {
-        return Err(anyhow!(
-            "Compile failed with code {}\nstderr: {}",
-            status,
-            stderr
-        ));
-    }
-
-    Ok(())
-}
-
-fn main() {
-    let cc = std::env::var("CC").unwrap_or("gcc".into());
-    compile(cc)
-        .context("Error while compiling")
-        .unwrap_or_else(|e| {
-            eprintln!("{:?}", e);
-        });
-}

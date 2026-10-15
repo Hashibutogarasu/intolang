@@ -1,0 +1,13 @@
+{
+  "name": "MemoryExample",
+  "alias": "mem-example",
+  "version": "0.0.1",
+  "LICENCE": "MIT",
+  "packages": {
+    "intolang": "0.0.1"
+  },
+  "builtConfig": {
+    "dist": "./dist"
+  },
+  "runs": "src/main/memory.into"
+}

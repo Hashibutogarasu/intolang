@@ -1,0 +1,3 @@
+pub fun print(str: String, params: Object...) {
+  // TODO output to console
+}
