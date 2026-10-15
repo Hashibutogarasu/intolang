@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 #[derive(Deserialize)]
@@ -11,6 +12,8 @@ struct Package {
     built_config: BuildConfig,
     runs: Option<String>,
     library: Option<String>,
+    #[serde(default)]
+    packages: HashMap<String, String>,
 }
 
 #[derive(Deserialize)]
@@ -43,9 +46,10 @@ pub(super) fn run(package_path: PathBuf, test_mode: bool, run_after_build: bool)
     if test_mode {
         return run_tests(package_dir, &embedded_packages);
     }
+    let package_environment = prepare_package_environment(package_dir, &embedded_packages, &package.packages)?;
 
     if let Some(library) = package.library.as_deref() {
-        return build_library(package_dir, &package, &library, &embedded_packages);
+        return build_library(package_dir, &package, &library, package_environment.path());
     }
     let entry = package_dir.join(package.runs.expect("runs/library validation above"));
     let source = std::fs::read_to_string(&entry)
@@ -58,10 +62,11 @@ pub(super) fn run(package_path: PathBuf, test_mode: bool, run_after_build: bool)
     let output = output_dir.join(executable);
     if output.exists() { std::fs::remove_file(&output)?; }
 
-    let message = backend::lower_file(&source, &entry, Some(&embedded_packages))
+    let message = backend::lower_file(&source, &entry, Some(package_environment.path()))
         .context("Could not compile Into entry point")?;
     std::fs::create_dir_all(&output_dir)?;
-    compiler::compile(&message, &output).context("Compilation failed")?;
+    compiler::compile_with_packages(&message, &output, package_environment.path())
+        .context("Compilation failed")?;
     println!("Built {}", output.display());
     if run_after_build {
         let status = std::process::Command::new(&output)
@@ -79,7 +84,7 @@ fn build_library(
     package_dir: &Path,
     package: &Package,
     library: &str,
-    embedded_packages: &Path,
+    package_environment: &Path,
 ) -> Result<()> {
     let required_entry = package_dir.join("src/main/lib.into");
     let library_entry = package_dir.join(library);
@@ -88,7 +93,7 @@ fn build_library(
     }
     let source = std::fs::read_to_string(&required_entry)
         .with_context(|| format!("Could not read library entry point: {}", required_entry.display()))?;
-    let functions = backend::lower_library(&source, &required_entry, embedded_packages)
+    let functions = backend::lower_library(&source, &required_entry, package_environment)
         .context("Could not compile Into library entry point")?;
     let output_dir = package_dir.join(&package.built_config.dist)
         .join(std::env::consts::OS).join(std::env::consts::ARCH);
@@ -103,6 +108,60 @@ fn build_library(
     std::fs::create_dir_all(&output_dir)?;
     compiler::compile_library(&functions, &output).context("Native library compilation failed")?;
     println!("Built {}", output.display());
+    Ok(())
+}
+
+struct PackageEnvironment(PathBuf);
+
+impl PackageEnvironment {
+    fn path(&self) -> &Path { &self.0 }
+}
+
+impl Drop for PackageEnvironment {
+    fn drop(&mut self) { std::fs::remove_dir_all(&self.0).ok(); }
+}
+
+fn prepare_package_environment(project: &Path, embedded: &Path, dependencies: &HashMap<String, String>) -> Result<PackageEnvironment> {
+    let suffix = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_nanos()).unwrap_or_default();
+    let root = std::env::temp_dir().join(format!("intolang-packages-{}-{suffix}", std::process::id()));
+    copy_dir(embedded, &root)?;
+
+    let installed = project.join(".into/packages");
+    if installed.is_dir() {
+        for entry in std::fs::read_dir(&installed)? {
+            let entry = entry?;
+            if !entry.file_type()?.is_dir() { continue; }
+            let manifest_path = entry.path().join("into-package.json");
+            let Ok(contents) = std::fs::read(&manifest_path) else { continue; };
+            let Ok(manifest): std::result::Result<serde_json::Value, _> = serde_json::from_slice(&contents) else { continue; };
+            let Some(alias) = manifest.get("alias").and_then(serde_json::Value::as_str) else { continue; };
+            if !dependencies.contains_key(alias) { continue; }
+            if !valid_alias(alias) { anyhow::bail!("Invalid installed package alias `{alias}`"); }
+            let destination = root.join(alias);
+            if destination.exists() { std::fs::remove_dir_all(&destination)?; }
+            copy_dir(&entry.path(), &destination)?;
+        }
+    }
+    Ok(PackageEnvironment(root))
+}
+
+fn valid_alias(alias: &str) -> bool {
+    !alias.is_empty() && alias != "." && alias != ".."
+        && alias.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+}
+
+fn copy_dir(source: &Path, destination: &Path) -> Result<()> {
+    std::fs::create_dir_all(destination)?;
+    for entry in std::fs::read_dir(source)? {
+        let entry = entry?;
+        let target = destination.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_dir(&entry.path(), &target)?;
+        } else {
+            std::fs::copy(entry.path(), target)?;
+        }
+    }
     Ok(())
 }
 

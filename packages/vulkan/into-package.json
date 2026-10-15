@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "LICENCE": "MIT",
   "nativeDependencies": {
-    "src/main/native/vulkan/core.c": ["vulkan"]
+    "src/main/native/vulkan/core.c": ["vulkan"],
+    "src/main/native/vulkan/wayland.cpp": ["vulkan", "wayland-client"]
   },
   "library": "src/main/lib.into",
   "builtConfig": { "dist": "./dist" }

@@ -45,6 +45,10 @@
             packages = [
               codex
               llvm
+              pkgs.llvmPackages_23.lld
+              pkgs.cargo
+              pkgs.rustc
+              pkgs.git
               pkgs.yt-dlp
               pkgs.ffmpeg
               pkgs.libxml2
@@ -61,12 +65,35 @@
             LLVM_SYS_231_PREFIX = "${llvm.dev}";
 
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
+              llvm
+              pkgs.rustc
               pkgs.zlib
               pkgs.libxml2
               pkgs.stdenv.cc.cc.lib
               pkgs.wayland
               pkgs.vulkan-loader
             ];
+
+            shellHook = ''
+              projectRoot="$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null || pwd -P)"
+              export CARGO_TARGET_DIR="$projectRoot/dist"
+              export PATH="$CARGO_TARGET_DIR/debug:$PATH"
+              mkdir -p "$CARGO_TARGET_DIR/debug"
+
+              if cargo build --quiet --manifest-path "$projectRoot/Cargo.toml" --bin intolang; then
+                if ! ln -sf intolang "$CARGO_TARGET_DIR/debug/into"; then
+                  printf '%s\n' 'warning: could not create the `into` command symlink' >&2
+                fi
+              else
+                printf '%s\n' 'warning: could not build the latest Into binary; using the existing binary if available' >&2
+                if [ -x "$CARGO_TARGET_DIR/debug/intolang" ]; then
+                  ln -sf intolang "$CARGO_TARGET_DIR/debug/into" || true
+                elif [ -L "$CARGO_TARGET_DIR/debug/into" ]; then
+                  rm "$CARGO_TARGET_DIR/debug/into"
+                fi
+              fi
+              true
+            '';
           };
         }
       );

@@ -3,11 +3,23 @@ pub WaylandWindow() { }
 #[link("cpp", "src/main/native/wayland/window.cpp", "wayland_window_create")]
 pub cpp fun wayland_window_create(width: Int32, height: Int32, title: String): WaylandWindow;
 
+#[link("cpp", "src/main/native/wayland/window.cpp", "wayland_window_native_display")]
+pub cpp fun wayland_window_native_display(window: WaylandWindow): Pointer;
+
+#[link("cpp", "src/main/native/wayland/window.cpp", "wayland_window_native_surface")]
+pub cpp fun wayland_window_native_surface(window: WaylandWindow): Pointer;
+
 #[link("cpp", "src/main/native/wayland/window.cpp", "wayland_window_clear")]
 pub cpp fun wayland_window_clear(window: WaylandWindow, color: Int32): Void;
 
 #[link("cpp", "src/main/native/wayland/window.cpp", "wayland_window_fill_rect")]
 pub cpp fun wayland_window_fill_rect(window: WaylandWindow, x: Int32, y: Int32, width: Int32, height: Int32, color: Int32): Void;
+
+#[link("cpp", "src/main/native/wayland/window.cpp", "wayland_window_draw_text_line")]
+pub cpp fun wayland_window_draw_text_line(window: WaylandWindow, text: String, color: Int32): Void;
+
+#[link("cpp", "src/main/native/wayland/window.cpp", "wayland_window_reset_cursor")]
+pub cpp fun wayland_window_reset_cursor(window: WaylandWindow): Void;
 
 #[link("cpp", "src/main/native/wayland/window.cpp", "wayland_window_present")]
 pub cpp fun wayland_window_present(window: WaylandWindow): Void;

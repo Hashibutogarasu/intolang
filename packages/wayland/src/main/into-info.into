@@ -1,8 +1,12 @@
 pub wayland/client/wayland_display_connect.;
 pub wayland/client/wayland_display_disconnect.;
 pub wayland/window/wayland_window_create.;
+pub wayland/window/wayland_window_native_display.;
+pub wayland/window/wayland_window_native_surface.;
 pub wayland/window/wayland_window_clear.;
 pub wayland/window/wayland_window_fill_rect.;
+pub wayland/window/wayland_window_draw_text_line.;
+pub wayland/window/wayland_window_reset_cursor.;
 pub wayland/window/wayland_window_present.;
 pub wayland/window/wayland_window_is_open.;
 pub wayland/window/wayland_window_destroy.;

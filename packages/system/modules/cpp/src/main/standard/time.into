@@ -1,2 +1,5 @@
 #[link("cpp", "src/main/native/filesystem/directory.cpp", "standard_sleep")]
 pub cpp fun sleep(milliseconds: Int32): Void;
+
+#[link("cpp", "src/main/native/filesystem/directory.cpp", "standard_monotonic_milliseconds")]
+pub cpp fun monotonicMilliseconds(): Int32;

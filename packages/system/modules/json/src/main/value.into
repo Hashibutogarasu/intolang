@@ -7,6 +7,8 @@ pub JsonObject() {
 }
 
 pub JsonIterator() { }
+pub TextLineIterator() { }
+pub TextByteIterator() { }
 
 #[link("cpp", "src/main/native/json/value.cpp", "json_read_file")]
 pub cpp fun readFile(path: String, format: Format): JsonObject;
@@ -40,3 +42,36 @@ pub cpp fun json_iterator_index(iterator: JsonIterator): Int32;
 
 #[link("cpp", "src/main/native/json/value.cpp", "json_number")]
 pub cpp fun json_number(value: JsonObject): Int32;
+
+#[link("cpp", "src/main/native/json/value.cpp", "text_lines")]
+pub cpp fun text_lines(text: String): TextLineIterator;
+
+#[link("cpp", "src/main/native/json/value.cpp", "text_line_iterator_has_next")]
+pub cpp fun text_line_iterator_has_next(iterator: TextLineIterator): Boolean;
+
+#[link("cpp", "src/main/native/json/value.cpp", "text_line_iterator_next")]
+pub cpp fun text_line_iterator_next(iterator: TextLineIterator): String;
+
+#[link("cpp", "src/main/native/json/value.cpp", "text_line_iterator_index")]
+pub cpp fun text_line_iterator_index(iterator: TextLineIterator): Int32;
+
+#[link("cpp", "src/main/native/json/value.cpp", "text_line_iterator_destroy")]
+pub cpp fun text_line_iterator_destroy(iterator: TextLineIterator): Void;
+
+#[link("cpp", "src/main/native/json/value.cpp", "text_bytes")]
+pub cpp fun text_bytes(text: String): TextByteIterator;
+
+#[link("cpp", "src/main/native/json/value.cpp", "text_byte_iterator_has_next")]
+pub cpp fun text_byte_iterator_has_next(iterator: TextByteIterator): Boolean;
+
+#[link("cpp", "src/main/native/json/value.cpp", "text_byte_iterator_next")]
+pub cpp fun text_byte_iterator_next(iterator: TextByteIterator): Int32;
+
+#[link("cpp", "src/main/native/json/value.cpp", "text_byte_iterator_index")]
+pub cpp fun text_byte_iterator_index(iterator: TextByteIterator): Int32;
+
+#[link("cpp", "src/main/native/json/value.cpp", "text_byte_iterator_destroy")]
+pub cpp fun text_byte_iterator_destroy(iterator: TextByteIterator): Void;
+
+#[link("cpp", "src/main/native/json/value.cpp", "text_equals")]
+pub cpp fun text_equals(left: String, right: String): Boolean;

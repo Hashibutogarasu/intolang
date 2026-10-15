@@ -1,2 +1,7 @@
 pub vulkan/core/vulkan_create_instance.;
 pub vulkan/core/vulkan_destroy_instance.;
+pub vulkan/core/vulkan_wayland_window_create.;
+pub vulkan/core/vulkan_wayland_window_begin_frame.;
+pub vulkan/core/vulkan_wayland_window_fill_rect.;
+pub vulkan/core/vulkan_wayland_window_present.;
+pub vulkan/core/vulkan_wayland_window_destroy.;

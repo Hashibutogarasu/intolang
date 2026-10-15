@@ -1,14 +1,14 @@
 use anyhow::{Context, Result, bail};
 use std::path::Path;
 
-/// Link an LLVM-generated object with the rust-lld binary embedded at build time.
+/// Link an LLVM-generated object with LLD selected at build time.
 pub fn link(object: &Path, output: &Path) -> Result<()> {
-    link_with_args(object, &[], output, false, &[], false)
+    link_with_args(object, &[], output, false, &[], &[], false)
 }
 
 /// Link an LLVM-generated object as a native shared library.
 pub fn link_shared(object: &Path, output: &Path) -> Result<()> {
-    link_with_args(object, &[], output, false, &[], true)
+    link_with_args(object, &[], output, false, &[], &[], true)
 }
 
 /// Link a generated object with helper objects and optional system libraries.
@@ -18,8 +18,9 @@ pub fn link_objects(
     output: &Path,
     cxx: bool,
     libraries: &[String],
+    library_paths: &[String],
 ) -> Result<()> {
-    link_with_args(object, extra_objects, output, cxx, libraries, false)
+    link_with_args(object, extra_objects, output, cxx, libraries, library_paths, false)
 }
 
 fn link_with_args(
@@ -28,16 +29,24 @@ fn link_with_args(
     output: &Path,
     cxx: bool,
     libraries: &[String],
+    library_paths: &[String],
     shared: bool,
 ) -> Result<()> {
     let lld_dir = std::env::temp_dir().join(format!("intolang-lld-{}", std::process::id()));
     std::fs::create_dir_all(&lld_dir)?;
     let lld_path = lld_dir.join("ld.lld");
-    std::fs::write(&lld_path, include_bytes!(env!("LLD_EMBEDDED_BINARY")))?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&lld_path, std::fs::Permissions::from_mode(0o755))?;
+    if let Some(binary) = option_env!("LLD_EXTERNAL_BINARY") {
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(binary, &lld_path)?;
+        #[cfg(not(unix))]
+        std::fs::copy(binary, &lld_path)?;
+    } else {
+        std::fs::write(&lld_path, include_bytes!(env!("LLD_EMBEDDED_BINARY")))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&lld_path, std::fs::Permissions::from_mode(0o755))?;
+        }
     }
     let prefix = format!("-B{}/", lld_dir.display());
     let linker = if cxx { "CXX" } else { "CC" };
@@ -49,6 +58,10 @@ fn link_with_args(
     command.arg(object);
     for extra in extra_objects { command.arg(extra); }
     for library in libraries { command.arg(format!("-l{library}")); }
+    for path in library_paths {
+        command.arg(format!("-L{path}"));
+        command.arg(format!("-Wl,-rpath,{path}"));
+    }
     let result = command.arg("-o").arg(output)
         .output().context("could not start C compiler driver")?;
     std::fs::remove_dir_all(lld_dir).ok();

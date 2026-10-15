@@ -45,3 +45,9 @@ extern "C" const char *filesystem_read_text(const char *path) {
 extern "C" void standard_sleep(int32_t milliseconds) {
     if (milliseconds > 0) std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
 }
+
+extern "C" int32_t standard_monotonic_milliseconds() {
+    const auto elapsed = std::chrono::steady_clock::now().time_since_epoch();
+    const auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
+    return static_cast<int32_t>(static_cast<uint32_t>(milliseconds));
+}

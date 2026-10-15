@@ -28,6 +28,7 @@ struct Window {
     int fd = -1;
     int width = 0;
     int height = 0;
+    int cursor_y = 0;
     uint32_t *pixels = nullptr;
     bool released = true;
     bool closed = false;
@@ -114,9 +115,18 @@ extern "C" Window *wayland_window_create(int32_t width, int32_t height, const ch
     return window;
 }
 
+extern "C" void *wayland_window_native_display(Window *window) {
+    return window ? window->display : nullptr;
+}
+
+extern "C" void *wayland_window_native_surface(Window *window) {
+    return window ? window->surface : nullptr;
+}
+
 extern "C" void wayland_window_clear(Window *window, int32_t color) {
     if (!window || !wait_for_buffer(*window)) return;
     std::fill(window->pixels, window->pixels + static_cast<size_t>(window->width) * window->height, 0xff000000u | (static_cast<uint32_t>(color) & 0x00ffffffu));
+    window->cursor_y = 0;
 }
 
 extern "C" void wayland_window_fill_rect(Window *window, int32_t x, int32_t y, int32_t width, int32_t height, int32_t color) {
@@ -127,6 +137,38 @@ extern "C" void wayland_window_fill_rect(Window *window, int32_t x, int32_t y, i
     for (int row = top; row < bottom; ++row)
         std::fill(window->pixels + static_cast<size_t>(row) * window->width + left,
                   window->pixels + static_cast<size_t>(row) * window->width + right, pixel);
+}
+
+extern "C" void wayland_window_draw_text_line(Window *window, const char *text, int32_t color) {
+    if (!window || !window->pixels || !text || window->cursor_y >= 60 || !wait_for_buffer(*window)) return;
+    static constexpr uint8_t asterisk_rows[] = {0b01010, 0b01010, 0b00100, 0b11111, 0b00100, 0b01010, 0b01010};
+    const uint32_t pixel = 0xff000000u | (static_cast<uint32_t>(color) & 0x00ffffffu);
+    const int top = window->cursor_y * 8;
+    for (int y = top; y < std::min(top + 8, window->height); ++y)
+        std::fill(window->pixels + static_cast<size_t>(y) * window->width,
+                  window->pixels + static_cast<size_t>(y) * window->width + window->width, 0xff000000u);
+    for (int column = 0; text[column] && column < 160; ++column) {
+        if (text[column] != '*') continue;
+        const int left = column * window->width / 160;
+        const int right = (column + 1) * window->width / 160;
+        const int cell_width = right - left;
+        for (int glyph_y = 0; glyph_y < 7; ++glyph_y) {
+            for (int glyph_x = 0; glyph_x < 5; ++glyph_x) {
+                if ((asterisk_rows[glyph_y] & (1u << (4 - glyph_x))) == 0) continue;
+                const int glyph_left = left + glyph_x * cell_width / 5;
+                const int glyph_right = left + (glyph_x + 1) * cell_width / 5;
+                const int y = top + glyph_y;
+                if (y < window->height)
+                    std::fill(window->pixels + static_cast<size_t>(y) * window->width + glyph_left,
+                              window->pixels + static_cast<size_t>(y) * window->width + glyph_right, pixel);
+            }
+        }
+    }
+    ++window->cursor_y;
+}
+
+extern "C" void wayland_window_reset_cursor(Window *window) {
+    if (window) window->cursor_y = 0;
 }
 
 extern "C" void wayland_window_present(Window *window) {
@@ -156,8 +198,12 @@ extern "C" void wayland_window_destroy(Window *window) {
 #else
 struct Window {};
 extern "C" Window *wayland_window_create(int32_t, int32_t, const char *) { return nullptr; }
+extern "C" void *wayland_window_native_display(Window *) { return nullptr; }
+extern "C" void *wayland_window_native_surface(Window *) { return nullptr; }
 extern "C" void wayland_window_clear(Window *, int32_t) {}
 extern "C" void wayland_window_fill_rect(Window *, int32_t, int32_t, int32_t, int32_t, int32_t) {}
+extern "C" void wayland_window_draw_text_line(Window *, const char *, int32_t) {}
+extern "C" void wayland_window_reset_cursor(Window *) {}
 extern "C" void wayland_window_present(Window *) {}
 extern "C" bool wayland_window_is_open(Window *) { return false; }
 extern "C" void wayland_window_destroy(Window *) {}

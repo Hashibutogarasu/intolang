@@ -83,12 +83,29 @@ pub(super) fn lower_named(source: &str, packages_dir: Option<&Path>, source_path
         }
         if let Some(condition) = line.strip_prefix("if ").and_then(|v| v.strip_suffix('{')).map(str::trim) {
             let condition = condition.strip_prefix('(').and_then(|v| v.strip_suffix(')')).unwrap_or(condition).trim();
-            let (variable, operator, literal) = parse_comparison(condition).ok_or_else(|| diagnostic(source_path, line_number, if in_init { "init" } else { "module" }, "if condition must compare a value with an integer"))?;
-            if !values.get(variable).is_some_and(|value| value.native && value.value == "Int32") || literal.parse::<i32>().is_err() {
-                return Err(diagnostic(source_path, line_number, if in_init { "init" } else { "module" }, "if condition requires an Int32 value and integer literal"));
+            if let Some((variable, operator, literal)) = parse_comparison(condition) {
+                if !values.get(variable).is_some_and(|value| value.native && value.value == "Int32") || literal.parse::<i32>().is_err() {
+                    return Err(diagnostic(source_path, line_number, if in_init { "init" } else { "module" }, "if condition requires an Int32 value and integer literal"));
+                }
+                output.push('\u{1e}'); output.push_str("NATIVE_IF_BEGIN\t"); output.push_str(variable);
+                output.push('\t'); output.push_str(operator); output.push('\t'); output.push_str(literal); output.push('\n');
+            } else {
+                let Some((function, args)) = parse_call(condition) else {
+                    return Err(diagnostic(source_path, line_number, if in_init { "init" } else { "module" }, "if condition must compare an integer or call a Boolean function"));
+                };
+                if !imported_functions.contains(function) {
+                    return Err(diagnostic(source_path, line_number, if in_init { "init" } else { "module" }, &format!("Function `{function}` is not imported")));
+                }
+                let link = native_links.get(function).ok_or_else(|| diagnostic(source_path, line_number, if in_init { "init" } else { "module" }, &format!("Function `{function}` has no native link")))?;
+                if link.return_type != "Boolean" {
+                    return Err(diagnostic(source_path, line_number, if in_init { "init" } else { "module" }, &format!("if condition `{function}` must return Boolean")));
+                }
+                let marker_start = output.len();
+                emit_link_call(&mut output, link, args, &enum_values, &values, "")
+                    .map_err(|message| diagnostic(source_path, line_number, if in_init { "init" } else { "module" }, &message))?;
+                let marker = output[marker_start..].replacen("NATIVE_LINK_ASSIGN", "NATIVE_IF_CALL", 1);
+                output.replace_range(marker_start.., &marker);
             }
-            output.push('\u{1e}'); output.push_str("NATIVE_IF_BEGIN\t"); output.push_str(variable);
-            output.push('\t'); output.push_str(operator); output.push('\t'); output.push_str(literal); output.push('\n');
             blocks.push('f');
             continue;
         }
@@ -110,6 +127,13 @@ pub(super) fn lower_named(source: &str, packages_dir: Option<&Path>, source_path
             let marker = output[marker_start..].replacen("NATIVE_LINK_ASSIGN", "NATIVE_LOOP_BEGIN", 1);
             output.replace_range(marker_start.., &marker);
             blocks.push('w');
+            continue;
+        }
+        if line == "break;" || line == "break" {
+            if !blocks.contains(&'w') {
+                return Err(diagnostic(source_path, line_number, if in_init { "init" } else { "module" }, "`break` must be inside a while loop"));
+            }
+            output.push('\u{1e}'); output.push_str("NATIVE_BREAK\n");
             continue;
         }
 

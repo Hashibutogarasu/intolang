@@ -14,10 +14,14 @@ struct JsonValue {
     std::unordered_map<std::string, JsonValue *> properties;
 };
 struct JsonIterator { JsonValue *value; size_t index; };
+struct TextLineIterator { std::string text; size_t cursor; size_t index; };
+struct TextByteIterator { std::string text; size_t index; };
 
 namespace {
 std::vector<std::unique_ptr<JsonValue>> values;
 std::vector<std::unique_ptr<JsonIterator>> iterators;
+std::vector<std::unique_ptr<TextLineIterator>> text_iterators;
+std::vector<std::unique_ptr<TextByteIterator>> byte_iterators;
 std::vector<std::unique_ptr<std::string>> strings;
 
 JsonValue *make_value(int32_t kind, std::string text = {}) {
@@ -150,4 +154,58 @@ extern "C" int32_t json_number(JsonValue *value) {
     char *end = nullptr;
     long parsed = std::strtol(value->text, &end, 10);
     return end == value->text ? 0 : static_cast<int32_t>(parsed);
+}
+extern "C" TextLineIterator *text_lines(const char *text) {
+    auto iterator = std::make_unique<TextLineIterator>(TextLineIterator{text ? text : "", 0, 0});
+    auto *result = iterator.get();
+    text_iterators.push_back(std::move(iterator));
+    return result;
+}
+extern "C" bool text_line_iterator_has_next(TextLineIterator *iterator) {
+    return iterator && iterator->cursor < iterator->text.size();
+}
+extern "C" const char *text_line_iterator_next(TextLineIterator *iterator) {
+    thread_local std::string line;
+    if (!text_line_iterator_has_next(iterator)) return "";
+    const size_t end = iterator->text.find('\n', iterator->cursor);
+    const size_t length = (end == std::string::npos ? iterator->text.size() : end) - iterator->cursor;
+    line.assign(iterator->text, iterator->cursor, length);
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    iterator->cursor = end == std::string::npos ? iterator->text.size() : end + 1;
+    ++iterator->index;
+    return line.c_str();
+}
+extern "C" int32_t text_line_iterator_index(TextLineIterator *iterator) {
+    if (!iterator || iterator->index == 0) return -1;
+    return static_cast<int32_t>(iterator->index - 1);
+}
+extern "C" void text_line_iterator_destroy(TextLineIterator *iterator) {
+    for (auto entry = text_iterators.begin(); entry != text_iterators.end(); ++entry) {
+        if (entry->get() == iterator) { text_iterators.erase(entry); return; }
+    }
+}
+extern "C" TextByteIterator *text_bytes(const char *text) {
+    auto iterator = std::make_unique<TextByteIterator>(TextByteIterator{text ? text : "", 0});
+    auto *result = iterator.get();
+    byte_iterators.push_back(std::move(iterator));
+    return result;
+}
+extern "C" bool text_byte_iterator_has_next(TextByteIterator *iterator) {
+    return iterator && iterator->index < iterator->text.size();
+}
+extern "C" int32_t text_byte_iterator_next(TextByteIterator *iterator) {
+    if (!text_byte_iterator_has_next(iterator)) return -1;
+    return static_cast<unsigned char>(iterator->text[iterator->index++]);
+}
+extern "C" int32_t text_byte_iterator_index(TextByteIterator *iterator) {
+    if (!iterator || iterator->index == 0) return -1;
+    return static_cast<int32_t>(iterator->index - 1);
+}
+extern "C" void text_byte_iterator_destroy(TextByteIterator *iterator) {
+    for (auto entry = byte_iterators.begin(); entry != byte_iterators.end(); ++entry) {
+        if (entry->get() == iterator) { byte_iterators.erase(entry); return; }
+    }
+}
+extern "C" bool text_equals(const char *left, const char *right) {
+    return left && right && std::strcmp(left, right) == 0;
 }
