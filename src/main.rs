@@ -17,6 +17,18 @@ struct Args {
     package: PathBuf,
 }
 
+#[derive(Parser)]
+#[command(name = "intolang new", about = "Create an Into project from the hello_world template")]
+struct NewArgs {
+    name: String,
+    #[arg(long = "licence", default_value = "MIT")]
+    licence: String,
+    #[arg(long = "version", default_value = "0.1.0")]
+    version: String,
+    #[arg(long = "alias")]
+    alias: Option<String>,
+}
+
 #[derive(Deserialize)]
 struct Package {
     name: String,
@@ -38,6 +50,12 @@ fn main() -> color_eyre::Result<()> {
 }
 
 fn run() -> Result<()> {
+    let mut argv = std::env::args_os();
+    let _program = argv.next();
+    if argv.next().as_deref().is_some_and(|arg| arg == "new") {
+        let args = parse_new_args();
+        return create_project(args);
+    }
     let args = parse_args();
     if args.format_mode {
         let mut files = Vec::new();
@@ -105,6 +123,54 @@ fn run() -> Result<()> {
     std::fs::create_dir_all(&output_dir)?;
     compiler::compile(&message, &output).context("Compilation failed")?;
     println!("Built {}", output.display());
+    Ok(())
+}
+
+fn parse_new_args() -> NewArgs {
+    let argv = std::env::args_os().skip(2).map(|arg| match arg.to_str() {
+        Some("-licence") => OsString::from("--licence"),
+        Some("-version") => OsString::from("--version"),
+        Some("-alias") => OsString::from("--alias"),
+        _ => arg,
+    });
+    NewArgs::parse_from(std::iter::once(OsString::from("intolang new")).chain(argv))
+}
+
+fn create_project(args: NewArgs) -> Result<()> {
+    let project_dir = PathBuf::from(&args.name);
+    if project_dir.components().count() != 1 || project_dir.file_name().is_none() {
+        anyhow::bail!("Project name must be a single directory name");
+    }
+    if project_dir.exists() {
+        anyhow::bail!("Project destination already exists: {}", project_dir.display());
+    }
+
+    let template = compiler::hello_world_template_dir();
+    copy_directory(&template, &project_dir)
+        .with_context(|| format!("Could not copy project template into {}", project_dir.display()))?;
+
+    let manifest_path = project_dir.join("into-package.json");
+    let mut manifest: serde_json::Value = serde_json::from_slice(&std::fs::read(&manifest_path)?)?;
+    manifest["name"] = serde_json::Value::String(args.name.clone());
+    manifest["alias"] = serde_json::Value::String(args.alias.unwrap_or_else(|| args.name.clone()));
+    manifest["version"] = serde_json::Value::String(args.version);
+    manifest["LICENCE"] = serde_json::Value::String(args.licence);
+    std::fs::write(&manifest_path, format!("{}\n", serde_json::to_string_pretty(&manifest)?))?;
+    println!("Created project {}", project_dir.display());
+    Ok(())
+}
+
+fn copy_directory(source: &Path, target: &Path) -> Result<()> {
+    std::fs::create_dir_all(target)?;
+    for entry in std::fs::read_dir(source)? {
+        let entry = entry?;
+        let destination = target.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_directory(&entry.path(), &destination)?;
+        } else {
+            std::fs::copy(entry.path(), destination)?;
+        }
+    }
     Ok(())
 }
 
