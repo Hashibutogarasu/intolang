@@ -25,7 +25,7 @@ impl Default for BuildConfig {
     fn default() -> Self { Self { dist: default_dist() } }
 }
 
-pub(super) fn run(package_path: PathBuf, test_mode: bool) -> Result<()> {
+pub(super) fn run(package_path: PathBuf, test_mode: bool, run_after_build: bool) -> Result<()> {
     let manifest = if package_path.is_dir() {
         package_path.join("into-package.json")
     } else {
@@ -63,6 +63,15 @@ pub(super) fn run(package_path: PathBuf, test_mode: bool) -> Result<()> {
     std::fs::create_dir_all(&output_dir)?;
     compiler::compile(&message, &output).context("Compilation failed")?;
     println!("Built {}", output.display());
+    if run_after_build {
+        let status = std::process::Command::new(&output)
+            .current_dir(package_dir)
+            .status()
+            .with_context(|| format!("Could not run compiled executable {}", output.display()))?;
+        if !status.success() {
+            anyhow::bail!("Program exited with status {status}");
+        }
+    }
     Ok(())
 }
 

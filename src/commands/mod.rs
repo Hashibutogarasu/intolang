@@ -17,7 +17,7 @@ pub(super) fn run() -> Result<()> {
     if args.format_mode {
         format::run(args.package, args.format_depth)
     } else {
-        build::run(args.package, args.test_mode)
+        build::run(args.package, args.test_mode, args.run_mode)
     }
 }
 
@@ -26,6 +26,8 @@ pub(super) fn run() -> Result<()> {
 struct Args {
     #[arg(long = "test")]
     test_mode: bool,
+    #[arg(long = "run")]
+    run_mode: bool,
     #[arg(long = "format")]
     format_mode: bool,
     /// Maximum directory depth to search in format mode (0 means this directory only)
@@ -46,6 +48,10 @@ impl Args {
             Some("-test") => OsString::from("--test"),
             Some("-format") => OsString::from("--format"),
             Some("-depth") => OsString::from("--depth"),
+            Some("-run") => OsString::from("--run"),
+            Some(value) if value.starts_with('"') && value.ends_with('"') && value.len() >= 2 => {
+                OsString::from(&value[1..value.len() - 1])
+            }
             _ => arg,
             })
         });
