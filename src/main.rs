@@ -1,11 +1,13 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use serde::Deserialize;
-use std::path::PathBuf;
+use std::{ffi::OsString, path::{Path, PathBuf}};
 
 #[derive(Parser)]
 #[command(name = "intolang", about = "Build an Into package")]
 struct Args {
+    #[arg(long = "test")]
+    test_mode: bool,
     /// Package directory or path to its into-package.json
     package: PathBuf,
 }
@@ -31,13 +33,32 @@ fn main() -> color_eyre::Result<()> {
 }
 
 fn run() -> Result<()> {
-    let args = Args::parse();
+    let args = parse_args();
     let manifest = if args.package.is_dir() { args.package.join("into-package.json") } else { args.package };
     let manifest = std::fs::canonicalize(&manifest)
         .with_context(|| format!("Could not find package manifest: {}", manifest.display()))?;
     let package_dir = manifest.parent().context("Manifest has no parent directory")?;
     let package: Package = serde_json::from_slice(&std::fs::read(&manifest)?)
         .with_context(|| format!("Invalid package manifest: {}", manifest.display()))?;
+    let embedded_packages = compiler::builtin_packages_dir();
+    if args.test_mode {
+        let test_root = package_dir.join("src/tests");
+        let mut test_files = Vec::new();
+        collect_into_files(&test_root, &mut test_files)?;
+        if test_files.is_empty() { anyhow::bail!("No Into test files found under {}", test_root.display()); }
+        let mut passed = 0;
+        let mut failed = 0;
+        for file in test_files {
+            let source = std::fs::read_to_string(&file)?;
+            let result = backend::run_tests(&source, &file, &embedded_packages)
+                .with_context(|| format!("Failed running tests in {}", file.display()))?;
+            passed += result.passed;
+            failed += result.failed;
+        }
+        println!("test result: {}. {passed} passed; {failed} failed", if failed == 0 { "ok" } else { "FAILED" });
+        if failed > 0 { anyhow::bail!("{failed} Into test(s) failed"); }
+        return Ok(());
+    }
     let entry = package_dir.join(&package.runs);
     let source = std::fs::read_to_string(&entry)
         .with_context(|| format!("Could not read package entry point: {}", entry.display()))?;
@@ -49,12 +70,30 @@ fn run() -> Result<()> {
     let output = output_dir.join(executable);
     if output.exists() { std::fs::remove_file(&output)?; }
 
-    let embedded_packages = compiler::builtin_packages_dir();
     let message = backend::lower_file(&source, &entry, Some(&embedded_packages))
         .context("Could not compile Into entry point")?;
     std::fs::create_dir_all(&output_dir)?;
     compiler::compile(&message, &output).context("Compilation failed")?;
     println!("Built {}", output.display());
+    Ok(())
+}
+
+fn parse_args() -> Args {
+    let argv = std::env::args_os().map(|arg| {
+        if arg == OsString::from("-test") { OsString::from("--test") } else { arg }
+    });
+    Args::parse_from(argv)
+}
+
+fn collect_into_files(root: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
+    if !root.exists() { return Ok(()); }
+    for entry in std::fs::read_dir(root)? {
+        let entry = entry?;
+        let path = entry.path();
+        if entry.file_type()?.is_dir() { collect_into_files(&path, files)?; }
+        else if path.extension().is_some_and(|extension| extension == "into") { files.push(path); }
+    }
+    files.sort();
     Ok(())
 }
 

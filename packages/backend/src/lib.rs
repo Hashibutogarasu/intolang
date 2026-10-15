@@ -1,8 +1,10 @@
 mod imports;
 mod lexer;
 mod parser;
+mod tests;
 
 pub use lexer::{Token, TokenKind, tokenize};
+pub use tests::TestSummary;
 
 /// Parse and lower an Into source file to its observable output.
 pub fn lower(source: &str) -> anyhow::Result<String> {
@@ -24,4 +26,13 @@ pub fn lower_file(
     packages_dir: Option<&std::path::Path>,
 ) -> anyhow::Result<String> {
     parser::lower_named(source, packages_dir, &source_path.display().to_string())
+}
+
+/// Run all `#[test]` functions in one Into source file.
+pub fn run_tests(
+    source: &str,
+    source_path: &std::path::Path,
+    packages_dir: &std::path::Path,
+) -> anyhow::Result<TestSummary> {
+    tests::run(source, source_path, packages_dir)
 }

@@ -1,2 +1,6 @@
 pub builtin/std/print.;
 pub builtin/std/println.;
+pub builtin/tests/macros/test/test.;
+pub builtin/tests/assert/assert.;
+pub builtin/tests/memory-check/memoryExists.;
+pub builtin/tests/memory-check/memoryNotExists.;

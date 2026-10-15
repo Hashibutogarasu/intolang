@@ -20,10 +20,14 @@ pub(super) fn resolve(source: &str, packages_dir: &Path) -> Result<HashSet<Strin
         let info = std::fs::read_to_string(&info_path)
             .map_err(|_| anyhow!("Package `{alias}` has no into-info.into"))?;
         let expected = format!("{alias}/{module}/");
+        let exact_export = format!("{alias}/{module}.;");
         let exports = info.lines().filter_map(|decl| {
             let export = decl.trim().strip_prefix("pub ")?;
-            let function = export.strip_prefix(&expected)?
-                .trim_end_matches(';').trim_end_matches('.');
+            let function = if export == exact_export {
+                module.rsplit('/').next().unwrap_or(module.as_str())
+            } else {
+                export.strip_prefix(&expected)?.trim_end_matches(';').trim_end_matches('.')
+            };
             (!function.is_empty()).then(|| function.to_owned())
         }).collect::<Vec<_>>();
         if exports.is_empty() {
@@ -34,7 +38,7 @@ pub(super) fn resolve(source: &str, packages_dir: &Path) -> Result<HashSet<Strin
     Ok(imported_functions)
 }
 
-fn find_by_alias(packages_dir: &Path, alias: &str) -> Result<Option<std::path::PathBuf>> {
+pub(super) fn find_by_alias(packages_dir: &Path, alias: &str) -> Result<Option<std::path::PathBuf>> {
     for entry in std::fs::read_dir(packages_dir)? {
         let entry = entry?;
         if !entry.file_type()?.is_dir() { continue; }

@@ -1,0 +1,7 @@
+pub fun memoryExists(value: Object): Boolean {
+    return value.isInMemory;
+}
+
+pub fun memoryNotExists(value: Object): Boolean {
+    return !memoryExists(value);
+}
