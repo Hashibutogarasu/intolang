@@ -10,6 +10,9 @@ struct Args {
     test_mode: bool,
     #[arg(long = "format")]
     format_mode: bool,
+    /// Maximum directory depth to search in format mode (0 means this directory only)
+    #[arg(long = "depth", requires = "format_mode")]
+    format_depth: Option<usize>,
     /// Package directory or path to its into-package.json
     package: PathBuf,
 }
@@ -36,19 +39,32 @@ fn main() -> color_eyre::Result<()> {
 
 fn run() -> Result<()> {
     let args = parse_args();
-    let manifest = if args.package.is_dir() { args.package.join("into-package.json") } else { args.package };
     if args.format_mode {
-        if manifest.extension().is_none_or(|extension| extension != "into") {
-            anyhow::bail!("Format mode expects an .into file path");
+        let mut files = Vec::new();
+        if args.package.is_dir() {
+            collect_into_files_at_depth(&args.package, &mut files, args.format_depth, 0)?;
+            files.sort();
+            if files.is_empty() {
+                anyhow::bail!("No .into files found under {}", args.package.display());
+            }
+        } else {
+            if args.package.extension().is_none_or(|extension| extension != "into") {
+                anyhow::bail!("Format mode expects an .into file or directory path");
+            }
+            files.push(args.package);
         }
-        let source = std::fs::read_to_string(&manifest)
-            .with_context(|| format!("Could not read Into source: {}", manifest.display()))?;
-        let formatted = backend::format_source(&source);
-        std::fs::write(&manifest, formatted)
-            .with_context(|| format!("Could not write formatted Into source: {}", manifest.display()))?;
-        println!("Formatted {}", manifest.display());
+
+        for file in files {
+            let source = std::fs::read_to_string(&file)
+                .with_context(|| format!("Could not read Into source: {}", file.display()))?;
+            let formatted = backend::format_source(&source);
+            std::fs::write(&file, formatted)
+                .with_context(|| format!("Could not write formatted Into source: {}", file.display()))?;
+            println!("Formatted {}", file.display());
+        }
         return Ok(());
     }
+    let manifest = if args.package.is_dir() { args.package.join("into-package.json") } else { args.package };
     let manifest = std::fs::canonicalize(&manifest)
         .with_context(|| format!("Could not find package manifest: {}", manifest.display()))?;
     let package_dir = manifest.parent().context("Manifest has no parent directory")?;
@@ -97,6 +113,7 @@ fn parse_args() -> Args {
         match arg.to_str() {
             Some("-test") => OsString::from("--test"),
             Some("-format") => OsString::from("--format"),
+            Some("-depth") => OsString::from("--depth"),
             _ => arg,
         }
     });
@@ -104,14 +121,24 @@ fn parse_args() -> Args {
 }
 
 fn collect_into_files(root: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
+    collect_into_files_at_depth(root, files, None, 0)
+}
+
+fn collect_into_files_at_depth(
+    root: &Path,
+    files: &mut Vec<PathBuf>,
+    max_depth: Option<usize>,
+    depth: usize,
+) -> Result<()> {
     if !root.exists() { return Ok(()); }
     for entry in std::fs::read_dir(root)? {
         let entry = entry?;
         let path = entry.path();
-        if entry.file_type()?.is_dir() { collect_into_files(&path, files)?; }
+        if entry.file_type()?.is_dir() && max_depth.is_none_or(|limit| depth < limit) {
+            collect_into_files_at_depth(&path, files, max_depth, depth + 1)?;
+        }
         else if path.extension().is_some_and(|extension| extension == "into") { files.push(path); }
     }
-    files.sort();
     Ok(())
 }
 
