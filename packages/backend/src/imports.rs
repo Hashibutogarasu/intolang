@@ -1,8 +1,9 @@
 use anyhow::{Result, anyhow, bail};
-use std::path::Path;
+use std::{collections::HashSet, path::Path};
 
 /// Resolve `intolang://<alias>/<module>` using package manifests and exports.
-pub(super) fn resolve(source: &str, packages_dir: &Path) -> Result<()> {
+pub(super) fn resolve(source: &str, packages_dir: &Path) -> Result<HashSet<String>> {
+    let mut imported_functions = HashSet::new();
     for line in source.lines() {
         let line = line.trim();
         let Some(uri) = line.strip_prefix("import ").and_then(|v| v.strip_prefix('"'))
@@ -19,11 +20,18 @@ pub(super) fn resolve(source: &str, packages_dir: &Path) -> Result<()> {
         let info = std::fs::read_to_string(&info_path)
             .map_err(|_| anyhow!("Package `{alias}` has no into-info.into"))?;
         let expected = format!("{alias}/{module}/");
-        if !info.lines().any(|decl| decl.trim().starts_with("pub ") && decl.trim().contains(&expected)) {
+        let exports = info.lines().filter_map(|decl| {
+            let export = decl.trim().strip_prefix("pub ")?;
+            let function = export.strip_prefix(&expected)?
+                .trim_end_matches(';').trim_end_matches('.');
+            (!function.is_empty()).then(|| function.to_owned())
+        }).collect::<Vec<_>>();
+        if exports.is_empty() {
             bail!("Package `{alias}` does not export module `{module}`");
         }
+        imported_functions.extend(exports);
     }
-    Ok(())
+    Ok(imported_functions)
 }
 
 fn find_by_alias(packages_dir: &Path, alias: &str) -> Result<Option<std::path::PathBuf>> {

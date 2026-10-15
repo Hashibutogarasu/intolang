@@ -23,7 +23,11 @@ fn diagnostic(path: &str, line: usize, scope: &str, message: &str) -> anyhow::Er
 
 pub(super) fn lower_named(source: &str, packages_dir: Option<&Path>, source_path: &str) -> Result<String> {
     let _tokens = tokenize(source)?;
-    if let Some(packages_dir) = packages_dir { imports::resolve(source, packages_dir)?; }
+    let imported_functions = if let Some(packages_dir) = packages_dir {
+        imports::resolve(source, packages_dir)?
+    } else {
+        Default::default()
+    };
 
     let mut values: HashMap<String, Variable> = HashMap::new();
     let mut output = String::new();
@@ -69,6 +73,11 @@ pub(super) fn lower_named(source: &str, packages_dir: Option<&Path>, source_path
         }
         let Some((is_println, rest)) = line.strip_prefix("println(").map(|r| (true, r))
             .or_else(|| line.strip_prefix("print(").map(|r| (false, r))) else { continue; };
+        let function = if is_println { "println" } else { "print" };
+        if !imported_functions.contains(function) {
+            return Err(diagnostic(source_path, line_number, if in_init { "init" } else { "module" },
+                &format!("Function `{function}` is not imported")));
+        }
         let arg = rest.split(')').next().unwrap_or("").trim();
         let (value, newline) = if arg.starts_with('"') && arg.ends_with('"') {
             (arg[1..arg.len()-1].to_owned(), is_println)
