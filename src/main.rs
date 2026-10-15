@@ -138,21 +138,28 @@ fn parse_new_args() -> NewArgs {
 
 fn create_project(args: NewArgs) -> Result<()> {
     let project_dir = PathBuf::from(&args.name);
-    if project_dir.components().count() != 1 || project_dir.file_name().is_none() {
-        anyhow::bail!("Project name must be a single directory name");
+    let project_name = project_dir.file_name()
+        .and_then(|name| name.to_str())
+        .context("Project path must end with a valid project name")?;
+    if project_dir == Path::new(".") || project_dir == Path::new("..") {
+        anyhow::bail!("Project path must name a new directory");
     }
     if project_dir.exists() {
         anyhow::bail!("Project destination already exists: {}", project_dir.display());
     }
 
     let template = compiler::hello_world_template_dir();
+    if let Some(parent) = project_dir.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("Could not create parent directory {}", parent.display()))?;
+    }
     copy_directory(&template, &project_dir)
         .with_context(|| format!("Could not copy project template into {}", project_dir.display()))?;
 
     let manifest_path = project_dir.join("into-package.json");
     let mut manifest: serde_json::Value = serde_json::from_slice(&std::fs::read(&manifest_path)?)?;
-    manifest["name"] = serde_json::Value::String(args.name.clone());
-    manifest["alias"] = serde_json::Value::String(args.alias.unwrap_or_else(|| args.name.clone()));
+    manifest["name"] = serde_json::Value::String(project_name.to_owned());
+    manifest["alias"] = serde_json::Value::String(args.alias.unwrap_or_else(|| project_name.to_owned()));
     manifest["version"] = serde_json::Value::String(args.version);
     manifest["LICENCE"] = serde_json::Value::String(args.licence);
     std::fs::write(&manifest_path, format!("{}\n", serde_json::to_string_pretty(&manifest)?))?;
