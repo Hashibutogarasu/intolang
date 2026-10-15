@@ -1,7 +1,7 @@
 use anyhow::{Result, anyhow};
 use std::{collections::HashMap, path::Path};
 
-use crate::{imports, lexer::tokenize};
+use crate::{imports, lexer::tokenize, validation};
 
 /// Parse the currently supported statement subset and lower it to output.
 pub(super) fn lower(source: &str, packages_dir: Option<&Path>) -> Result<String> {
@@ -23,6 +23,7 @@ fn diagnostic(path: &str, line: usize, scope: &str, message: &str) -> anyhow::Er
 
 pub(super) fn lower_named(source: &str, packages_dir: Option<&Path>, source_path: &str) -> Result<String> {
     let _tokens = tokenize(source)?;
+    validation::function_scopes(source, source_path)?;
     let imported_functions = if let Some(packages_dir) = packages_dir {
         imports::resolve(source, packages_dir)?
     } else {

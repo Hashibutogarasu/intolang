@@ -2,6 +2,7 @@ use anyhow::{Result, anyhow, bail};
 use std::{collections::HashMap, path::Path};
 
 use crate::imports;
+use crate::validation;
 
 #[derive(Debug, Default)]
 pub struct TestSummary {
@@ -19,6 +20,7 @@ enum Value { Bool(bool), Object { storage: Storage, allocated: bool, in_init: bo
 struct Function { params: Vec<String>, body: Vec<String> }
 
 pub(super) fn run(source: &str, path: &Path, packages_dir: &Path) -> Result<TestSummary> {
+    validation::function_scopes(source, &path.display().to_string())?;
     let imported = imports::resolve(source, packages_dir)?;
     let package = imports::find_by_alias(packages_dir, "builtin")?
         .ok_or_else(|| anyhow!("Builtin package is not bundled"))?;
@@ -36,28 +38,27 @@ pub(super) fn run(source: &str, path: &Path, packages_dir: &Path) -> Result<Test
     if !imported.contains("test") { bail!("{}: test module must import the test macro", path.display()); }
     let macro_path = package.join("src/main/builtin/tests/macros/test.into");
     let macro_source = std::fs::read_to_string(macro_path)?;
-    let expansion = macro_source.lines().map(str::trim)
+    let annotation = macro_source.lines().map(str::trim)
         .find(|line| line.starts_with("#[test]"))
-        .ok_or_else(|| anyhow!("test macro has no #[test] expansion"))?;
-    let expanded: Vec<String> = source.lines().map(|line| {
-        if line.trim() == "@test" { expansion.to_owned() } else { line.to_owned() }
-    }).collect();
+        .ok_or_else(|| anyhow!("test macro does not define the #[test] annotation"))?;
+    let test_annotation = annotation;
+    let source_lines: Vec<String> = source.lines().map(str::to_owned).collect();
 
     let mut summary = TestSummary::default();
     let mut index = 0;
-    while index < expanded.len() {
-        if expanded[index].trim() != "#[test]" { index += 1; continue; }
+    while index < source_lines.len() {
+        if source_lines[index].trim() != test_annotation { index += 1; continue; }
         index += 1;
-        while index < expanded.len() && !expanded[index].contains("fun ") { index += 1; }
-        if index == expanded.len() { bail!("{}: #[test] is not followed by a function", path.display()); }
-        let signature = expanded[index].trim();
+        while index < source_lines.len() && !source_lines[index].contains("fun ") { index += 1; }
+        if index == source_lines.len() { bail!("{}: #[test] is not followed by a function", path.display()); }
+        let signature = source_lines[index].trim();
         let name = signature.split("fun ").nth(1).unwrap_or("<test>")
             .split('(').next().unwrap_or("<test>").trim().to_owned();
         let mut depth = 0i32;
         let mut started = false;
         let mut body = Vec::new();
-        while index < expanded.len() {
-            let line = expanded[index].as_str();
+        while index < source_lines.len() {
+            let line = source_lines[index].as_str();
             if line.contains('{') { started = true; }
             if started { body.push((index + 1, line)); }
             depth += line.chars().filter(|c| *c == '{').count() as i32;

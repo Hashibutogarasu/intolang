@@ -2,6 +2,7 @@ mod imports;
 mod lexer;
 mod parser;
 mod tests;
+mod validation;
 
 pub use lexer::{Token, TokenKind, tokenize};
 pub use tests::TestSummary;

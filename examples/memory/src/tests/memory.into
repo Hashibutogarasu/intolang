@@ -3,26 +3,26 @@ import "intolang://builtin/tests/assert";
 import "intolang://builtin/tests/memory-check";
 
 #[entrypoint]
-pub fun MemoryTest() {
-    @test
-    pub fun memoryWillCreateWithNowModifier() {
-        now into mem1 = 0; // variable memory will create in this line
+pub MemoryTest() {
+#[test]
+pub fun memoryWillCreateWithNowModifier() {
+    now into mem1 = 0; // variable memory will create in this line
+    assert(memoryExists(mem1));
+}
+
+#[test]
+pub fun memoryWillCreateWithLaterModifier() {
+    late into mem1 = 0;
+    assert(memoryExists(mem1)); // variable memory will create in this line
+}
+
+#[test]
+pub fun memoryNotExistsIfNormalVaribale() {
+    into mem1 = 0;
+    assert(memoryNotExists(mem1));
+
+    init {
         assert(memoryExists(mem1));
     }
-
-    @test
-    pub fun memoryWillCreateWithLaterModifier() {
-        late into mem1 = 0;
-        assert(memoryExists(mem1)); // variable memory will create in this line
-    }
-
-    @test
-    pub fun memoryNotExistsIfNormalVaribale() {
-        into mem1 = 0;
-        assert(memoryNotExists(mem1));
-
-        init {
-            assert(memoryExists(mem1));
-        }
-    }
+}
 }
