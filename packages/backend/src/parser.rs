@@ -377,6 +377,11 @@ fn parse_classes(source: &str) -> ClassFields {
         let Some((prefix, _)) = line.split_once("() {") else { index += 1; continue; };
         let name = prefix.strip_prefix("pub ").unwrap_or(prefix).trim();
         if name.is_empty() { index += 1; continue; }
+        if line.split_once("() {").is_some_and(|(_, body)| body.contains('}')) {
+            classes.insert(name.to_owned(), Vec::new());
+            index += 1;
+            continue;
+        }
         let mut fields = Vec::new();
         index += 1;
         while index < lines.len() && !lines[index].trim().starts_with('}') {

@@ -3,7 +3,7 @@
   "alias": "bad-apple",
   "version": "0.1.0",
   "LICENCE": "MIT",
-  "packages": { "intolang": "0.0.1", "cpp": "0.1.0" },
+  "packages": { "intolang": "0.0.1", "cpp": "0.1.0", "json": "0.1.0", "wayland": "0.1.0" },
   "builtConfig": { "dist": "./dist" },
   "runs": "src/main/bad-apple.into"
 }

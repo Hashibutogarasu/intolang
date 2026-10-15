@@ -1,3 +1,5 @@
+pub wayland/client/wayland_display_connect.;
+pub wayland/client/wayland_display_disconnect.;
 pub wayland/window/wayland_window_create.;
 pub wayland/window/wayland_window_clear.;
 pub wayland/window/wayland_window_fill_rect.;

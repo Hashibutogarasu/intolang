@@ -1,1 +1,2 @@
+export "wayland://client";
 export "wayland://window";

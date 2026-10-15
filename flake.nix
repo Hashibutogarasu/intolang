@@ -54,6 +54,8 @@
               pkgs.wayland-protocols
               pkgs.wayland-scanner
               pkgs.weston
+              pkgs.vulkan-headers
+              pkgs.vulkan-loader
             ];
 
             LLVM_SYS_231_PREFIX = "${llvm.dev}";
@@ -63,6 +65,7 @@
               pkgs.libxml2
               pkgs.stdenv.cc.cc.lib
               pkgs.wayland
+              pkgs.vulkan-loader
             ];
           };
         }
