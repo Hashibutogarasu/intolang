@@ -422,6 +422,7 @@ pub(super) fn lower_named(
                 &mut output,
                 &name,
                 &mut temp_counter,
+                &user_functions,
             )
             .map_err(|message| diagnostic(source_path, line_number, scope_name, &message))?;
             values.insert(
@@ -458,6 +459,7 @@ pub(super) fn lower_named(
                     &mut output,
                     lhs,
                     &mut temp_counter,
+                    &user_functions,
                 )
                 .map_err(|message| diagnostic(source_path, line_number, scope_name, &message))?;
                 if let Some(variable) = values.get_mut(lhs) {
@@ -499,7 +501,7 @@ pub(super) fn lower_named(
                 let key = format!("{}.{}", receiver_type.name(), method);
                 if let Some(inner) = user_functions.get(&key) {
                     let inner = inner.clone();
-                    inline_user_function(
+                    let _ = inline_user_function(
                         &mut output,
                         &inner,
                         Some(receiver),
@@ -537,7 +539,7 @@ pub(super) fn lower_named(
             }
             if let Some(inner) = user_functions.get(function) {
                 let inner = inner.clone();
-                inline_user_function(
+                let _ = inline_user_function(
                     &mut output,
                     &inner,
                     None,
@@ -862,7 +864,7 @@ fn inline_user_function(
     temp_counter: &mut usize,
     user_functions: &HashMap<String, UserFunction>,
     depth: usize,
-) -> std::result::Result<(), String> {
+) -> std::result::Result<Option<(String, Type)>, String> {
     if depth > 32 {
         return Err(format!("Recursive call to `{}` is not supported", function.name));
     }
@@ -898,6 +900,8 @@ fn inline_user_function(
     for (param, argument) in function.params.iter().zip(arguments.iter()) {
         substitutions.push((param.name.clone(), argument.trim().to_owned()));
     }
+    let mut blocks: Vec<char> = Vec::new();
+    let mut returned: Option<(String, Type)> = None;
     for body_line in &function.body {
         let substituted = apply_substitutions(body_line, &substitutions);
         lower_inline_statement(
@@ -909,9 +913,14 @@ fn inline_user_function(
             temp_counter,
             user_functions,
             depth,
+            &mut blocks,
+            &mut returned,
         )?;
     }
-    Ok(())
+    if !blocks.is_empty() {
+        return Err(format!("Unbalanced braces in `{}`", function.name));
+    }
+    Ok(returned)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -924,9 +933,70 @@ fn lower_inline_statement(
     temp_counter: &mut usize,
     user_functions: &HashMap<String, UserFunction>,
     depth: usize,
+    blocks: &mut Vec<char>,
+    returned: &mut Option<(String, Type)>,
 ) -> std::result::Result<(), String> {
     let line = line.trim().trim_end_matches(';').trim();
-    if line.is_empty() || line == "return" || line == "break" {
+    if line.is_empty() || line == "break" {
+        return Ok(());
+    }
+    if line == "return" {
+        return Ok(());
+    }
+    if let Some(expression) = line.strip_prefix("return ") {
+        let expression = expression.trim();
+        let variable = values
+            .get(expression)
+            .ok_or_else(|| format!("Unsupported return value `{expression}`"))?;
+        *returned = Some((expression.to_owned(), variable.ty.clone()));
+        return Ok(());
+    }
+    if line == "}" {
+        match blocks.pop() {
+            Some('f') => {
+                output.push('\u{1e}');
+                output.push_str("NATIVE_IF_END\n");
+            }
+            _ => return Err("Unexpected closing brace in function body".to_owned()),
+        }
+        return Ok(());
+    }
+    if line == "} else {" {
+        if blocks.last() != Some(&'f') {
+            return Err("`else` must follow an `if` block".to_owned());
+        }
+        output.push('\u{1e}');
+        output.push_str("NATIVE_IF_ELSE\n");
+        return Ok(());
+    }
+    if let Some(condition) = line
+        .strip_prefix("if ")
+        .and_then(|value| value.strip_suffix('{'))
+        .map(str::trim)
+    {
+        let condition = condition
+            .strip_prefix('(')
+            .and_then(|value| value.strip_suffix(')'))
+            .unwrap_or(condition)
+            .trim();
+        if let Some((left, operator, right)) = parse_comparison(condition) {
+            let left_var = values
+                .get(left)
+                .filter(|value| value.native && value.ty.is_numeric())
+                .ok_or_else(|| "if condition requires an integer or float value".to_owned())?;
+            let operand = comparison_operand(right, values)
+                .ok_or_else(|| "if condition requires a numeric literal or value".to_owned())?;
+            let ty = left_var.ty.clone();
+            emit_comparison(output, "NATIVE_IF_BEGIN", left, operator, &operand, &ty);
+        } else if let Some(flag) = boolean_literal(condition) {
+            output.push('\u{1e}');
+            output.push_str("NATIVE_IF_CONST\t");
+            output.push_str(if flag { "1" } else { "0" });
+            output.push('\n');
+        } else {
+            return Err(format!("Unsupported if condition in function body: `{condition}`"));
+        }
+        blocks.push('f');
         return Ok(());
     }
     let Some((call, call_args)) = parse_call(line) else {
@@ -960,7 +1030,8 @@ fn lower_inline_statement(
                 temp_counter,
                 user_functions,
                 depth + 1,
-            );
+            )
+            .map(|_| ());
         }
         let link = native_links
             .get(&key)
@@ -985,7 +1056,8 @@ fn lower_inline_statement(
             temp_counter,
             user_functions,
             depth + 1,
-        );
+        )
+        .map(|_| ());
     }
     let link = native_links
         .get(call)
@@ -1137,11 +1209,16 @@ fn parse_user_functions(source: &str) -> Vec<UserFunction> {
         index += 1;
         while depth > 0 && index < lines.len() {
             let current = strip_line_comment(lines[index]).trim();
-            let inside = current.trim_end_matches('}').trim();
-            if !inside.is_empty() {
-                body.push(inside.to_owned());
+            let next_depth = depth + brace_delta(current);
+            if next_depth == 0 {
+                depth = 0;
+                index += 1;
+                break;
             }
-            depth += brace_delta(current);
+            if !current.is_empty() {
+                body.push(current.to_owned());
+            }
+            depth = next_depth;
             index += 1;
         }
         functions.push(UserFunction {
@@ -1169,19 +1246,59 @@ fn declaration_value(
     output: &mut String,
     assigned_to: &str,
     temp_counter: &mut usize,
+    user_functions: &HashMap<String, UserFunction>,
 ) -> std::result::Result<(String, Type, bool), String> {
     if let Some((function, args)) = parse_call(rhs) {
         if function.contains('.') {
-            let (link, combined) = resolve_method(
+            let (receiver, receiver_type) = resolve_receiver(
                 output,
                 function,
-                args,
                 values,
                 native_links,
                 enum_values,
                 temp_counter,
             )?;
-            emit_link_call(output, &link, &combined, enum_values, values, assigned_to, true)?;
+            let method = function
+                .split('.')
+                .filter(|segment| !segment.is_empty())
+                .next_back()
+                .unwrap_or_default();
+            let key = format!("{}.{}", receiver_type.name(), method);
+            if let Some(inner) = user_functions.get(&key) {
+                let inner = inner.clone();
+                let returned = inline_user_function(
+                    output,
+                    &inner,
+                    Some(receiver),
+                    args,
+                    values,
+                    native_links,
+                    enum_values,
+                    temp_counter,
+                    user_functions,
+                    0,
+                )?;
+                let ty = match annotation {
+                    Some(ty) => ty,
+                    None => returned
+                        .as_ref()
+                        .map(|(_, ty)| ty.clone())
+                        .ok_or_else(|| format!("Function `{key}` does not return a value"))?,
+                };
+                if let Some((value, _)) = returned {
+                    emit_assign(output, assigned_to, &ty, "p", &value);
+                }
+                return Ok((ty.name(), ty, true));
+            }
+            let link = native_links
+                .get(&key)
+                .ok_or_else(|| format!("Undefined method `{key}`"))?;
+            let combined = if args.trim().is_empty() {
+                receiver
+            } else {
+                format!("{receiver},{args}")
+            };
+            emit_link_call(output, link, &combined, enum_values, values, assigned_to, true)?;
             let ty = match annotation {
                 Some(ty) => ty,
                 None => Type::parse(&link.return_type, type_params).unwrap_or(Type::Void),
@@ -1428,6 +1545,14 @@ fn parse_literal(text: &str) -> Option<Literal> {
         return Some(Literal::Int(value));
     }
     None
+}
+
+fn boolean_literal(text: &str) -> Option<bool> {
+    match text.trim() {
+        "1" | "true" => Some(true),
+        "0" | "false" => Some(false),
+        _ => None,
+    }
 }
 
 fn is_identifier(text: &str) -> bool {

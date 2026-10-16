@@ -56,5 +56,32 @@ pub fun Window.present() {
 #[link("cpp", "src/main/native/wayland/window.cpp", "window_titlebar")]
 pub fun Window.titlebar(): TitleBar;
 
-#[link("cpp", "src/main/native/wayland/window.cpp", "window_titlebar_create")]
-pub fun TitleBar.create(maximizable: Boolean = true, closable: Boolean = true): TitleBar;
+#[link("cpp", "src/main/native/wayland/window.cpp", "window_titlebar_use_standard")]
+pub fun TitleBar.useStandard(): Void;
+
+#[link("cpp", "src/main/native/wayland/window.cpp", "window_titlebar_allow_maximize")]
+pub fun TitleBar.allowMaximize(): Void;
+
+#[link("cpp", "src/main/native/wayland/window.cpp", "window_titlebar_prevent_maximize")]
+pub fun TitleBar.preventMaximize(): Void;
+
+#[link("cpp", "src/main/native/wayland/window.cpp", "window_titlebar_allow_close")]
+pub fun TitleBar.allowClose(): Void;
+
+#[link("cpp", "src/main/native/wayland/window.cpp", "window_titlebar_prevent_close")]
+pub fun TitleBar.preventClose(): Void;
+
+pub fun TitleBar.create(maximizable: Boolean = true, closable: Boolean = true): TitleBar {
+    this.useStandard();
+    if (maximizable) {
+        this.allowMaximize();
+    } else {
+        this.preventMaximize();
+    }
+    if (closable) {
+        this.allowClose();
+    } else {
+        this.preventClose();
+    }
+    return this;
+}

@@ -26,9 +26,7 @@ struct Window;
 struct TitleBar {
     Window *window = nullptr;
     zxdg_toplevel_decoration_v1 *decoration = nullptr;
-    bool maximizable = true;
     bool closable = true;
-    bool created = false;
 };
 
 struct Window {
@@ -79,7 +77,7 @@ const xdg_surface_listener surface_listener{surface_configure};
 void toplevel_configure(void *, xdg_toplevel *, int32_t, int32_t, wl_array *) {}
 void toplevel_close(void *data, xdg_toplevel *) {
     auto *window = static_cast<Window *>(data);
-    if (window->titlebar.created && !window->titlebar.closable) return;
+    if (!window->titlebar.closable) return;
     window->closed = true;
 }
 void toplevel_bounds(void *, xdg_toplevel *, int32_t, int32_t) {}
@@ -89,6 +87,7 @@ void buffer_release(void *data, wl_buffer *) { static_cast<Window *>(data)->rele
 const wl_buffer_listener buffer_listener{buffer_release};
 
 void destroy_window(Window &window) {
+    if (window.titlebar.decoration) zxdg_toplevel_decoration_v1_destroy(window.titlebar.decoration);
     if (window.buffer) wl_buffer_destroy(window.buffer);
     if (window.pixels) munmap(window.pixels, static_cast<size_t>(window.width) * window.height * sizeof(uint32_t));
     if (window.fd >= 0) close(window.fd);
@@ -186,23 +185,36 @@ extern "C" TitleBar *window_titlebar(Window *window) {
     return &window->titlebar;
 }
 
-extern "C" TitleBar *window_titlebar_create(TitleBar *titlebar, int32_t maximizable, int32_t closable) {
-    if (!titlebar || !titlebar->window) return titlebar;
-    titlebar->maximizable = maximizable != 0;
-    titlebar->closable = closable != 0;
-    titlebar->created = true;
+extern "C" void window_titlebar_use_standard(TitleBar *titlebar) {
+    if (!titlebar || !titlebar->window) return;
     Window *window = titlebar->window;
-    if (window->toplevel) {
-        if (titlebar->maximizable) {
-            xdg_toplevel_set_min_size(window->toplevel, 0, 0);
-            xdg_toplevel_set_max_size(window->toplevel, 0, 0);
-        } else {
-            xdg_toplevel_set_min_size(window->toplevel, window->width, window->height);
-            xdg_toplevel_set_max_size(window->toplevel, window->width, window->height);
-        }
-        wl_surface_commit(window->surface);
-    }
-    return titlebar;
+    Wayland *wayland = window->owner;
+    if (titlebar->decoration || !wayland || !wayland->decoration_manager || !window->toplevel) return;
+    titlebar->decoration = zxdg_decoration_manager_v1_get_toplevel_decoration(wayland->decoration_manager, window->toplevel);
+    zxdg_toplevel_decoration_v1_set_mode(titlebar->decoration, ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
+    wl_surface_commit(window->surface);
+}
+
+extern "C" void window_titlebar_allow_maximize(TitleBar *titlebar) {
+    if (!titlebar || !titlebar->window || !titlebar->window->toplevel) return;
+    xdg_toplevel_set_min_size(titlebar->window->toplevel, 0, 0);
+    xdg_toplevel_set_max_size(titlebar->window->toplevel, 0, 0);
+    wl_surface_commit(titlebar->window->surface);
+}
+
+extern "C" void window_titlebar_prevent_maximize(TitleBar *titlebar) {
+    if (!titlebar || !titlebar->window || !titlebar->window->toplevel) return;
+    xdg_toplevel_set_min_size(titlebar->window->toplevel, titlebar->window->width, titlebar->window->height);
+    xdg_toplevel_set_max_size(titlebar->window->toplevel, titlebar->window->width, titlebar->window->height);
+    wl_surface_commit(titlebar->window->surface);
+}
+
+extern "C" void window_titlebar_allow_close(TitleBar *titlebar) {
+    if (titlebar) titlebar->closable = true;
+}
+
+extern "C" void window_titlebar_prevent_close(TitleBar *titlebar) {
+    if (titlebar) titlebar->closable = false;
 }
 
 extern "C" void window_clear(Window *window, int32_t color) {
@@ -289,7 +301,11 @@ extern "C" void window_damage(Window *) {}
 extern "C" void window_commit(Window *) {}
 extern "C" void window_flush(Window *) {}
 extern "C" TitleBar *window_titlebar(Window *) { return nullptr; }
-extern "C" TitleBar *window_titlebar_create(TitleBar *titlebar, int32_t, int32_t) { return titlebar; }
+extern "C" void window_titlebar_use_standard(TitleBar *) {}
+extern "C" void window_titlebar_allow_maximize(TitleBar *) {}
+extern "C" void window_titlebar_prevent_maximize(TitleBar *) {}
+extern "C" void window_titlebar_allow_close(TitleBar *) {}
+extern "C" void window_titlebar_prevent_close(TitleBar *) {}
 extern "C" bool window_is_open(Window *) { return false; }
 extern "C" void wayland_destroy(Wayland *) {}
 #endif
