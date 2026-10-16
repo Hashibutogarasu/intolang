@@ -141,3 +141,7 @@ binary/shared library with embedded LLD.
   responses.
 - Do not use `echo`/`printf` for decoration or section separators.
 - Do not print or echo exit codes.
+- Do not filter command output through `grep` (e.g. for `error`/`warning:`).
+  Redirect the full output to a log file in a temporary directory under a
+  non-sequential (descriptive/unique, not `1.log`/`2.log`) filename, then read
+  that file with the Read tool.

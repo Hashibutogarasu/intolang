@@ -1,7 +1,10 @@
 use anyhow::{Context, Result};
+use clap::{ArgMatches, Args, Command as ClapCommand, FromArgMatches};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+
+use crate::commands::command::Command;
 
 #[derive(Deserialize)]
 struct Package {
@@ -78,6 +81,54 @@ pub(super) fn run(package_path: PathBuf, test_mode: bool, run_after_build: bool)
         }
     }
     Ok(())
+}
+
+#[derive(Args)]
+struct BuildArgs {
+    #[arg(default_value = ".")]
+    package: PathBuf,
+    #[arg(long = "test")]
+    test: bool,
+}
+
+pub(super) struct Build;
+
+impl Command for Build {
+    fn command(&self) -> ClapCommand {
+        BuildArgs::augment_args(ClapCommand::new("build").about("Build an Into package"))
+    }
+
+    fn depends(&self) -> Vec<Box<dyn Command>> {
+        Vec::new()
+    }
+
+    fn execute(&self, matches: &ArgMatches) -> Result<()> {
+        let args = BuildArgs::from_arg_matches(matches)?;
+        run(args.package, args.test, false)
+    }
+}
+
+#[derive(Args)]
+struct RunArgs {
+    #[arg(default_value = ".")]
+    package: PathBuf,
+}
+
+pub(super) struct Run;
+
+impl Command for Run {
+    fn command(&self) -> ClapCommand {
+        RunArgs::augment_args(ClapCommand::new("run").about("Build and run an Into package"))
+    }
+
+    fn depends(&self) -> Vec<Box<dyn Command>> {
+        Vec::new()
+    }
+
+    fn execute(&self, matches: &ArgMatches) -> Result<()> {
+        let args = RunArgs::from_arg_matches(matches)?;
+        run(args.package, false, true)
+    }
 }
 
 fn build_library(

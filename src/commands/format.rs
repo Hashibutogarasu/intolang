@@ -1,5 +1,34 @@
 use anyhow::{Context, Result};
+use clap::{ArgMatches, Args, Command as ClapCommand, FromArgMatches};
 use std::path::{Path, PathBuf};
+
+use crate::commands::command::Command;
+
+#[derive(Args)]
+struct FormatArgs {
+    #[arg(default_value = ".")]
+    package: PathBuf,
+    /// Maximum directory depth to search (0 means this directory only)
+    #[arg(long = "depth")]
+    depth: Option<usize>,
+}
+
+pub(super) struct Format;
+
+impl Command for Format {
+    fn command(&self) -> ClapCommand {
+        FormatArgs::augment_args(ClapCommand::new("format").about("Format Into source files"))
+    }
+
+    fn depends(&self) -> Vec<Box<dyn Command>> {
+        Vec::new()
+    }
+
+    fn execute(&self, matches: &ArgMatches) -> Result<()> {
+        let args = FormatArgs::from_arg_matches(matches)?;
+        run(args.package, args.depth)
+    }
+}
 
 pub(super) fn run(path: PathBuf, max_depth: Option<usize>) -> Result<()> {
     let mut files = Vec::new();
