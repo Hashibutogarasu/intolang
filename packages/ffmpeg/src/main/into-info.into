@@ -1,7 +1,9 @@
-pub ffmpeg/decoder/ffmpeg_video_open.;
-pub ffmpeg/decoder/ffmpeg_video_columns.;
-pub ffmpeg/decoder/ffmpeg_video_rows.;
-pub ffmpeg/decoder/ffmpeg_video_frame_delay_ms.;
-pub ffmpeg/decoder/ffmpeg_video_read_frame.;
-pub ffmpeg/decoder/ffmpeg_video_text.;
-pub ffmpeg/decoder/ffmpeg_video_destroy.;
+pub ffmpeg/decoder/FFmpeg.;
+pub ffmpeg/decoder/Video.;
+pub ffmpeg/decoder/FFmpeg.read.;
+pub ffmpeg/decoder/Video.columns.;
+pub ffmpeg/decoder/Video.rows.;
+pub ffmpeg/decoder/Video.delayMs.;
+pub ffmpeg/decoder/Video.next.;
+pub ffmpeg/decoder/Video.text.;
+pub ffmpeg/decoder/Video.destroy.;

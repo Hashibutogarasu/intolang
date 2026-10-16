@@ -14,6 +14,10 @@ namespace {
 const char *const RAMP = " .:-=+*#%@";
 constexpr int RAMP_LENGTH = 10;
 
+struct FFmpeg {
+    int placeholder = 0;
+};
+
 struct FFmpegVideo {
     AVFormatContext *format = nullptr;
     AVCodecContext *decoder = nullptr;
@@ -61,6 +65,10 @@ int scale_to_gray(FFmpegVideo *video) {
     return sws_scale(video->scale, video->frame->data, video->frame->linesize, 0, video->source_height,
                      destination, destination_linesize);
 }
+}
+
+extern "C" FFmpeg *ffmpeg_new() {
+    return new FFmpeg();
 }
 
 extern "C" FFmpegVideo *ffmpeg_video_open(const char *path, int32_t max_columns, int32_t max_rows) {
@@ -128,6 +136,11 @@ extern "C" FFmpegVideo *ffmpeg_video_open(const char *path, int32_t max_columns,
     video->frame_delay_ms = fps > 0.5 ? static_cast<int>(std::lround(1000.0 / fps)) : 33;
     if (video->frame_delay_ms < 1) video->frame_delay_ms = 1;
     return video;
+}
+
+extern "C" FFmpegVideo *ffmpeg_read(FFmpeg *ffmpeg, const char *path) {
+    (void)ffmpeg;
+    return ffmpeg_video_open(path, 106, 60);
 }
 
 extern "C" int32_t ffmpeg_video_columns(FFmpegVideo *video) {

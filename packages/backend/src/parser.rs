@@ -24,6 +24,14 @@ struct Variable {
 
 type ClassFields = HashMap<String, Vec<(String, String)>>;
 
+#[derive(Clone)]
+struct UserFunction {
+    name: String,
+    receiver: Option<String>,
+    params: Vec<(String, Type)>,
+    body: Vec<String>,
+}
+
 enum Literal {
     Int(i64),
     Float(f64),
@@ -55,6 +63,7 @@ pub(super) fn lower_named(
 
     let type_params = collect_type_params(source);
     let mut values: HashMap<String, Variable> = HashMap::new();
+    let mut temp_counter = 0usize;
     let (mut enum_values, enum_lines) = parse_enums(source, source_path)?;
     let module_sources = if let Some(packages_dir) = packages_dir {
         imports::imported_module_sources(source, packages_dir)?
@@ -71,6 +80,15 @@ pub(super) fn lower_named(
         .iter()
         .flat_map(|module| parse_classes(module))
         .collect::<HashMap<_, _>>();
+    let mut user_functions: HashMap<String, UserFunction> = HashMap::new();
+    for module in &module_sources {
+        for function in parse_user_functions(module) {
+            user_functions.insert(function.name.clone(), function);
+        }
+    }
+    for function in parse_user_functions(source) {
+        user_functions.insert(function.name.clone(), function);
+    }
     let mut output = String::new();
     for (class, fields) in &class_fields {
         output.push('\u{1e}');
@@ -200,22 +218,38 @@ pub(super) fn lower_named(
                         "if condition must compare numeric values or call a Boolean function",
                     ));
                 };
-                if !imported_functions.contains(function) {
-                    return Err(diagnostic(
-                        source_path,
-                        line_number,
-                        scope_name,
-                        &format!("Function `{function}` is not imported"),
-                    ));
-                }
-                let link = native_links.get(function).ok_or_else(|| {
-                    diagnostic(
-                        source_path,
-                        line_number,
-                        scope_name,
-                        &format!("Function `{function}` has no native link"),
+                let (link, combined) = if function.contains('.') {
+                    resolve_method(
+                        &mut output,
+                        function,
+                        args,
+                        &mut values,
+                        &native_links,
+                        &enum_values,
+                        &mut temp_counter,
                     )
-                })?;
+                    .map_err(|message| {
+                        diagnostic(source_path, line_number, scope_name, &message)
+                    })?
+                } else {
+                    if !imported_functions.contains(function) {
+                        return Err(diagnostic(
+                            source_path,
+                            line_number,
+                            scope_name,
+                            &format!("Function `{function}` is not imported"),
+                        ));
+                    }
+                    let link = native_links.get(function).ok_or_else(|| {
+                        diagnostic(
+                            source_path,
+                            line_number,
+                            scope_name,
+                            &format!("Function `{function}` has no native link"),
+                        )
+                    })?;
+                    (link.clone(), args.to_owned())
+                };
                 if link.return_type != "Boolean" {
                     return Err(diagnostic(
                         source_path,
@@ -225,7 +259,7 @@ pub(super) fn lower_named(
                     ));
                 }
                 let marker_start = output.len();
-                emit_link_call(&mut output, link, args, &enum_values, &values, "").map_err(
+                emit_link_call(&mut output, &link, &combined, &enum_values, &values, "").map_err(
                     |message| diagnostic(source_path, line_number, scope_name, &message),
                 )?;
                 let marker =
@@ -283,22 +317,38 @@ pub(super) fn lower_named(
                         "while condition must compare numeric values or call a Boolean function",
                     ));
                 };
-                if !imported_functions.contains(function) {
-                    return Err(diagnostic(
-                        source_path,
-                        line_number,
-                        scope_name,
-                        &format!("Function `{function}` is not imported"),
-                    ));
-                }
-                let link = native_links.get(function).ok_or_else(|| {
-                    diagnostic(
-                        source_path,
-                        line_number,
-                        scope_name,
-                        &format!("Function `{function}` has no native link"),
+                let (link, combined) = if function.contains('.') {
+                    resolve_method(
+                        &mut output,
+                        function,
+                        args,
+                        &mut values,
+                        &native_links,
+                        &enum_values,
+                        &mut temp_counter,
                     )
-                })?;
+                    .map_err(|message| {
+                        diagnostic(source_path, line_number, scope_name, &message)
+                    })?
+                } else {
+                    if !imported_functions.contains(function) {
+                        return Err(diagnostic(
+                            source_path,
+                            line_number,
+                            scope_name,
+                            &format!("Function `{function}` is not imported"),
+                        ));
+                    }
+                    let link = native_links.get(function).ok_or_else(|| {
+                        diagnostic(
+                            source_path,
+                            line_number,
+                            scope_name,
+                            &format!("Function `{function}` has no native link"),
+                        )
+                    })?;
+                    (link.clone(), args.to_owned())
+                };
                 if link.return_type != "Boolean" {
                     return Err(diagnostic(
                         source_path,
@@ -308,7 +358,7 @@ pub(super) fn lower_named(
                     ));
                 }
                 let marker_start = output.len();
-                emit_link_call(&mut output, link, args, &enum_values, &values, "").map_err(
+                emit_link_call(&mut output, &link, &combined, &enum_values, &values, "").map_err(
                     |message| diagnostic(source_path, line_number, scope_name, &message),
                 )?;
                 let marker =
@@ -364,13 +414,14 @@ pub(super) fn lower_named(
             let (value, ty, native_value) = declaration_value(
                 rhs.trim(),
                 annotation,
-                &values,
+                &mut values,
                 &imported_functions,
                 &native_links,
                 &enum_values,
                 &type_params,
                 &mut output,
                 &name,
+                &mut temp_counter,
             )
             .map_err(|message| diagnostic(source_path, line_number, scope_name, &message))?;
             values.insert(
@@ -399,13 +450,14 @@ pub(super) fn lower_named(
                 let (value, ty, native_value) = declaration_value(
                     rhs,
                     Some(target_ty),
-                    &values,
+                    &mut values,
                     &imported_functions,
                     &native_links,
                     &enum_values,
                     &type_params,
                     &mut output,
                     lhs,
+                    &mut temp_counter,
                 )
                 .map_err(|message| diagnostic(source_path, line_number, scope_name, &message))?;
                 if let Some(variable) = values.get_mut(lhs) {
@@ -427,6 +479,79 @@ pub(super) fn lower_named(
             continue;
         }
         if let Some((function, args)) = parse_call(line.trim_end_matches(';')) {
+            if function.contains('.') {
+                let (receiver, receiver_type) = resolve_receiver(
+                    &mut output,
+                    function,
+                    &mut values,
+                    &native_links,
+                    &enum_values,
+                    &mut temp_counter,
+                )
+                .map_err(|message| {
+                    diagnostic(source_path, line_number, scope_name, &message)
+                })?;
+                let method = function
+                    .split('.')
+                    .filter(|segment| !segment.is_empty())
+                    .next_back()
+                    .unwrap_or_default();
+                let key = format!("{}.{}", receiver_type.name(), method);
+                if let Some(inner) = user_functions.get(&key) {
+                    let inner = inner.clone();
+                    inline_user_function(
+                        &mut output,
+                        &inner,
+                        Some(receiver),
+                        args,
+                        &mut values,
+                        &native_links,
+                        &enum_values,
+                        &mut temp_counter,
+                        &user_functions,
+                        0,
+                    )
+                    .map_err(|message| {
+                        diagnostic(source_path, line_number, scope_name, &message)
+                    })?;
+                    continue;
+                }
+                let link = native_links.get(&key).ok_or_else(|| {
+                    diagnostic(
+                        source_path,
+                        line_number,
+                        scope_name,
+                        &format!("Undefined method `{key}`"),
+                    )
+                })?;
+                let combined = if args.trim().is_empty() {
+                    receiver
+                } else {
+                    format!("{receiver},{args}")
+                };
+                emit_link_call(&mut output, link, &combined, &enum_values, &values, "")
+                    .map_err(|message| {
+                        diagnostic(source_path, line_number, scope_name, &message)
+                    })?;
+                continue;
+            }
+            if let Some(inner) = user_functions.get(function) {
+                let inner = inner.clone();
+                inline_user_function(
+                    &mut output,
+                    &inner,
+                    None,
+                    args,
+                    &mut values,
+                    &native_links,
+                    &enum_values,
+                    &mut temp_counter,
+                    &user_functions,
+                    0,
+                )
+                .map_err(|message| diagnostic(source_path, line_number, scope_name, &message))?;
+                continue;
+            }
             if imported_functions.contains(function) {
                 if let Some(link) = native_links.get(function) {
                     emit_link_call(&mut output, link, args, &enum_values, &values, "").map_err(
@@ -614,18 +739,454 @@ pub(super) fn lower_named(
 }
 
 #[allow(clippy::too_many_arguments)]
+fn resolve_method(
+    output: &mut String,
+    path: &str,
+    args: &str,
+    values: &mut HashMap<String, Variable>,
+    native_links: &HashMap<String, imports::NativeLink>,
+    enum_values: &HashMap<String, HashMap<String, i32>>,
+    temp_counter: &mut usize,
+) -> std::result::Result<(imports::NativeLink, String), String> {
+    let segments = path
+        .split('.')
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>();
+    if segments.len() < 2 {
+        return Err(format!("`{path}` is not a method call"));
+    }
+    let receiver = segments[0];
+    let mut current = receiver.to_owned();
+    let mut current_type = values
+        .get(receiver)
+        .map(|variable| variable.ty.clone())
+        .ok_or_else(|| format!("Unknown receiver `{receiver}`"))?;
+    for segment in &segments[1..segments.len() - 1] {
+        let key = format!("{}.{}", current_type.name(), segment);
+        let link = native_links
+            .get(&key)
+            .ok_or_else(|| format!("Undefined member `{segment}` on `{}`", current_type.name()))?;
+        let temporary = format!("__member{}", *temp_counter);
+        *temp_counter += 1;
+        emit_link_call(output, link, &current, enum_values, &*values, &temporary)?;
+        let ty = Type::parse(&link.return_type, &HashSet::new()).unwrap_or(Type::Pointer);
+        values.insert(
+            temporary.clone(),
+            Variable {
+                value: ty.name(),
+                ty: ty.clone(),
+                memory_backed: false,
+                allocated: true,
+                lazy: false,
+                unloaded: false,
+                declared_in_init: false,
+                native: true,
+            },
+        );
+        current = temporary;
+        current_type = ty;
+    }
+    let method = segments[segments.len() - 1];
+    let key = format!("{}.{}", current_type.name(), method);
+    let link = native_links
+        .get(&key)
+        .ok_or_else(|| format!("Undefined method `{key}`"))?
+        .clone();
+    let combined = if args.trim().is_empty() {
+        current
+    } else {
+        format!("{current},{args}")
+    };
+    Ok((link, combined))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn resolve_receiver(
+    output: &mut String,
+    path: &str,
+    values: &mut HashMap<String, Variable>,
+    native_links: &HashMap<String, imports::NativeLink>,
+    enum_values: &HashMap<String, HashMap<String, i32>>,
+    temp_counter: &mut usize,
+) -> std::result::Result<(String, Type), String> {
+    let segments = path
+        .split('.')
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>();
+    if segments.len() < 2 {
+        return Err(format!("`{path}` is not a method call"));
+    }
+    let receiver = segments[0];
+    let mut current = receiver.to_owned();
+    let mut current_type = values
+        .get(receiver)
+        .map(|variable| variable.ty.clone())
+        .ok_or_else(|| format!("Unknown receiver `{receiver}`"))?;
+    for segment in &segments[1..segments.len() - 1] {
+        let key = format!("{}.{}", current_type.name(), segment);
+        let link = native_links
+            .get(&key)
+            .ok_or_else(|| format!("Undefined member `{segment}` on `{}`", current_type.name()))?;
+        let temporary = format!("__member{}", *temp_counter);
+        *temp_counter += 1;
+        emit_link_call(output, link, &current, enum_values, &*values, &temporary)?;
+        let ty = Type::parse(&link.return_type, &HashSet::new()).unwrap_or(Type::Pointer);
+        values.insert(
+            temporary.clone(),
+            Variable {
+                value: ty.name(),
+                ty: ty.clone(),
+                memory_backed: false,
+                allocated: true,
+                lazy: false,
+                unloaded: false,
+                declared_in_init: false,
+                native: true,
+            },
+        );
+        current = temporary;
+        current_type = ty;
+    }
+    Ok((current, current_type))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn inline_user_function(
+    output: &mut String,
+    function: &UserFunction,
+    receiver: Option<String>,
+    args: &str,
+    values: &mut HashMap<String, Variable>,
+    native_links: &HashMap<String, imports::NativeLink>,
+    enum_values: &HashMap<String, HashMap<String, i32>>,
+    temp_counter: &mut usize,
+    user_functions: &HashMap<String, UserFunction>,
+    depth: usize,
+) -> std::result::Result<(), String> {
+    if depth > 32 {
+        return Err(format!("Recursive call to `{}` is not supported", function.name));
+    }
+    let arguments = split_argument_list(args);
+    if arguments.len() != function.params.len() {
+        return Err(format!(
+            "Function `{}` expects {} argument(s) but received {}",
+            function.name,
+            function.params.len(),
+            arguments.len()
+        ));
+    }
+    let mut substitutions: Vec<(String, String)> = Vec::new();
+    match (function.receiver.as_ref(), receiver) {
+        (Some(_), Some(receiver)) => substitutions.push(("this".to_owned(), receiver)),
+        (Some(_), None) => {
+            return Err(format!("Method `{}` requires a receiver", function.name));
+        }
+        (None, Some(_)) => {
+            return Err(format!("Function `{}` is not a method", function.name));
+        }
+        (None, None) => {}
+    }
+    for ((param, _), argument) in function.params.iter().zip(arguments.iter()) {
+        substitutions.push((param.clone(), argument.trim().to_owned()));
+    }
+    for body_line in &function.body {
+        let substituted = apply_substitutions(body_line, &substitutions);
+        lower_inline_statement(
+            output,
+            &substituted,
+            values,
+            native_links,
+            enum_values,
+            temp_counter,
+            user_functions,
+            depth,
+        )?;
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lower_inline_statement(
+    output: &mut String,
+    line: &str,
+    values: &mut HashMap<String, Variable>,
+    native_links: &HashMap<String, imports::NativeLink>,
+    enum_values: &HashMap<String, HashMap<String, i32>>,
+    temp_counter: &mut usize,
+    user_functions: &HashMap<String, UserFunction>,
+    depth: usize,
+) -> std::result::Result<(), String> {
+    let line = line.trim().trim_end_matches(';').trim();
+    if line.is_empty() || line == "return" || line == "break" {
+        return Ok(());
+    }
+    let Some((call, call_args)) = parse_call(line) else {
+        return Err(format!("Unsupported statement in function body: `{line}`"));
+    };
+    if call.contains('.') {
+        let (receiver, receiver_type) = resolve_receiver(
+            output,
+            call,
+            values,
+            native_links,
+            enum_values,
+            temp_counter,
+        )?;
+        let method = call
+            .split('.')
+            .filter(|segment| !segment.is_empty())
+            .next_back()
+            .unwrap_or_default();
+        let key = format!("{}.{}", receiver_type.name(), method);
+        if let Some(inner) = user_functions.get(&key) {
+            let inner = inner.clone();
+            return inline_user_function(
+                output,
+                &inner,
+                Some(receiver),
+                call_args,
+                values,
+                native_links,
+                enum_values,
+                temp_counter,
+                user_functions,
+                depth + 1,
+            );
+        }
+        let link = native_links
+            .get(&key)
+            .ok_or_else(|| format!("Undefined method `{key}`"))?;
+        let combined = if call_args.trim().is_empty() {
+            receiver
+        } else {
+            format!("{receiver},{call_args}")
+        };
+        return emit_link_call(output, link, &combined, enum_values, values, "");
+    }
+    if let Some(inner) = user_functions.get(call) {
+        let inner = inner.clone();
+        return inline_user_function(
+            output,
+            &inner,
+            None,
+            call_args,
+            values,
+            native_links,
+            enum_values,
+            temp_counter,
+            user_functions,
+            depth + 1,
+        );
+    }
+    let link = native_links
+        .get(call)
+        .ok_or_else(|| format!("Undefined function `{call}`"))?;
+    emit_link_call(output, link, call_args, enum_values, values, "")
+}
+
+fn split_argument_list(args: &str) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut current = String::new();
+    let mut depth = 0i32;
+    let mut in_string = false;
+    let mut escaped = false;
+    for ch in args.chars() {
+        if in_string {
+            current.push(ch);
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+        match ch {
+            '"' => {
+                in_string = true;
+                current.push(ch);
+            }
+            '(' => {
+                depth += 1;
+                current.push(ch);
+            }
+            ')' => {
+                depth -= 1;
+                current.push(ch);
+            }
+            ',' if depth == 0 => {
+                parts.push(current.trim().to_owned());
+                current.clear();
+            }
+            _ => current.push(ch),
+        }
+    }
+    parts.push(current.trim().to_owned());
+    parts.retain(|part| !part.is_empty());
+    parts
+}
+
+fn apply_substitutions(line: &str, substitutions: &[(String, String)]) -> String {
+    let chars = line.chars().collect::<Vec<_>>();
+    let mut output = String::new();
+    let mut index = 0;
+    let mut in_string = false;
+    let mut escaped = false;
+    while index < chars.len() {
+        let ch = chars[index];
+        if in_string {
+            output.push(ch);
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == '"' {
+                in_string = false;
+            }
+            index += 1;
+            continue;
+        }
+        if ch == '"' {
+            in_string = true;
+            output.push(ch);
+            index += 1;
+            continue;
+        }
+        if ch.is_ascii_alphabetic() || ch == '_' {
+            let start = index;
+            while index < chars.len()
+                && (chars[index].is_ascii_alphanumeric() || chars[index] == '_')
+            {
+                index += 1;
+            }
+            let word = chars[start..index].iter().collect::<String>();
+            match substitutions.iter().find(|(name, _)| *name == word) {
+                Some((_, replacement)) => output.push_str(replacement),
+                None => output.push_str(&word),
+            }
+            continue;
+        }
+        output.push(ch);
+        index += 1;
+    }
+    output
+}
+
+fn parse_user_functions(source: &str) -> Vec<UserFunction> {
+    let lines = source.lines().collect::<Vec<_>>();
+    let mut functions = Vec::new();
+    let mut index = 0;
+    while index < lines.len() {
+        let clean = strip_line_comment(lines[index]).trim();
+        let header = clean
+            .strip_prefix("pub fun ")
+            .or_else(|| clean.strip_prefix("fun "));
+        let Some(header) = header else {
+            index += 1;
+            continue;
+        };
+        if !clean.contains('{') {
+            index += 1;
+            continue;
+        }
+        let Some(open) = header.find('(') else {
+            index += 1;
+            continue;
+        };
+        let name_part = header[..open].trim();
+        if name_part.contains('<') {
+            index += 1;
+            continue;
+        }
+        let after_open = &header[open + 1..];
+        let Some(close) = after_open.find(')') else {
+            index += 1;
+            continue;
+        };
+        let params_text = &after_open[..close];
+        let (receiver, name) = if let Some((receiver, name)) = name_part.rsplit_once('.') {
+            (Some(receiver.trim().to_owned()), name.trim().to_owned())
+        } else {
+            (None, name_part.to_owned())
+        };
+        if name.is_empty() {
+            index += 1;
+            continue;
+        }
+        let mut params = Vec::new();
+        for param in params_text.split(',').map(str::trim).filter(|p| !p.is_empty()) {
+            if let Some((param_name, param_type)) = param.split_once(':') {
+                let ty = Type::parse(param_type.trim(), &HashSet::new()).unwrap_or(Type::Void);
+                params.push((param_name.trim().to_owned(), ty));
+            } else {
+                params.push((param.to_owned(), Type::Void));
+            }
+        }
+        let first_brace = clean.find('{').unwrap_or(clean.len());
+        let mut body = Vec::new();
+        let inline = clean[first_brace + 1..]
+            .trim()
+            .trim_end_matches('}')
+            .trim();
+        if !inline.is_empty() {
+            body.push(inline.to_owned());
+        }
+        let mut depth = brace_delta(clean);
+        index += 1;
+        while depth > 0 && index < lines.len() {
+            let current = strip_line_comment(lines[index]).trim();
+            let inside = current.trim_end_matches('}').trim();
+            if !inside.is_empty() {
+                body.push(inside.to_owned());
+            }
+            depth += brace_delta(current);
+            index += 1;
+        }
+        functions.push(UserFunction {
+            name: match &receiver {
+                Some(receiver) => format!("{receiver}.{name}"),
+                None => name,
+            },
+            receiver,
+            params,
+            body,
+        });
+    }
+    functions
+}
+
+#[allow(clippy::too_many_arguments)]
 fn declaration_value(
     rhs: &str,
     annotation: Option<Type>,
-    values: &HashMap<String, Variable>,
+    values: &mut HashMap<String, Variable>,
     imported_functions: &HashSet<String>,
     native_links: &HashMap<String, imports::NativeLink>,
     enum_values: &HashMap<String, HashMap<String, i32>>,
     type_params: &HashSet<String>,
     output: &mut String,
     assigned_to: &str,
+    temp_counter: &mut usize,
 ) -> std::result::Result<(String, Type, bool), String> {
     if let Some((function, args)) = parse_call(rhs) {
+        if function.contains('.') {
+            let (link, combined) = resolve_method(
+                output,
+                function,
+                args,
+                values,
+                native_links,
+                enum_values,
+                temp_counter,
+            )?;
+            emit_link_call(output, &link, &combined, enum_values, values, assigned_to)?;
+            let ty = match annotation {
+                Some(ty) => ty,
+                None => Type::parse(&link.return_type, type_params).unwrap_or(Type::Void),
+            };
+            return Ok((ty.name(), ty, true));
+        }
         if imported_functions.contains(function) {
             let link = native_links.get(function).ok_or_else(|| {
                 format!("Imported function `{function}` has no #[link] attribute")

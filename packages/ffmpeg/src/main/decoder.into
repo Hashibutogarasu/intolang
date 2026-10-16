@@ -1,22 +1,27 @@
-pub FFmpegVideo() { }
+pub FFmpeg() { }
 
-#[link("cpp", "src/main/native/ffmpeg/decoder.cpp", "ffmpeg_video_open")]
-pub cpp fun ffmpeg_video_open(path: String, maxColumns: Int32, maxRows: Int32): FFmpegVideo;
+pub Video() { }
+
+#[link("cpp", "src/main/native/ffmpeg/decoder.cpp", "ffmpeg_new")]
+pub fun FFmpeg(): FFmpeg;
+
+#[link("cpp", "src/main/native/ffmpeg/decoder.cpp", "ffmpeg_read")]
+pub fun FFmpeg.read(path: String): Video;
 
 #[link("cpp", "src/main/native/ffmpeg/decoder.cpp", "ffmpeg_video_columns")]
-pub cpp fun ffmpeg_video_columns(video: FFmpegVideo): Int32;
+pub fun Video.columns(): Int32;
 
 #[link("cpp", "src/main/native/ffmpeg/decoder.cpp", "ffmpeg_video_rows")]
-pub cpp fun ffmpeg_video_rows(video: FFmpegVideo): Int32;
+pub fun Video.rows(): Int32;
 
 #[link("cpp", "src/main/native/ffmpeg/decoder.cpp", "ffmpeg_video_frame_delay_ms")]
-pub cpp fun ffmpeg_video_frame_delay_ms(video: FFmpegVideo): Int32;
+pub fun Video.delayMs(): Int32;
 
 #[link("cpp", "src/main/native/ffmpeg/decoder.cpp", "ffmpeg_video_read_frame")]
-pub cpp fun ffmpeg_video_read_frame(video: FFmpegVideo): Boolean;
+pub fun Video.next(): Boolean;
 
 #[link("cpp", "src/main/native/ffmpeg/decoder.cpp", "ffmpeg_video_text")]
-pub cpp fun ffmpeg_video_text(video: FFmpegVideo): String;
+pub fun Video.text(): String;
 
 #[link("cpp", "src/main/native/ffmpeg/decoder.cpp", "ffmpeg_video_destroy")]
-pub cpp fun ffmpeg_video_destroy(video: FFmpegVideo): Void;
+pub fun Video.destroy(): Void;

@@ -1,25 +1,25 @@
+pub Vulkan() { }
+
 #[link("c", "src/main/native/vulkan/core.c", "vulkan_create_instance")]
 pub c fun vulkan_create_instance(createInfo: Pointer, allocator: Pointer, instance: Pointer): Int32;
 
 #[link("c", "src/main/native/vulkan/core.c", "vulkan_destroy_instance")]
 pub c fun vulkan_destroy_instance(instance: Pointer, allocator: Pointer): Void;
 
-pub VulkanWindow() { }
+#[link("cpp", "src/main/native/vulkan/wayland.cpp", "vulkan_new")]
+pub fun Vulkan(): Vulkan;
 
-#[link("cpp", "src/main/native/vulkan/wayland.cpp", "vulkan_wayland_window_create")]
-pub cpp fun vulkan_wayland_window_create(display: Pointer, surface: Pointer, width: Int32, height: Int32): VulkanWindow;
+#[link("cpp", "src/main/native/vulkan/wayland.cpp", "vulkan_bind")]
+pub fun Vulkan.bind(pixels: Pointer, width: Int32, height: Int32): Void;
 
-#[link("cpp", "src/main/native/vulkan/wayland.cpp", "vulkan_wayland_window_begin_frame")]
-pub cpp fun vulkan_wayland_window_begin_frame(window: VulkanWindow, clearColor: Int32): Void;
+#[link("cpp", "src/main/native/vulkan/wayland.cpp", "vulkan_begin_frame")]
+pub fun Vulkan.beginFrame(clearColor: Int32): Void;
 
-#[link("cpp", "src/main/native/vulkan/wayland.cpp", "vulkan_wayland_window_fill_rect")]
-pub cpp fun vulkan_wayland_window_fill_rect(window: VulkanWindow, x: Int32, y: Int32, width: Int32, height: Int32, color: Int32): Void;
+#[link("cpp", "src/main/native/vulkan/wayland.cpp", "vulkan_fill_rect")]
+pub fun Vulkan.fillRect(x: Int32, y: Int32, width: Int32, height: Int32, color: Int32): Void;
 
-#[link("cpp", "src/main/native/vulkan/wayland.cpp", "vulkan_wayland_window_draw_text")]
-pub cpp fun vulkan_wayland_window_draw_text(window: VulkanWindow, text: String, color: Int32): Void;
+#[link("cpp", "src/main/native/vulkan/wayland.cpp", "vulkan_draw_text")]
+pub fun Vulkan.drawText(text: String, color: Int32): Void;
 
-#[link("cpp", "src/main/native/vulkan/wayland.cpp", "vulkan_wayland_window_present")]
-pub cpp fun vulkan_wayland_window_present(window: VulkanWindow): Void;
-
-#[link("cpp", "src/main/native/vulkan/wayland.cpp", "vulkan_wayland_window_destroy")]
-pub cpp fun vulkan_wayland_window_destroy(window: VulkanWindow): Void;
+#[link("cpp", "src/main/native/vulkan/wayland.cpp", "vulkan_destroy")]
+pub fun Vulkan.destroy(): Void;

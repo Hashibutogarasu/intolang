@@ -3,28 +3,32 @@ import "vulkan://core";
 import "ffmpeg://decoder";
 import "cpp://standard/time";
 
-init {
-    into window = wayland_window_create(854, 480, "Bad Apple!!");
-    into display = wayland_window_native_display(window);
-    into surface = wayland_window_native_surface(window);
-    into renderer = vulkan_wayland_window_create(display, surface, 854, 480);
-    into video = ffmpeg_video_open("res/badapple.mp4", 106, 60);
-    into delay = ffmpeg_video_frame_delay_ms(video);
-    into start = monotonicMilliseconds();
-    into frame = 0;
+into wayland: Wayland = Wayland();
+wayland.window.create(854, 480, "Bad Apple!!");
 
-    while (wayland_window_is_open(window)) {
-        if (ffmpeg_video_read_frame(video)) {
-            into text = ffmpeg_video_text(video);
-            vulkan_wayland_window_begin_frame(renderer, 0);
-            vulkan_wayland_window_draw_text(renderer, text, 16777215);
-            vulkan_wayland_window_present(renderer);
+into vulkan: Vulkan = Vulkan();
+wayland.setRenderer(vulkan);
+
+into ffmpeg: FFmpeg = FFmpeg();
+into video: Video = ffmpeg.read("res/badapple.mp4");
+
+init {
+    into delay: Int32 = video.delayMs();
+    into start: Int32 = monotonicMilliseconds();
+    into frame: Int32 = 0;
+
+    while (wayland.window.isOpen()) {
+        if (video.next()) {
+            into text: String = video.text();
+            vulkan.beginFrame(0);
+            vulkan.drawText(text, 16777215);
+            wayland.window.present();
 
             frame = frame + 1;
-            into elapsed = frame * delay;
-            into deadline = start + elapsed;
-            into now = monotonicMilliseconds();
-            into wait = deadline - now;
+            into elapsed: Int32 = frame * delay;
+            into deadline: Int32 = start + elapsed;
+            into now: Int32 = monotonicMilliseconds();
+            into wait: Int32 = deadline - now;
             if (wait > 0) {
                 sleep(wait);
             }
@@ -32,8 +36,8 @@ init {
             break;
         }
     }
-
-    ffmpeg_video_destroy(video);
-    vulkan_wayland_window_destroy(renderer);
-    wayland_window_destroy(window);
 }
+
+video.destroy();
+vulkan.destroy();
+wayland.destroy();
