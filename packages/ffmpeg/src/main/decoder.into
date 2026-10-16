@@ -6,7 +6,7 @@ pub Video() { }
 pub fun FFmpeg(): FFmpeg;
 
 #[link("cpp", "src/main/native/ffmpeg/decoder.cpp", "ffmpeg_read")]
-pub fun FFmpeg.read(path: String): Video;
+pub fun FFmpeg.read(path: Path): Video;
 
 #[link("cpp", "src/main/native/ffmpeg/decoder.cpp", "ffmpeg_video_columns")]
 pub fun Video.columns(): Int32;

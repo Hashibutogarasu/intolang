@@ -1,0 +1,20 @@
+#[link("cpp", "src/main/native/path/path.cpp", "path_join")]
+pub fun pathJoin(base: Path, leaf: Path): Path;
+
+#[link("cpp", "src/main/native/path/path.cpp", "path_normalize")]
+pub fun pathNormalize(value: Path): Path;
+
+#[link("cpp", "src/main/native/path/path.cpp", "path_absolute")]
+pub fun pathAbsolute(value: Path): Path;
+
+#[link("cpp", "src/main/native/path/path.cpp", "path_parent")]
+pub fun pathParent(value: Path): Path;
+
+#[link("cpp", "src/main/native/path/path.cpp", "path_file_name")]
+pub fun pathFileName(value: Path): Path;
+
+#[link("cpp", "src/main/native/path/path.cpp", "path_extension")]
+pub fun pathExtension(value: Path): String;
+
+#[link("cpp", "src/main/native/path/path.cpp", "path_stem")]
+pub fun pathStem(value: Path): Path;

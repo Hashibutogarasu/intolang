@@ -27,7 +27,9 @@ pub(super) fn function_scopes(source: &str, source_path: &str) -> Result<()> {
                 }
             }
             TokenKind::Symbol('}') => {
-                if function_depths.last() == Some(&brace_depth) { function_depths.pop(); }
+                if function_depths.last() == Some(&brace_depth) {
+                    function_depths.pop();
+                }
                 brace_depth = brace_depth.saturating_sub(1);
             }
             _ => {}

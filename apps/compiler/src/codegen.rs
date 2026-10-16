@@ -817,6 +817,7 @@ unsafe fn into_type(
     unsafe {
         match name {
             "String" => LLVMPointerType(LLVMInt8TypeInContext(context), 0),
+            "Path" => LLVMPointerType(LLVMInt8TypeInContext(context), 0),
             "Pointer" => LLVMPointerType(LLVMInt8TypeInContext(context), 0),
             "Boolean" => LLVMInt1TypeInContext(context),
             "Int8" => LLVMInt8TypeInContext(context),

@@ -141,4 +141,22 @@ mod lowering_tests {
         let source = "init {\n    into small: Int32 = 1;\n    into big: Int64 = small;\n}\n";
         assert!(lower(source).is_ok());
     }
+
+    #[test]
+    fn accepts_string_literal_as_path() {
+        let source = "init {\n    into source: Path = \"res/badapple.mp4\";\n}\n";
+        assert!(lower(source).is_ok());
+    }
+
+    #[test]
+    fn rejects_integer_assigned_to_path() {
+        let source = "init {\n    into source: Path = 42;\n}\n";
+        assert!(lower(source).is_err());
+    }
+
+    #[test]
+    fn treats_path_as_distinct_from_string() {
+        let source = "init {\n    into source: Path = \"res/badapple.mp4\";\n    into text: String = source;\n}\n";
+        assert!(lower(source).is_err());
+    }
 }

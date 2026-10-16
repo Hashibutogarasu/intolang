@@ -7,6 +7,7 @@ pub enum Type {
     Void,
     Boolean,
     String,
+    Path,
     Int8,
     Int16,
     Int32,
@@ -32,6 +33,7 @@ impl Type {
             "void" | "Void" => Type::Void,
             "bool" | "Boolean" | "Bool" => Type::Boolean,
             "string" | "String" | "str" => Type::String,
+            "path" | "Path" => Type::Path,
             "i8" | "Int8" => Type::Int8,
             "i16" | "Int16" => Type::Int16,
             "i32" | "Int32" => Type::Int32,
@@ -68,8 +70,9 @@ impl Type {
 
     /// Whether a value of this type may be bound to a target annotated with
     /// `target`. Identical types are always assignable; numeric values may be
-    /// widened or narrowed across integer/float widths, but strings, booleans,
-    /// pointers and named types are only assignable to themselves.
+    /// widened or narrowed across integer/float widths, and a plain string may
+    /// be used where a path is expected. Other types are only assignable to
+    /// themselves.
     pub fn is_assignable_to(&self, target: &Type) -> bool {
         if self == target {
             return true;
@@ -81,6 +84,7 @@ impl Type {
                 true
             }
             (Type::Float32 | Type::Float64, Type::Float32 | Type::Float64) => true,
+            (Type::String, Type::Path) => true,
             _ => false,
         }
     }
@@ -91,6 +95,7 @@ impl Type {
             Type::Void => "Void".into(),
             Type::Boolean => "Boolean".into(),
             Type::String => "String".into(),
+            Type::Path => "Path".into(),
             Type::Int8 => "Int8".into(),
             Type::Int16 => "Int16".into(),
             Type::Int32 => "Int32".into(),
@@ -135,6 +140,7 @@ mod tests {
     fn parses_primitives() {
         let params = HashSet::new();
         assert_eq!(Type::parse("String", &params).unwrap(), Type::String);
+        assert_eq!(Type::parse("Path", &params).unwrap(), Type::Path);
         assert_eq!(Type::parse("Int32", &params).unwrap(), Type::Int32);
         assert_eq!(Type::parse("Int64", &params).unwrap(), Type::Int64);
         assert_eq!(Type::parse("Float", &params).unwrap(), Type::Float64);
@@ -172,6 +178,8 @@ mod tests {
         assert!(Type::Int32.is_assignable_to(&Type::Int64));
         assert!(Type::Int32.is_assignable_to(&Type::Float64));
         assert!(Type::Float64.is_assignable_to(&Type::Float32));
+        assert!(Type::String.is_assignable_to(&Type::Path));
+        assert!(!Type::Path.is_assignable_to(&Type::String));
         assert!(!Type::String.is_assignable_to(&Type::Int32));
         assert!(!Type::Int32.is_assignable_to(&Type::String));
         assert!(!Type::Boolean.is_assignable_to(&Type::Int32));
