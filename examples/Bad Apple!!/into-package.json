@@ -7,6 +7,7 @@
   "name": "Bad Apple!!",
   "packages": {
     "cpp": "0.1.0",
+    "ffmpeg": "0.1.0",
     "intolang": "0.0.1",
     "json": "0.1.0",
     "vulkan": "0.1.0",

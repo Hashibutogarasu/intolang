@@ -1,91 +1,39 @@
 import "wayland://window";
 import "vulkan://core";
+import "ffmpeg://decoder";
 import "cpp://standard/time";
-import "json://value";
 
 init {
-    into movie = readTextFile("res/frames/bad_apple_wb.txt");
-    into lines = text_lines(movie);
     into window = wayland_window_create(854, 480, "Bad Apple!!");
     into display = wayland_window_native_display(window);
     into surface = wayland_window_native_surface(window);
     into renderer = vulkan_wayland_window_create(display, surface, 854, 480);
-    into playback_start = monotonicMilliseconds();
-    vulkan_wayland_window_begin_frame(renderer, 0);
+    into video = ffmpeg_video_open("res/badapple.mp4", 106, 60);
+    into delay = ffmpeg_video_frame_delay_ms(video);
+    into start = monotonicMilliseconds();
+    into frame = 0;
 
     while (wayland_window_is_open(window)) {
-        if (text_line_iterator_has_next(lines)) {
-            into line = text_line_iterator_next(lines);
-            into line_number = text_line_iterator_index(lines);
-            into frame_index = line_number / 61;
-            into frame_line_offset = frame_index * 61;
-            into row = line_number - frame_line_offset;
+        if (ffmpeg_video_read_frame(video)) {
+            into text = ffmpeg_video_text(video);
+            vulkan_wayland_window_begin_frame(renderer, 0);
+            vulkan_wayland_window_draw_text(renderer, text, 16777215);
+            vulkan_wayland_window_present(renderer);
 
-            if (text_equals(line, "R")) {
-                vulkan_wayland_window_present(renderer);
-                into frame_ticks = frame_index * 1000;
-                into frame_elapsed = frame_ticks / 60;
-                into frame_deadline = playback_start + frame_elapsed;
-                into current_time = monotonicMilliseconds();
-                into frame_delay = frame_deadline - current_time;
-                if (frame_delay > 0) {
-                    sleep(frame_delay);
-                }
-                if (text_line_iterator_has_next(lines)) {
-                    vulkan_wayland_window_begin_frame(renderer, 0);
-                }
-            } else {
-                into pixels = text_bytes(line);
-                while (text_byte_iterator_has_next(pixels)) {
-                    into pixel = text_byte_iterator_next(pixels);
-                    into column = text_byte_iterator_index(pixels);
-
-                    if (pixel == 42) {
-                        into column_end = column + 1;
-                        into x_scaled = column * 854;
-                        into x_end_scaled = column_end * 854;
-                        into x = x_scaled / 160;
-                        into x_end = x_end_scaled / 160;
-                        into cell_width = x_end - x;
-                        into row_scaled = row * 480;
-                        into y = row_scaled / 60;
-
-                        into first_fifth = cell_width / 5;
-                        into second_fifths = cell_width * 2;
-                        into second_fifth = second_fifths / 5;
-                        into third_fifths = cell_width * 3;
-                        into third_fifth = third_fifths / 5;
-                        into fourth_fifths = cell_width * 4;
-                        into fourth_fifth = fourth_fifths / 5;
-                        into side_x = x + first_fifth;
-                        into middle_x = x + second_fifth;
-                        into far_x = x + third_fifth;
-                        into far_end_x = x + fourth_fifth;
-                        into diagonal_width = middle_x - side_x;
-                        into other_diagonal_width = far_end_x - far_x;
-                        into vertical_width = cell_width / 5;
-                        into y_top = y + 2;
-                        into y_middle = y + 3;
-                        into y_lower = y + 4;
-                        into y_bottom = y + 5;
-
-                        vulkan_wayland_window_fill_rect(renderer, side_x, y, diagonal_width, 2, 16777215);
-                        vulkan_wayland_window_fill_rect(renderer, far_x, y, other_diagonal_width, 2, 16777215);
-                        vulkan_wayland_window_fill_rect(renderer, middle_x, y_top, vertical_width, 1, 16777215);
-                        vulkan_wayland_window_fill_rect(renderer, x, y_middle, cell_width, 1, 16777215);
-                        vulkan_wayland_window_fill_rect(renderer, middle_x, y_lower, vertical_width, 1, 16777215);
-                        vulkan_wayland_window_fill_rect(renderer, side_x, y_bottom, diagonal_width, 2, 16777215);
-                        vulkan_wayland_window_fill_rect(renderer, far_x, y_bottom, other_diagonal_width, 2, 16777215);
-                    }
-                }
-                text_byte_iterator_destroy(pixels);
+            frame = frame + 1;
+            into elapsed = frame * delay;
+            into deadline = start + elapsed;
+            into now = monotonicMilliseconds();
+            into wait = deadline - now;
+            if (wait > 0) {
+                sleep(wait);
             }
         } else {
             break;
         }
     }
 
-    text_line_iterator_destroy(lines);
+    ffmpeg_video_destroy(video);
     vulkan_wayland_window_destroy(renderer);
     wayland_window_destroy(window);
 }

@@ -4,14 +4,37 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <vector>
 
 namespace {
-struct DrawRect {
-    VkClearRect area;
-    uint32_t color;
-};
+constexpr uint8_t GLYPH_SIZE = 8;
+
+const uint8_t *glyph_for(char character) {
+    static const uint8_t blank[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    static const uint8_t dot[8] = {0, 0, 0, 0, 0, 0x18, 0x18, 0};
+    static const uint8_t colon[8] = {0, 0x18, 0x18, 0, 0x18, 0x18, 0, 0};
+    static const uint8_t dash[8] = {0, 0, 0, 0x7e, 0, 0, 0, 0};
+    static const uint8_t equals[8] = {0, 0, 0x7e, 0, 0x7e, 0, 0, 0};
+    static const uint8_t plus[8] = {0, 0, 0x18, 0x7e, 0x18, 0, 0, 0};
+    static const uint8_t star[8] = {0, 0x24, 0x18, 0x7e, 0x18, 0x24, 0, 0};
+    static const uint8_t hash[8] = {0, 0x24, 0x7e, 0x24, 0x7e, 0x24, 0, 0};
+    static const uint8_t percent[8] = {0, 0x62, 0x64, 0x08, 0x10, 0x26, 0x46, 0};
+    static const uint8_t at[8] = {0x3c, 0x42, 0x5a, 0x52, 0x5e, 0x40, 0x3c, 0};
+    switch (character) {
+        case '.': return dot;
+        case ':': return colon;
+        case '-': return dash;
+        case '=': return equals;
+        case '+': return plus;
+        case '*': return star;
+        case '#': return hash;
+        case '%': return percent;
+        case '@': return at;
+        default: return blank;
+    }
+}
 
 struct VulkanWindow {
     VkInstance instance = VK_NULL_HANDLE;
@@ -23,20 +46,32 @@ struct VulkanWindow {
     VkSwapchainKHR swapchain = VK_NULL_HANDLE;
     VkFormat format = VK_FORMAT_UNDEFINED;
     VkExtent2D extent{};
+    bool swap_red_blue = false;
     std::vector<VkImage> images;
-    std::vector<VkImageView> views;
-    VkRenderPass render_pass = VK_NULL_HANDLE;
-    std::vector<VkFramebuffer> framebuffers;
     VkCommandPool command_pool = VK_NULL_HANDLE;
     std::vector<VkCommandBuffer> commands;
     VkSemaphore image_available = VK_NULL_HANDLE;
     VkSemaphore render_finished = VK_NULL_HANDLE;
     VkFence frame_fence = VK_NULL_HANDLE;
+    VkBuffer staging_buffer = VK_NULL_HANDLE;
+    VkDeviceMemory staging_memory = VK_NULL_HANDLE;
+    void *staging_mapped = nullptr;
+    VkDeviceSize staging_size = 0;
+    std::vector<uint32_t> pixels;
     uint32_t image_index = 0;
     int32_t clear_color = 0;
+    int cursor_x = 0;
+    int cursor_y = 0;
     bool frame_active = false;
-    std::vector<DrawRect> rectangles;
 };
+
+uint32_t pack_color(uint32_t color, bool swap_red_blue) {
+    const uint32_t red = (color >> 16) & 0xff;
+    const uint32_t green = (color >> 8) & 0xff;
+    const uint32_t blue = color & 0xff;
+    if (swap_red_blue) return 0xff000000u | (red << 16) | (green << 8) | blue;
+    return 0xff000000u | (blue << 16) | (green << 8) | red;
+}
 
 bool choose_device(VulkanWindow &window) {
     uint32_t count = 0;
@@ -61,21 +96,50 @@ bool choose_device(VulkanWindow &window) {
     return false;
 }
 
+uint32_t find_memory_type(VkPhysicalDevice device, uint32_t filter, VkMemoryPropertyFlags properties) {
+    VkPhysicalDeviceMemoryProperties memory{};
+    vkGetPhysicalDeviceMemoryProperties(device, &memory);
+    for (uint32_t index = 0; index < memory.memoryTypeCount; ++index) {
+        if ((filter & (1u << index)) != 0 && (memory.memoryTypes[index].propertyFlags & properties) == properties) {
+            return index;
+        }
+    }
+    return 0;
+}
+
 void destroy(VulkanWindow &window) {
     if (window.device != VK_NULL_HANDLE) vkDeviceWaitIdle(window.device);
+    if (window.device != VK_NULL_HANDLE && window.staging_buffer != VK_NULL_HANDLE) vkDestroyBuffer(window.device, window.staging_buffer, nullptr);
+    if (window.device != VK_NULL_HANDLE && window.staging_memory != VK_NULL_HANDLE) vkFreeMemory(window.device, window.staging_memory, nullptr);
     if (window.device != VK_NULL_HANDLE && window.frame_fence != VK_NULL_HANDLE) vkDestroyFence(window.device, window.frame_fence, nullptr);
     if (window.device != VK_NULL_HANDLE && window.image_available != VK_NULL_HANDLE) vkDestroySemaphore(window.device, window.image_available, nullptr);
     if (window.device != VK_NULL_HANDLE && window.render_finished != VK_NULL_HANDLE) vkDestroySemaphore(window.device, window.render_finished, nullptr);
     if (window.device != VK_NULL_HANDLE && window.command_pool != VK_NULL_HANDLE) vkDestroyCommandPool(window.device, window.command_pool, nullptr);
     if (window.device != VK_NULL_HANDLE) {
-        for (VkFramebuffer framebuffer : window.framebuffers) vkDestroyFramebuffer(window.device, framebuffer, nullptr);
-        if (window.render_pass != VK_NULL_HANDLE) vkDestroyRenderPass(window.device, window.render_pass, nullptr);
-        for (VkImageView view : window.views) vkDestroyImageView(window.device, view, nullptr);
         if (window.swapchain != VK_NULL_HANDLE) vkDestroySwapchainKHR(window.device, window.swapchain, nullptr);
         vkDestroyDevice(window.device, nullptr);
     }
     if (window.instance != VK_NULL_HANDLE && window.surface != VK_NULL_HANDLE) vkDestroySurfaceKHR(window.instance, window.surface, nullptr);
     if (window.instance != VK_NULL_HANDLE) vkDestroyInstance(window.instance, nullptr);
+}
+
+bool create_staging(VulkanWindow &window) {
+    window.staging_size = static_cast<VkDeviceSize>(window.extent.width) * window.extent.height * sizeof(uint32_t);
+    window.pixels.assign(static_cast<size_t>(window.extent.width) * window.extent.height, 0xff000000u);
+    VkBufferCreateInfo buffer_info{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+    buffer_info.size = window.staging_size;
+    buffer_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    if (vkCreateBuffer(window.device, &buffer_info, nullptr, &window.staging_buffer) != VK_SUCCESS) return false;
+    VkMemoryRequirements requirements{};
+    vkGetBufferMemoryRequirements(window.device, window.staging_buffer, &requirements);
+    VkMemoryAllocateInfo allocation{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+    allocation.allocationSize = requirements.size;
+    allocation.memoryTypeIndex = find_memory_type(window.physical_device, requirements.memoryTypeBits,
+                                                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    if (vkAllocateMemory(window.device, &allocation, nullptr, &window.staging_memory) != VK_SUCCESS) return false;
+    if (vkBindBufferMemory(window.device, window.staging_buffer, window.staging_memory, 0) != VK_SUCCESS) return false;
+    return vkMapMemory(window.device, window.staging_memory, 0, window.staging_size, 0, &window.staging_mapped) == VK_SUCCESS;
 }
 
 bool initialize(VulkanWindow &window, wl_display *display, wl_surface *wayland_surface, uint32_t width, uint32_t height) {
@@ -128,6 +192,7 @@ bool initialize(VulkanWindow &window, wl_display *display, wl_surface *wayland_s
         }
     }
     window.format = chosen_format.format;
+    window.swap_red_blue = window.format == VK_FORMAT_B8G8R8A8_UNORM || window.format == VK_FORMAT_B8G8R8A8_SRGB;
     window.extent = capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()
         ? capabilities.currentExtent
         : VkExtent2D{std::clamp(width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width),
@@ -148,7 +213,7 @@ bool initialize(VulkanWindow &window, wl_display *display, wl_surface *wayland_s
     swapchain_info.imageColorSpace = chosen_format.colorSpace;
     swapchain_info.imageExtent = window.extent;
     swapchain_info.imageArrayLayers = 1;
-    swapchain_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    swapchain_info.imageUsage = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     swapchain_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
     swapchain_info.preTransform = capabilities.currentTransform;
     swapchain_info.compositeAlpha = composite;
@@ -159,50 +224,6 @@ bool initialize(VulkanWindow &window, wl_display *display, wl_surface *wayland_s
     if (vkGetSwapchainImagesKHR(window.device, window.swapchain, &image_count, nullptr) != VK_SUCCESS || image_count == 0) return false;
     window.images.resize(image_count);
     if (vkGetSwapchainImagesKHR(window.device, window.swapchain, &image_count, window.images.data()) != VK_SUCCESS) return false;
-    window.views.resize(image_count);
-    for (uint32_t i = 0; i < image_count; ++i) {
-        VkImageViewCreateInfo view_info{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
-        view_info.image = window.images[i];
-        view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        view_info.format = window.format;
-        view_info.components = {VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY,
-                                VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY};
-        view_info.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-        if (vkCreateImageView(window.device, &view_info, nullptr, &window.views[i]) != VK_SUCCESS) return false;
-    }
-
-    VkAttachmentDescription attachment{};
-    attachment.format = window.format;
-    attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-    VkAttachmentReference color_reference{0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
-    VkSubpassDescription subpass{};
-    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpass.colorAttachmentCount = 1;
-    subpass.pColorAttachments = &color_reference;
-    VkRenderPassCreateInfo render_pass_info{VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
-    render_pass_info.attachmentCount = 1;
-    render_pass_info.pAttachments = &attachment;
-    render_pass_info.subpassCount = 1;
-    render_pass_info.pSubpasses = &subpass;
-    if (vkCreateRenderPass(window.device, &render_pass_info, nullptr, &window.render_pass) != VK_SUCCESS) return false;
-
-    window.framebuffers.resize(image_count);
-    for (uint32_t i = 0; i < image_count; ++i) {
-        VkFramebufferCreateInfo framebuffer_info{VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
-        framebuffer_info.renderPass = window.render_pass;
-        framebuffer_info.attachmentCount = 1;
-        framebuffer_info.pAttachments = &window.views[i];
-        framebuffer_info.width = window.extent.width;
-        framebuffer_info.height = window.extent.height;
-        framebuffer_info.layers = 1;
-        if (vkCreateFramebuffer(window.device, &framebuffer_info, nullptr, &window.framebuffers[i]) != VK_SUCCESS) return false;
-    }
 
     VkCommandPoolCreateInfo pool_info{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
     pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
@@ -220,13 +241,9 @@ bool initialize(VulkanWindow &window, wl_display *display, wl_surface *wayland_s
         vkCreateSemaphore(window.device, &semaphore_info, nullptr, &window.render_finished) != VK_SUCCESS) return false;
     VkFenceCreateInfo fence_info{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
     fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-    return vkCreateFence(window.device, &fence_info, nullptr, &window.frame_fence) == VK_SUCCESS;
-}
+    if (vkCreateFence(window.device, &fence_info, nullptr, &window.frame_fence) != VK_SUCCESS) return false;
 
-VkClearColorValue unpack_color(uint32_t color) {
-    return VkClearColorValue{{static_cast<float>((color >> 16) & 0xff) / 255.0f,
-                              static_cast<float>((color >> 8) & 0xff) / 255.0f,
-                              static_cast<float>(color & 0xff) / 255.0f, 1.0f}};
+    return create_staging(window);
 }
 }
 
@@ -244,53 +261,111 @@ extern "C" VulkanWindow *vulkan_wayland_window_create(void *display, void *surfa
 extern "C" void vulkan_wayland_window_begin_frame(VulkanWindow *window, int32_t clear_color) {
     if (!window || window->frame_active || vkWaitForFences(window->device, 1, &window->frame_fence, VK_TRUE, UINT64_MAX) != VK_SUCCESS) return;
     const VkResult acquired = vkAcquireNextImageKHR(window->device, window->swapchain, UINT64_MAX,
-                                                     window->image_available, VK_NULL_HANDLE, &window->image_index);
+                                                    window->image_available, VK_NULL_HANDLE, &window->image_index);
     if (acquired != VK_SUCCESS && acquired != VK_SUBOPTIMAL_KHR) return;
     VkCommandBuffer command = window->commands[window->image_index];
     if (vkResetCommandBuffer(command, 0) != VK_SUCCESS) return;
     VkCommandBufferBeginInfo begin_info{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
     begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     if (vkBeginCommandBuffer(command, &begin_info) != VK_SUCCESS) return;
-    VkClearValue clear{};
-    clear.color = unpack_color(static_cast<uint32_t>(clear_color));
-    VkRenderPassBeginInfo pass_info{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
-    pass_info.renderPass = window->render_pass;
-    pass_info.framebuffer = window->framebuffers[window->image_index];
-    pass_info.renderArea = {{0, 0}, window->extent};
-    pass_info.clearValueCount = 1;
-    pass_info.pClearValues = &clear;
-    vkCmdBeginRenderPass(command, &pass_info, VK_SUBPASS_CONTENTS_INLINE);
+    VkImageMemoryBarrier barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+    barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = window->images[window->image_index];
+    barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    barrier.srcAccessMask = 0;
+    barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
+                         0, nullptr, 0, nullptr, 1, &barrier);
+    std::fill(window->pixels.begin(), window->pixels.end(), pack_color(static_cast<uint32_t>(clear_color), window->swap_red_blue));
     window->clear_color = clear_color;
-    window->rectangles.clear();
+    window->cursor_x = 0;
+    window->cursor_y = 0;
     window->frame_active = true;
 }
 
 extern "C" void vulkan_wayland_window_fill_rect(VulkanWindow *window, int32_t x, int32_t y,
-                                                   int32_t width, int32_t height, int32_t color) {
+                                                int32_t width, int32_t height, int32_t color) {
     if (!window || !window->frame_active || width <= 0 || height <= 0) return;
-    const int64_t left = std::max<int64_t>(0, x), top = std::max<int64_t>(0, y);
-    const int64_t right = std::min<int64_t>(window->extent.width, static_cast<int64_t>(x) + width);
-    const int64_t bottom = std::min<int64_t>(window->extent.height, static_cast<int64_t>(y) + height);
+    const int left = std::max<int64_t>(0, x);
+    const int top = std::max<int64_t>(0, y);
+    const int right = std::min<int64_t>(window->extent.width, static_cast<int64_t>(x) + width);
+    const int bottom = std::min<int64_t>(window->extent.height, static_cast<int64_t>(y) + height);
     if (right <= left || bottom <= top) return;
-    VkClearRect area{{{static_cast<int32_t>(left), static_cast<int32_t>(top)},
-                       {static_cast<uint32_t>(right - left), static_cast<uint32_t>(bottom - top)}}, 0, 1};
-    window->rectangles.push_back({area, static_cast<uint32_t>(color)});
+    const uint32_t pixel = pack_color(static_cast<uint32_t>(color), window->swap_red_blue);
+    for (int row = top; row < bottom; ++row) {
+        std::fill(window->pixels.begin() + static_cast<size_t>(row) * window->extent.width + left,
+                  window->pixels.begin() + static_cast<size_t>(row) * window->extent.width + right, pixel);
+    }
+}
+
+extern "C" void vulkan_wayland_window_draw_text(VulkanWindow *window, const char *text, int32_t color) {
+    if (!window || !window->frame_active || !text) return;
+    const uint32_t pixel = pack_color(static_cast<uint32_t>(color), window->swap_red_blue);
+    int columns = 0;
+    while (text[columns] != '\0' && text[columns] != '\n') ++columns;
+    int rows = 0;
+    const size_t length = std::strlen(text);
+    for (size_t index = 0; index < length; ++index) {
+        if (text[index] == '\n') ++rows;
+    }
+    if (length > 0 && text[length - 1] != '\n') ++rows;
+    const int text_width = columns * GLYPH_SIZE;
+    const int text_height = rows * GLYPH_SIZE;
+    int cursor_x = (static_cast<int>(window->extent.width) - text_width) / 2;
+    int cursor_y = (static_cast<int>(window->extent.height) - text_height) / 2;
+    const int start_x = cursor_x;
+    for (const char *character = text; *character != '\0'; ++character) {
+        if (*character == '\n') {
+            cursor_x = start_x;
+            cursor_y += GLYPH_SIZE;
+            continue;
+        }
+        const uint8_t *glyph = glyph_for(*character);
+        for (int glyph_y = 0; glyph_y < GLYPH_SIZE; ++glyph_y) {
+            const uint8_t bits = glyph[glyph_y];
+            if (bits == 0) continue;
+            const int pixel_y = cursor_y + glyph_y;
+            if (pixel_y < 0 || pixel_y >= static_cast<int>(window->extent.height)) continue;
+            for (int glyph_x = 0; glyph_x < GLYPH_SIZE; ++glyph_x) {
+                if ((bits & (1u << (GLYPH_SIZE - 1 - glyph_x))) == 0) continue;
+                const int pixel_x = cursor_x + glyph_x;
+                if (pixel_x < 0 || pixel_x >= static_cast<int>(window->extent.width)) continue;
+                window->pixels[static_cast<size_t>(pixel_y) * window->extent.width + pixel_x] = pixel;
+            }
+        }
+        cursor_x += GLYPH_SIZE;
+    }
+    window->cursor_x = cursor_x;
+    window->cursor_y = cursor_y;
 }
 
 extern "C" void vulkan_wayland_window_present(VulkanWindow *window) {
     if (!window || !window->frame_active) return;
     VkCommandBuffer command = window->commands[window->image_index];
-    for (const DrawRect &rectangle : window->rectangles) {
-        VkClearAttachment attachment{};
-        attachment.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        attachment.colorAttachment = 0;
-        attachment.clearValue.color = unpack_color(rectangle.color);
-        vkCmdClearAttachments(command, 1, &attachment, 1, &rectangle.area);
-    }
-    vkCmdEndRenderPass(command);
+    std::memcpy(window->staging_mapped, window->pixels.data(), static_cast<size_t>(window->staging_size));
+    VkBufferImageCopy region{};
+    region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    region.imageOffset = {0, 0, 0};
+    region.imageExtent = {window->extent.width, window->extent.height, 1};
+    vkCmdCopyBufferToImage(command, window->staging_buffer, window->images[window->image_index],
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+    VkImageMemoryBarrier barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = window->images[window->image_index];
+    barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = 0;
+    vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0,
+                         0, nullptr, 0, nullptr, 1, &barrier);
     if (vkEndCommandBuffer(command) != VK_SUCCESS) { window->frame_active = false; return; }
     if (vkResetFences(window->device, 1, &window->frame_fence) != VK_SUCCESS) { window->frame_active = false; return; }
-    const VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    const VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
     VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};
     submit.waitSemaphoreCount = 1;
     submit.pWaitSemaphores = &window->image_available;

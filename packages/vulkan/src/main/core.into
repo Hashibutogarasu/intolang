@@ -15,6 +15,9 @@ pub cpp fun vulkan_wayland_window_begin_frame(window: VulkanWindow, clearColor: 
 #[link("cpp", "src/main/native/vulkan/wayland.cpp", "vulkan_wayland_window_fill_rect")]
 pub cpp fun vulkan_wayland_window_fill_rect(window: VulkanWindow, x: Int32, y: Int32, width: Int32, height: Int32, color: Int32): Void;
 
+#[link("cpp", "src/main/native/vulkan/wayland.cpp", "vulkan_wayland_window_draw_text")]
+pub cpp fun vulkan_wayland_window_draw_text(window: VulkanWindow, text: String, color: Int32): Void;
+
 #[link("cpp", "src/main/native/vulkan/wayland.cpp", "vulkan_wayland_window_present")]
 pub cpp fun vulkan_wayland_window_present(window: VulkanWindow): Void;
 
