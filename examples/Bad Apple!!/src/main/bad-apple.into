@@ -5,6 +5,7 @@ import "cpp://standard/time";
 
 into wayland: Wayland = Wayland();
 wayland.window.create(854, 480, "Bad Apple!!");
+now into titleBar: TitleBar = wayland.window.titlebar.create();
 
 into vulkan: Vulkan = Vulkan();
 wayland.setRenderer(vulkan);

@@ -16,3 +16,6 @@ pub wayland/window/Window.damage.;
 pub wayland/window/Window.commit.;
 pub wayland/window/Window.flush.;
 pub wayland/window/Window.present.;
+pub wayland/window/TitleBar.;
+pub wayland/window/Window.titlebar.;
+pub wayland/window/TitleBar.create.;

@@ -2,12 +2,64 @@ use anyhow::{Result, anyhow, bail};
 use std::{collections::HashSet, path::Path};
 
 #[derive(Debug, Clone)]
+pub(super) struct Param {
+    pub name: String,
+    pub default: Option<String>,
+}
+
+/// Parse a comma separated parameter list, honouring optional markers written
+/// as `name: Type?` or `name: Type = <literal>`.
+pub(super) fn parse_params(text: &str) -> Vec<Param> {
+    let mut params = Vec::new();
+    for part in text.split(',').map(str::trim).filter(|part| !part.is_empty()) {
+        let (declaration, value) = match part.split_once('=') {
+            Some((declaration, value)) => (declaration.trim(), Some(value.trim())),
+            None => (part, None),
+        };
+        let (name, type_text) = match declaration.split_once(':') {
+            Some((name, type_text)) => (name.trim(), type_text.trim()),
+            None => (declaration, ""),
+        };
+        let (type_text, marker) = match type_text.strip_suffix('?') {
+            Some(inner) => (inner.trim(), true),
+            None => (type_text, false),
+        };
+        let default = match value {
+            Some(value) => Some(normalize_default(value)),
+            None if marker => Some(default_for_type(type_text)),
+            None => None,
+        };
+        params.push(Param {
+            name: name.to_owned(),
+            default,
+        });
+    }
+    params
+}
+
+fn normalize_default(value: &str) -> String {
+    match value {
+        "true" => "1".to_owned(),
+        "false" => "0".to_owned(),
+        other => other.to_owned(),
+    }
+}
+
+fn default_for_type(type_text: &str) -> String {
+    match type_text {
+        "String" | "string" | "str" => "\"\"".to_owned(),
+        _ => "0".to_owned(),
+    }
+}
+
+#[derive(Debug, Clone)]
 pub(super) struct NativeLink {
     pub language: String,
     pub package_alias: String,
     pub source_path: String,
     pub target: String,
     pub return_type: String,
+    pub params: Vec<Param>,
 }
 
 /// Resolve Into package and native-language module imports using package exports.
@@ -75,8 +127,14 @@ pub(super) fn resolve_links(source: &str, packages_dir: &Path) -> Result<std::co
                 if let Some(rest) = declaration.split_once("fun ").map(|(_, rest)| rest) {
                     if let Some((name, _)) = rest.split_once('(') {
                         let return_type = rest.rsplit_once("):").map(|(_, ty)| ty.trim().trim_end_matches(';').trim().to_owned()).unwrap_or_else(|| "Void".into());
+                        let params_text = rest
+                            .split_once('(')
+                            .map(|(_, after)| after)
+                            .and_then(|after| after.rsplit_once("):").map(|(params, _)| params))
+                            .unwrap_or("");
                         let mut link = link;
                         link.return_type = return_type;
+                        link.params = parse_params(params_text);
                         links.insert(name.trim().to_owned(), link);
                     }
                 }
@@ -118,6 +176,7 @@ fn parse_link_attribute(line: &str, default_language: &str, _package: &Path) -> 
         source_path: source.to_string_lossy().into_owned(),
         target: args[2].to_owned(),
         return_type: String::new(),
+        params: Vec::new(),
     }))
 }
 

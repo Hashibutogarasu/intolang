@@ -2,6 +2,8 @@ pub Wayland() { }
 
 pub Window() { }
 
+pub TitleBar() { }
+
 #[link("cpp", "src/main/native/wayland/window.cpp", "wayland_new")]
 pub fun Wayland(): Wayland;
 
@@ -50,3 +52,9 @@ pub fun Window.present() {
     this.commit();
     this.flush();
 }
+
+#[link("cpp", "src/main/native/wayland/window.cpp", "window_titlebar")]
+pub fun Window.titlebar(): TitleBar;
+
+#[link("cpp", "src/main/native/wayland/window.cpp", "window_titlebar_create")]
+pub fun TitleBar.create(maximizable: Boolean = true, closable: Boolean = true): TitleBar;

@@ -28,7 +28,7 @@ type ClassFields = HashMap<String, Vec<(String, String)>>;
 struct UserFunction {
     name: String,
     receiver: Option<String>,
-    params: Vec<(String, Type)>,
+    params: Vec<imports::Param>,
     body: Vec<String>,
 }
 
@@ -259,7 +259,7 @@ pub(super) fn lower_named(
                     ));
                 }
                 let marker_start = output.len();
-                emit_link_call(&mut output, &link, &combined, &enum_values, &values, "").map_err(
+                emit_link_call(&mut output, &link, &combined, &enum_values, &values, "", true).map_err(
                     |message| diagnostic(source_path, line_number, scope_name, &message),
                 )?;
                 let marker =
@@ -358,7 +358,7 @@ pub(super) fn lower_named(
                     ));
                 }
                 let marker_start = output.len();
-                emit_link_call(&mut output, &link, &combined, &enum_values, &values, "").map_err(
+                emit_link_call(&mut output, &link, &combined, &enum_values, &values, "", true).map_err(
                     |message| diagnostic(source_path, line_number, scope_name, &message),
                 )?;
                 let marker =
@@ -529,7 +529,7 @@ pub(super) fn lower_named(
                 } else {
                     format!("{receiver},{args}")
                 };
-                emit_link_call(&mut output, link, &combined, &enum_values, &values, "")
+                emit_link_call(&mut output, link, &combined, &enum_values, &values, "", true)
                     .map_err(|message| {
                         diagnostic(source_path, line_number, scope_name, &message)
                     })?;
@@ -554,7 +554,7 @@ pub(super) fn lower_named(
             }
             if imported_functions.contains(function) {
                 if let Some(link) = native_links.get(function) {
-                    emit_link_call(&mut output, link, args, &enum_values, &values, "").map_err(
+                    emit_link_call(&mut output, link, args, &enum_values, &values, "", false).map_err(
                         |message| diagnostic(source_path, line_number, scope_name, &message),
                     )?;
                     continue;
@@ -768,7 +768,7 @@ fn resolve_method(
             .ok_or_else(|| format!("Undefined member `{segment}` on `{}`", current_type.name()))?;
         let temporary = format!("__member{}", *temp_counter);
         *temp_counter += 1;
-        emit_link_call(output, link, &current, enum_values, &*values, &temporary)?;
+        emit_link_call(output, link, &current, enum_values, &*values, &temporary, true)?;
         let ty = Type::parse(&link.return_type, &HashSet::new()).unwrap_or(Type::Pointer);
         values.insert(
             temporary.clone(),
@@ -829,7 +829,7 @@ fn resolve_receiver(
             .ok_or_else(|| format!("Undefined member `{segment}` on `{}`", current_type.name()))?;
         let temporary = format!("__member{}", *temp_counter);
         *temp_counter += 1;
-        emit_link_call(output, link, &current, enum_values, &*values, &temporary)?;
+        emit_link_call(output, link, &current, enum_values, &*values, &temporary, true)?;
         let ty = Type::parse(&link.return_type, &HashSet::new()).unwrap_or(Type::Pointer);
         values.insert(
             temporary.clone(),
@@ -866,14 +866,23 @@ fn inline_user_function(
     if depth > 32 {
         return Err(format!("Recursive call to `{}` is not supported", function.name));
     }
-    let arguments = split_argument_list(args);
-    if arguments.len() != function.params.len() {
+    let mut arguments = split_argument_list(args);
+    if arguments.len() > function.params.len() {
         return Err(format!(
             "Function `{}` expects {} argument(s) but received {}",
             function.name,
             function.params.len(),
             arguments.len()
         ));
+    }
+    for index in arguments.len()..function.params.len() {
+        let param = &function.params[index];
+        match &param.default {
+            Some(default) => arguments.push(default.clone()),
+            None => {
+                return Err(format!("Missing required argument `{}`", param.name));
+            }
+        }
     }
     let mut substitutions: Vec<(String, String)> = Vec::new();
     match (function.receiver.as_ref(), receiver) {
@@ -886,8 +895,8 @@ fn inline_user_function(
         }
         (None, None) => {}
     }
-    for ((param, _), argument) in function.params.iter().zip(arguments.iter()) {
-        substitutions.push((param.clone(), argument.trim().to_owned()));
+    for (param, argument) in function.params.iter().zip(arguments.iter()) {
+        substitutions.push((param.name.clone(), argument.trim().to_owned()));
     }
     for body_line in &function.body {
         let substituted = apply_substitutions(body_line, &substitutions);
@@ -961,7 +970,7 @@ fn lower_inline_statement(
         } else {
             format!("{receiver},{call_args}")
         };
-        return emit_link_call(output, link, &combined, enum_values, values, "");
+        return emit_link_call(output, link, &combined, enum_values, values, "", true);
     }
     if let Some(inner) = user_functions.get(call) {
         let inner = inner.clone();
@@ -981,7 +990,7 @@ fn lower_inline_statement(
     let link = native_links
         .get(call)
         .ok_or_else(|| format!("Undefined function `{call}`"))?;
-    emit_link_call(output, link, call_args, enum_values, values, "")
+    emit_link_call(output, link, call_args, enum_values, values, "", false)
 }
 
 fn split_argument_list(args: &str) -> Vec<String> {
@@ -1114,15 +1123,7 @@ fn parse_user_functions(source: &str) -> Vec<UserFunction> {
             index += 1;
             continue;
         }
-        let mut params = Vec::new();
-        for param in params_text.split(',').map(str::trim).filter(|p| !p.is_empty()) {
-            if let Some((param_name, param_type)) = param.split_once(':') {
-                let ty = Type::parse(param_type.trim(), &HashSet::new()).unwrap_or(Type::Void);
-                params.push((param_name.trim().to_owned(), ty));
-            } else {
-                params.push((param.to_owned(), Type::Void));
-            }
-        }
+        let params = imports::parse_params(params_text);
         let first_brace = clean.find('{').unwrap_or(clean.len());
         let mut body = Vec::new();
         let inline = clean[first_brace + 1..]
@@ -1180,7 +1181,7 @@ fn declaration_value(
                 enum_values,
                 temp_counter,
             )?;
-            emit_link_call(output, &link, &combined, enum_values, values, assigned_to)?;
+            emit_link_call(output, &link, &combined, enum_values, values, assigned_to, true)?;
             let ty = match annotation {
                 Some(ty) => ty,
                 None => Type::parse(&link.return_type, type_params).unwrap_or(Type::Void),
@@ -1191,7 +1192,7 @@ fn declaration_value(
             let link = native_links.get(function).ok_or_else(|| {
                 format!("Imported function `{function}` has no #[link] attribute")
             })?;
-            emit_link_call(output, link, args, enum_values, values, assigned_to)?;
+            emit_link_call(output, link, args, enum_values, values, assigned_to, false)?;
             let ty = match annotation {
                 Some(ty) => ty,
                 None => Type::parse(&link.return_type, type_params).unwrap_or(Type::Void),
@@ -1676,7 +1677,31 @@ fn emit_link_call(
     enums: &HashMap<String, HashMap<String, i32>>,
     values: &HashMap<String, Variable>,
     assigned_to: &str,
+    has_receiver: bool,
 ) -> std::result::Result<(), String> {
+    let mut provided = args
+        .split(',')
+        .map(str::trim)
+        .filter(|arg| !arg.is_empty())
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    if linked_argument_count(&provided, has_receiver) > link.params.len() {
+        return Err(format!(
+            "Function `{}` expects {} argument(s) but received {}",
+            link.target,
+            link.params.len(),
+            linked_argument_count(&provided, has_receiver)
+        ));
+    }
+    for index in linked_argument_count(&provided, has_receiver)..link.params.len() {
+        let param = &link.params[index];
+        match &param.default {
+            Some(default) => provided.push(default.clone()),
+            None => {
+                return Err(format!("Missing required argument `{}`", param.name));
+            }
+        }
+    }
     output.push('\u{1e}');
     output.push_str("NATIVE_LINK_ASSIGN\t");
     output.push_str(&link.package_alias);
@@ -1690,7 +1715,8 @@ fn emit_link_call(
     output.push_str(&link.return_type);
     output.push('\t');
     output.push_str(assigned_to);
-    for arg in args.split(',').map(str::trim).filter(|arg| !arg.is_empty()) {
+    for arg in provided {
+        let arg = arg.as_str();
         let (kind, value) = if arg.starts_with('"') && arg.ends_with('"') {
             ("s", decode_string_literal(&arg[1..arg.len() - 1]))
         } else if let Ok(number) = arg.parse::<i32>() {
@@ -1723,6 +1749,10 @@ fn emit_link_call(
     }
     output.push('\n');
     Ok(())
+}
+
+fn linked_argument_count(provided: &[String], has_receiver: bool) -> usize {
+    provided.len().saturating_sub(if has_receiver { 1 } else { 0 })
 }
 
 fn decode_string_literal(value: &str) -> String {

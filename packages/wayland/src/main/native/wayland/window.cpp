@@ -11,14 +11,25 @@
 #include <unistd.h>
 #include <wayland-client.h>
 #include "xdg-shell-client-protocol.h"
+#include "xdg-decoration-client-protocol.h"
 extern "C" {
 #include "xdg-shell-protocol.c"
+#include "xdg-decoration-protocol.c"
 }
 
 extern "C" void vulkan_bind(void *renderer, void *pixels, int32_t width, int32_t height) __attribute__((weak));
 
 namespace {
 struct Wayland;
+struct Window;
+
+struct TitleBar {
+    Window *window = nullptr;
+    zxdg_toplevel_decoration_v1 *decoration = nullptr;
+    bool maximizable = true;
+    bool closable = true;
+    bool created = false;
+};
 
 struct Window {
     Wayland *owner = nullptr;
@@ -34,6 +45,7 @@ struct Window {
     bool released = true;
     bool closed = false;
     bool created = false;
+    TitleBar titlebar;
 };
 
 struct Wayland {
@@ -42,6 +54,7 @@ struct Wayland {
     wl_compositor *compositor = nullptr;
     xdg_wm_base *wm_base = nullptr;
     wl_shm *shm = nullptr;
+    zxdg_decoration_manager_v1 *decoration_manager = nullptr;
     Window window;
     void *renderer = nullptr;
 };
@@ -54,6 +67,8 @@ void registry_global(void *data, wl_registry *registry, uint32_t name, const cha
         wayland->wm_base = static_cast<xdg_wm_base *>(wl_registry_bind(registry, name, &xdg_wm_base_interface, 1));
     else if (std::string(interface) == "wl_shm")
         wayland->shm = static_cast<wl_shm *>(wl_registry_bind(registry, name, &wl_shm_interface, 1));
+    else if (std::string(interface) == "zxdg_decoration_manager_v1")
+        wayland->decoration_manager = static_cast<zxdg_decoration_manager_v1 *>(wl_registry_bind(registry, name, &zxdg_decoration_manager_v1_interface, 1));
 }
 void registry_remove(void *, wl_registry *, uint32_t) {}
 const wl_registry_listener registry_listener{registry_global, registry_remove};
@@ -62,7 +77,11 @@ const xdg_wm_base_listener wm_listener{wm_ping};
 void surface_configure(void *, xdg_surface *surface, uint32_t serial) { xdg_surface_ack_configure(surface, serial); }
 const xdg_surface_listener surface_listener{surface_configure};
 void toplevel_configure(void *, xdg_toplevel *, int32_t, int32_t, wl_array *) {}
-void toplevel_close(void *data, xdg_toplevel *) { static_cast<Window *>(data)->closed = true; }
+void toplevel_close(void *data, xdg_toplevel *) {
+    auto *window = static_cast<Window *>(data);
+    if (window->titlebar.created && !window->titlebar.closable) return;
+    window->closed = true;
+}
 void toplevel_bounds(void *, xdg_toplevel *, int32_t, int32_t) {}
 void toplevel_capabilities(void *, xdg_toplevel *, wl_array *) {}
 const xdg_toplevel_listener toplevel_listener{toplevel_configure, toplevel_close, toplevel_bounds, toplevel_capabilities};
@@ -161,6 +180,31 @@ extern "C" void window_flush(Window *window) {
     wl_display_flush(window->owner->display);
 }
 
+extern "C" TitleBar *window_titlebar(Window *window) {
+    if (!window) return nullptr;
+    window->titlebar.window = window;
+    return &window->titlebar;
+}
+
+extern "C" TitleBar *window_titlebar_create(TitleBar *titlebar, int32_t maximizable, int32_t closable) {
+    if (!titlebar || !titlebar->window) return titlebar;
+    titlebar->maximizable = maximizable != 0;
+    titlebar->closable = closable != 0;
+    titlebar->created = true;
+    Window *window = titlebar->window;
+    if (window->toplevel) {
+        if (titlebar->maximizable) {
+            xdg_toplevel_set_min_size(window->toplevel, 0, 0);
+            xdg_toplevel_set_max_size(window->toplevel, 0, 0);
+        } else {
+            xdg_toplevel_set_min_size(window->toplevel, window->width, window->height);
+            xdg_toplevel_set_max_size(window->toplevel, window->width, window->height);
+        }
+        wl_surface_commit(window->surface);
+    }
+    return titlebar;
+}
+
 extern "C" void window_clear(Window *window, int32_t color) {
     if (!window || !window->pixels) return;
     std::fill(window->pixels, window->pixels + static_cast<size_t>(window->width) * window->height, 0xff000000u | (static_cast<uint32_t>(color) & 0x00ffffffu));
@@ -231,6 +275,7 @@ extern "C" void wayland_destroy(Wayland *wayland) {
 #else
 struct Wayland {};
 struct Window {};
+struct TitleBar {};
 extern "C" Wayland *wayland_new() { return nullptr; }
 extern "C" Window *wayland_window(Wayland *) { return nullptr; }
 extern "C" void wayland_set_renderer(Wayland *, void *) {}
@@ -243,6 +288,8 @@ extern "C" void window_attach(Window *) {}
 extern "C" void window_damage(Window *) {}
 extern "C" void window_commit(Window *) {}
 extern "C" void window_flush(Window *) {}
+extern "C" TitleBar *window_titlebar(Window *) { return nullptr; }
+extern "C" TitleBar *window_titlebar_create(TitleBar *titlebar, int32_t, int32_t) { return titlebar; }
 extern "C" bool window_is_open(Window *) { return false; }
 extern "C" void wayland_destroy(Wayland *) {}
 #endif
