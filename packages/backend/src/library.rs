@@ -52,7 +52,7 @@ fn public_functions(source: &str) -> Vec<NativeFunction> {
         let line = lines[index].trim();
         if let Some(rest) = line.strip_prefix("pub fun ") {
             let Some(open_paren) = rest.find('(') else { index += 1; continue; };
-            let name = rest[..open_paren].trim();
+            let name = rest[..open_paren].split('<').next().unwrap_or("").trim();
             if name.is_empty() { index += 1; continue; }
             let mut body = String::new();
             let mut depth = 0usize;

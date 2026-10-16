@@ -1,14 +1,16 @@
-mod imports;
-mod library;
 mod formatter;
+mod imports;
 mod lexer;
+mod library;
 mod parser;
 mod tests;
+mod types;
 mod validation;
 
 pub use lexer::{Token, TokenKind, tokenize};
-pub use tests::TestSummary;
 pub use library::NativeFunction;
+pub use tests::TestSummary;
+pub use types::Type;
 
 /// Format Into source text using the backend's canonical layout.
 pub fn format_source(source: &str) -> String {
@@ -53,4 +55,54 @@ pub fn lower_library(
     packages_dir: &std::path::Path,
 ) -> anyhow::Result<Vec<NativeFunction>> {
     library::lower(source, source_path, packages_dir)
+}
+
+#[cfg(test)]
+mod lowering_tests {
+    use super::lower;
+
+    #[test]
+    fn lowers_explicit_integer_type() {
+        let source = "init {\n    into value: Int32 = 42;\n}\n";
+        let output = lower(source).unwrap();
+        assert!(
+            output.contains("NATIVE_ASSIGN\tvalue\tInt32\tn:42"),
+            "{output}"
+        );
+    }
+
+    #[test]
+    fn lowers_int64_and_float_types() {
+        let source = "init {\n    into big: Int64 = 5000000000;\n    into ratio: Float = 2.5;\n}\n";
+        let output = lower(source).unwrap();
+        assert!(
+            output.contains("NATIVE_ASSIGN\tbig\tInt64\tn:5000000000"),
+            "{output}"
+        );
+        assert!(
+            output.contains("NATIVE_ASSIGN\tratio\tFloat64\tn:2.5"),
+            "{output}"
+        );
+    }
+
+    #[test]
+    fn lowers_numeric_while_loop() {
+        let source = "init {\n    into index: Int32 = 0;\n    while (index < 10) {\n        index = index + 1;\n    }\n}\n";
+        let output = lower(source).unwrap();
+        assert!(
+            output.contains("NATIVE_WHILE_BEGIN\tindex\t<\tn:10\tInt32"),
+            "{output}"
+        );
+        assert!(
+            output.contains("NATIVE_ARITH\tindex\tindex\tadd\tn:1\tInt32"),
+            "{output}"
+        );
+        assert!(output.contains("NATIVE_LOOP_END"), "{output}");
+    }
+
+    #[test]
+    fn rejects_type_mismatched_arithmetic() {
+        let source = "init {\n    into index: Int32 = 0;\n    into total: Int64 = index + 1;\n}\n";
+        assert!(lower(source).is_err());
+    }
 }

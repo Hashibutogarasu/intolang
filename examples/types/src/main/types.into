@@ -1,0 +1,22 @@
+import "intolang://builtin/std";
+
+pub fun identity<T>(value: T): T {
+    return value;
+}
+
+init {
+    into label: String = "Explicit types";
+    into count: Int32 = 3;
+    into large: Int64 = 5000000000;
+    into ratio: Float = 1.5;
+    into index: Int32 = 0;
+
+    println(label);
+    println(large);
+    println(ratio);
+
+    while (index < count) {
+        println(index);
+        index = index + 1;
+    }
+}

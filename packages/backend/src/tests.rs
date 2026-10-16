@@ -133,8 +133,9 @@ fn run_test_body(lines: &[(usize, &str)], path: &Path, test: &str, functions: &H
             else { (Storage::Local, "") };
         if !rest.is_empty() {
             if let Some((name, _)) = rest.split_once('=') {
+                let name = name.split(':').next().unwrap_or(name).trim();
                 let allocated = matches!(storage, Storage::Now);
-                env.insert(name.trim().to_owned(), Value::Object { storage, allocated, in_init });
+                env.insert(name.to_owned(), Value::Object { storage, allocated, in_init });
             }
             continue;
         }

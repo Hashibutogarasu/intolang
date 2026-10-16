@@ -1,0 +1,9 @@
+{
+  "name": "Explicit Types",
+  "alias": "types",
+  "version": "0.1.0",
+  "LICENCE": "MIT",
+  "packages": { "intolang": "0.0.1" },
+  "builtConfig": { "dist": "./dist" },
+  "runs": "src/main/types.into"
+}

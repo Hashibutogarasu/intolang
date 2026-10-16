@@ -1,15 +1,18 @@
-import "c://stdio/output";
+import "intolang://builtin/std";
 
 init {
-    puts("Fibonacci constellation");
-    puts(" 0          0  #");
-    puts(" 1          1  ##");
-    puts(" 2          1  ###");
-    puts(" 3          2  ####");
-    puts(" 4          3  #####");
-    puts(" 5          5  ######");
-    puts(" 6          8  #######");
-    puts(" 7         13  ########");
-    puts(" 8         21  #########");
-    puts(" 9         34  ##########");
+    into previous: Int32 = 0;
+    into current: Int32 = 1;
+    into index: Int32 = 0;
+
+    println("Fibonacci sequence");
+
+    while (index < 10) {
+        println(previous);
+
+        into next: Int32 = previous + current;
+        previous = current;
+        current = next;
+        index = index + 1;
+    }
 }
