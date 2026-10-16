@@ -1,8 +1,7 @@
-mod formatter;
 mod imports;
 mod lexer;
 mod library;
-mod parser;
+mod syntax;
 mod tests;
 mod types;
 mod validation;
@@ -14,12 +13,12 @@ pub use types::Type;
 
 /// Format Into source text using the backend's canonical layout.
 pub fn format_source(source: &str) -> String {
-    formatter::format_source(source)
+    syntax::format_source(source)
 }
 
 /// Parse and lower an Into source file to its observable output.
 pub fn lower(source: &str) -> anyhow::Result<String> {
-    parser::lower(source, None)
+    syntax::lower(source, None)
 }
 
 /// Resolve imports against bundled packages, then parse and lower the source.
@@ -27,7 +26,7 @@ pub fn lower_with_packages(
     source: &str,
     packages_dir: Option<&std::path::Path>,
 ) -> anyhow::Result<String> {
-    parser::lower(source, packages_dir)
+    syntax::lower(source, packages_dir)
 }
 
 /// Resolve and lower a source file while retaining its path for diagnostics.
@@ -36,7 +35,7 @@ pub fn lower_file(
     source_path: &std::path::Path,
     packages_dir: Option<&std::path::Path>,
 ) -> anyhow::Result<String> {
-    parser::lower_named(source, packages_dir, &source_path.display().to_string())
+    syntax::lower_named(source, packages_dir, &source_path.display().to_string())
 }
 
 /// Run all `#[test]` functions in one Into source file.

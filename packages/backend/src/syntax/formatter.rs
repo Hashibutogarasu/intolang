@@ -1,5 +1,12 @@
+use crate::syntax::Parser;
+use crate::syntax::constructs::default_constructs;
+
 /// Format Into source with four-space block indentation and stable blank lines.
+///
+/// Line normalisation is delegated to each construct through the `Format`
+/// trait; this coordinator only tracks block depth and blank lines.
 pub fn format_source(source: &str) -> String {
+    let parser = Parser::new(default_constructs());
     let mut output = String::new();
     let mut depth = 0usize;
     let mut previous_blank = true;
@@ -14,10 +21,11 @@ pub fn format_source(source: &str) -> String {
             continue;
         }
 
-        let (opens, closes) = brace_counts(line);
+        let formatted = parser.format(line).unwrap_or_else(|| line.to_owned());
+        let (opens, closes) = brace_counts(&formatted);
         depth = depth.saturating_sub(closes);
         output.push_str(&"    ".repeat(depth));
-        output.push_str(line);
+        output.push_str(&formatted);
         output.push('\n');
         depth = depth.saturating_add(opens);
         previous_blank = false;
@@ -32,11 +40,17 @@ fn brace_counts(line: &str) -> (usize, usize) {
     let mut in_string = false;
     let mut escaped = false;
     while let Some(ch) = chars.next() {
-        if !in_string && ch == '/' && chars.peek() == Some(&'/') { break; }
+        if !in_string && ch == '/' && chars.peek() == Some(&'/') {
+            break;
+        }
         if in_string {
-            if escaped { escaped = false; }
-            else if ch == '\\' { escaped = true; }
-            else if ch == '"' { in_string = false; }
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == '"' {
+                in_string = false;
+            }
             continue;
         }
         match ch {

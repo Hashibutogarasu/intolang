@@ -137,3 +137,7 @@ binary/shared library with embedded LLD.
   defaults; run `cargo fmt` / `cargo clippy` / `cargo test` manually.
 - Only commit when explicitly asked. `dist/`, `.into/`, and `target/` are
   generated and git-ignored.
+- Do not propose next steps, follow-up actions, or "what to do next" in
+  responses.
+- Do not use `echo`/`printf` for decoration or section separators.
+- Do not print or echo exit codes.
