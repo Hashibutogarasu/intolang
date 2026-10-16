@@ -105,4 +105,41 @@ mod lowering_tests {
         let source = "init {\n    into index: Int32 = 0;\n    into total: Int64 = index + 1;\n}\n";
         assert!(lower(source).is_err());
     }
+
+    #[test]
+    fn rejects_string_assigned_to_integer() {
+        let source = "init {\n    into message: Int32 = \"Hello World!\";\n}\n";
+        let error = lower(source).unwrap_err();
+        assert!(error.to_string().contains("Type mismatch"), "{error}");
+    }
+
+    #[test]
+    fn rejects_integer_assigned_to_string() {
+        let source = "init {\n    into message: String = 42;\n}\n";
+        assert!(lower(source).is_err());
+    }
+
+    #[test]
+    fn rejects_boolean_assigned_to_integer() {
+        let source = "init {\n    into flag: Int32 = true;\n}\n";
+        assert!(lower(source).is_err());
+    }
+
+    #[test]
+    fn rejects_assigning_string_variable_to_integer() {
+        let source = "init {\n    into text: String = \"x\";\n    into count: Int32 = text;\n}\n";
+        assert!(lower(source).is_err());
+    }
+
+    #[test]
+    fn rejects_mismatched_reassignment() {
+        let source = "init {\n    into value: Int32 = 0;\n    value = \"text\";\n}\n";
+        assert!(lower(source).is_err());
+    }
+
+    #[test]
+    fn accepts_numeric_widening() {
+        let source = "init {\n    into small: Int32 = 1;\n    into big: Int64 = small;\n}\n";
+        assert!(lower(source).is_ok());
+    }
 }

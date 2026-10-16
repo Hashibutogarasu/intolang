@@ -66,6 +66,25 @@ impl Type {
         matches!(self, Type::Void)
     }
 
+    /// Whether a value of this type may be bound to a target annotated with
+    /// `target`. Identical types are always assignable; numeric values may be
+    /// widened or narrowed across integer/float widths, but strings, booleans,
+    /// pointers and named types are only assignable to themselves.
+    pub fn is_assignable_to(&self, target: &Type) -> bool {
+        if self == target {
+            return true;
+        }
+        match (self, target) {
+            (Type::Int8 | Type::Int16 | Type::Int32 | Type::Int64, target)
+                if target.is_integer() || target.is_float() =>
+            {
+                true
+            }
+            (Type::Float32 | Type::Float64, Type::Float32 | Type::Float64) => true,
+            _ => false,
+        }
+    }
+
     /// The canonical spelling used in compiler messages.
     pub fn name(&self) -> String {
         match self {
@@ -145,5 +164,18 @@ mod tests {
         let ty = Type::Generic("T".into());
         assert_eq!(ty.substitute(&bindings), Type::Int64);
         assert_eq!(Type::Int32.substitute(&bindings), Type::Int32);
+    }
+
+    #[test]
+    fn checks_assignability() {
+        assert!(Type::Int32.is_assignable_to(&Type::Int32));
+        assert!(Type::Int32.is_assignable_to(&Type::Int64));
+        assert!(Type::Int32.is_assignable_to(&Type::Float64));
+        assert!(Type::Float64.is_assignable_to(&Type::Float32));
+        assert!(!Type::String.is_assignable_to(&Type::Int32));
+        assert!(!Type::Int32.is_assignable_to(&Type::String));
+        assert!(!Type::Boolean.is_assignable_to(&Type::Int32));
+        assert!(!Type::Float64.is_assignable_to(&Type::Int32));
+        assert!(!Type::Named("JsonObject".into()).is_assignable_to(&Type::Pointer));
     }
 }

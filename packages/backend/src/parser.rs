@@ -1278,11 +1278,10 @@ fn declaration_value(
                     user_functions,
                     0,
                 )?;
-                let ty = match annotation {
-                    Some(ty) => ty,
-                    None => returned
-                        .as_ref()
-                        .map(|(_, ty)| ty.clone())
+                let inferred = returned.as_ref().map(|(_, ty)| ty.clone());
+                let ty = match inferred {
+                    Some(inferred) => resolve_annotation(inferred, annotation)?,
+                    None => annotation
                         .ok_or_else(|| format!("Function `{key}` does not return a value"))?,
                 };
                 if let Some((value, _)) = returned {
@@ -1299,10 +1298,8 @@ fn declaration_value(
                 format!("{receiver},{args}")
             };
             emit_link_call(output, link, &combined, enum_values, values, assigned_to, true)?;
-            let ty = match annotation {
-                Some(ty) => ty,
-                None => Type::parse(&link.return_type, type_params).unwrap_or(Type::Void),
-            };
+            let inferred = Type::parse(&link.return_type, type_params).unwrap_or(Type::Void);
+            let ty = resolve_annotation(inferred, annotation)?;
             return Ok((ty.name(), ty, true));
         }
         if imported_functions.contains(function) {
@@ -1310,10 +1307,8 @@ fn declaration_value(
                 format!("Imported function `{function}` has no #[link] attribute")
             })?;
             emit_link_call(output, link, args, enum_values, values, assigned_to, false)?;
-            let ty = match annotation {
-                Some(ty) => ty,
-                None => Type::parse(&link.return_type, type_params).unwrap_or(Type::Void),
-            };
+            let inferred = Type::parse(&link.return_type, type_params).unwrap_or(Type::Void);
+            let ty = resolve_annotation(inferred, annotation)?;
             return Ok((ty.name(), ty, true));
         }
         return Ok((
@@ -1368,26 +1363,29 @@ fn declaration_value(
     }
     if let Some(literal) = parse_literal(rhs) {
         return match literal {
-            Literal::String(value) => Ok((value, annotation.unwrap_or(Type::String), false)),
+            Literal::String(value) => {
+                let ty = resolve_annotation(Type::String, annotation)?;
+                Ok((value, ty, false))
+            }
             Literal::Int(number) => {
-                let ty = annotation.unwrap_or(Type::Int32);
+                let ty = resolve_annotation(Type::Int32, annotation)?;
                 emit_assign(output, assigned_to, &ty, "n", &number.to_string());
                 Ok((ty.name(), ty, true))
             }
             Literal::Float(number) => {
-                let ty = annotation.unwrap_or(Type::Float64);
+                let ty = resolve_annotation(Type::Float64, annotation)?;
                 emit_assign(output, assigned_to, &ty, "n", &number.to_string());
                 Ok((ty.name(), ty, true))
             }
             Literal::Bool(flag) => {
-                let ty = annotation.unwrap_or(Type::Boolean);
+                let ty = resolve_annotation(Type::Boolean, annotation)?;
                 emit_assign(output, assigned_to, &ty, "n", if flag { "1" } else { "0" });
                 Ok((ty.name(), ty, true))
             }
         };
     }
     if let Some(source) = values.get(rhs) {
-        let ty = annotation.unwrap_or_else(|| source.ty.clone());
+        let ty = resolve_annotation(source.ty.clone(), annotation)?;
         if source.native {
             emit_assign(output, assigned_to, &ty, "p", rhs.trim());
             return Ok((ty.name(), ty, true));
@@ -1399,6 +1397,26 @@ fn declaration_value(
         annotation.unwrap_or(Type::String),
         false,
     ))
+}
+
+fn resolve_annotation(
+    inferred: Type,
+    annotation: Option<Type>,
+) -> std::result::Result<Type, String> {
+    match annotation {
+        Some(target) => {
+            if inferred.is_assignable_to(&target) {
+                Ok(target)
+            } else {
+                Err(format!(
+                    "Type mismatch: expected `{}` but found `{}`",
+                    target.name(),
+                    inferred.name()
+                ))
+            }
+        }
+        None => Ok(inferred),
+    }
 }
 
 fn arithmetic_operand(right: &str, values: &HashMap<String, Variable>) -> Option<(String, String)> {
