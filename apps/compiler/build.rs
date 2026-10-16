@@ -43,7 +43,6 @@ fn main() {
         workspace.join("packages").display()
     );
     copy_dir(&resources, &bundled).expect("copy compiler resources");
-    // Keep the compiler's builtin runtime package synchronized with the workspace source.
     copy_dir(
         &workspace.join("packages/intolang"),
         &bundled.join("packages/intolang"),
