@@ -23,6 +23,7 @@ pub struct FieldDef {
     pub name: String,
     pub ty: String,
     pub default: Option<String>,
+    pub is_static: bool,
 }
 
 pub type ClassFields = HashMap<String, Vec<FieldDef>>;
@@ -32,6 +33,7 @@ pub type ClassFields = HashMap<String, Vec<FieldDef>>;
 pub struct UserFunction {
     pub name: String,
     pub receiver: Option<String>,
+    pub is_static: bool,
     pub params: Vec<imports::Param>,
     pub body: Vec<String>,
 }

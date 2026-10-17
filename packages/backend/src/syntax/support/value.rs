@@ -2,7 +2,9 @@ use std::collections::{HashMap, HashSet};
 
 use crate::imports;
 use crate::syntax::context::{ClassFields, UserFunction, Variable};
-use crate::syntax::support::call::{inline_user_function, resolve_receiver};
+use crate::syntax::support::call::{
+    inline_user_function, resolve_receiver, static_field, static_receiver,
+};
 use crate::syntax::support::emit::{arithmetic_operand, emit_assign, emit_link_call};
 use crate::syntax::support::literal::{Literal, parse_literal};
 use crate::syntax::support::text::{parse_arithmetic, parse_call};
@@ -25,6 +27,43 @@ pub fn declaration_value(
 ) -> std::result::Result<(String, Type, bool), String> {
     if let Some((function, args)) = parse_call(rhs) {
         if function.contains('.') {
+            if let Some((class, method)) = static_receiver(function, values, class_fields) {
+                let key = format!("{class}.{method}");
+                if let Some(inner) = user_functions.get(&key) {
+                    let inner = inner.clone();
+                    let returned = inline_user_function(
+                        output,
+                        &inner,
+                        None,
+                        args,
+                        values,
+                        native_links,
+                        class_fields,
+                        imported_functions,
+                        enum_values,
+                        temp_counter,
+                        user_functions,
+                        0,
+                    )?;
+                    let inferred = returned.as_ref().map(|(_, ty)| ty.clone());
+                    let ty = match inferred {
+                        Some(inferred) => resolve_annotation(inferred, annotation)?,
+                        None => annotation
+                            .ok_or_else(|| format!("Function `{key}` does not return a value"))?,
+                    };
+                    if let Some((value, _)) = returned {
+                        emit_assign(output, assigned_to, &ty, "p", &value);
+                    }
+                    return Ok((ty.name(), ty, true));
+                }
+                let link = native_links
+                    .get(&key)
+                    .ok_or_else(|| format!("Undefined static method `{key}`"))?;
+                emit_link_call(output, link, args, enum_values, values, assigned_to, false)?;
+                let inferred = Type::parse(&link.return_type, type_params).unwrap_or(Type::Void);
+                let ty = resolve_annotation(inferred, annotation)?;
+                return Ok((ty.name(), ty, true));
+            }
             let (receiver, receiver_type) = resolve_receiver(
                 output,
                 function,
@@ -163,6 +202,32 @@ pub fn declaration_value(
         return Ok((ty.name(), ty, true));
     }
     if let Some(literal) = parse_literal(rhs) {
+        return match literal {
+            Literal::String(value) => {
+                let ty = resolve_annotation(Type::String, annotation)?;
+                Ok((value, ty, false))
+            }
+            Literal::Int(number) => {
+                let ty = resolve_annotation(Type::Int32, annotation)?;
+                emit_assign(output, assigned_to, &ty, "n", &number.to_string());
+                Ok((ty.name(), ty, true))
+            }
+            Literal::Float(number) => {
+                let ty = resolve_annotation(Type::Float64, annotation)?;
+                emit_assign(output, assigned_to, &ty, "n", &number.to_string());
+                Ok((ty.name(), ty, true))
+            }
+            Literal::Bool(flag) => {
+                let ty = resolve_annotation(Type::Boolean, annotation)?;
+                emit_assign(output, assigned_to, &ty, "n", if flag { "1" } else { "0" });
+                Ok((ty.name(), ty, true))
+            }
+        };
+    }
+    if let Some(field) = static_field(rhs, class_fields) {
+        let default = field.default.clone().unwrap_or_default();
+        let literal = parse_literal(&default)
+            .ok_or_else(|| format!("Static field `{rhs}` has no constant default"))?;
         return match literal {
             Literal::String(value) => {
                 let ty = resolve_annotation(Type::String, annotation)?;

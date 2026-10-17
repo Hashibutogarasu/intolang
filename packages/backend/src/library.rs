@@ -1,6 +1,8 @@
 use anyhow::{Context, Result, bail};
 use std::path::Path;
 
+use crate::syntax::support::text::strip_keyword;
+
 /// A function exposed from a native library.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeFunction {
@@ -58,7 +60,9 @@ fn public_functions(source: &str) -> Vec<NativeFunction> {
     let mut index = 0;
     while index < lines.len() {
         let line = lines[index].trim();
-        if let Some(rest) = line.strip_prefix("pub fun ") {
+        let without_visibility = strip_keyword(line, "pub").unwrap_or(line);
+        let header = strip_keyword(without_visibility, "static").unwrap_or(without_visibility);
+        if let Some(rest) = strip_keyword(header, "fun") {
             let Some(open_paren) = rest.find('(') else {
                 index += 1;
                 continue;

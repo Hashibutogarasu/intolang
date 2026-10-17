@@ -4,7 +4,9 @@ use anyhow::Result;
 
 use crate::imports;
 use crate::syntax::context::{ClassFields, FieldDef, UserFunction};
-use crate::syntax::support::text::{brace_delta, diagnostic, is_identifier, strip_line_comment};
+use crate::syntax::support::text::{
+    brace_delta, diagnostic, is_identifier, strip_keyword, strip_line_comment,
+};
 
 /// The line span occupied by a class declaration, including its header.
 struct ClassSpan {
@@ -173,7 +175,14 @@ pub fn parse_classes(source: &str, source_path: &str) -> Result<ClassFields> {
         while depth > 0 && index < lines.len() {
             let line = strip_line_comment(lines[index]).trim();
             if depth == 1 {
-                if let Some(rest) = line.strip_prefix("pub into:") {
+                let field_spec = strip_keyword(line, "pub").and_then(|rest| {
+                    let (is_static, rest) = match strip_keyword(rest, "static") {
+                        Some(rest) => (true, rest),
+                        None => (false, rest),
+                    };
+                    rest.strip_prefix("into:").map(|spec| (is_static, spec))
+                });
+                if let Some((is_static, rest)) = field_spec {
                     let spec = rest.trim().trim_end_matches(';').trim();
                     let (declaration, default) = match spec.split_once('=') {
                         Some((declaration, default)) => {
@@ -199,6 +208,7 @@ pub fn parse_classes(source: &str, source_path: &str) -> Result<ClassFields> {
                         name: name.to_owned(),
                         ty: ty.to_owned(),
                         default,
+                        is_static,
                     });
                 } else if !line.is_empty()
                     && !line.starts_with('}')
@@ -236,10 +246,12 @@ pub fn parse_user_functions(source: &str, source_path: &str) -> Result<Vec<UserF
     let mut index = 0;
     while index < lines.len() {
         let clean = strip_line_comment(lines[index]).trim();
-        let header = clean
-            .strip_prefix("pub fun ")
-            .or_else(|| clean.strip_prefix("fun "));
-        let Some(header) = header else {
+        let without_visibility = strip_keyword(clean, "pub").unwrap_or(clean);
+        let (is_static, rest) = match strip_keyword(without_visibility, "static") {
+            Some(rest) => (true, rest),
+            None => (false, without_visibility),
+        };
+        let Some(header) = strip_keyword(rest, "fun") else {
             index += 1;
             continue;
         };
@@ -313,6 +325,7 @@ pub fn parse_user_functions(source: &str, source_path: &str) -> Result<Vec<UserF
                 None => name,
             },
             receiver,
+            is_static,
             params,
             body,
         });

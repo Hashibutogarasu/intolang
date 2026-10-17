@@ -3,7 +3,9 @@ use anyhow::Result;
 use crate::syntax::context::ParseContext;
 use crate::syntax::format::Format;
 use crate::syntax::parse::{Cursor, Parse};
-use crate::syntax::support::{Literal, diagnostic, emit_print, emit_print_const, parse_literal};
+use crate::syntax::support::{
+    Literal, diagnostic, emit_print, emit_print_const, parse_literal, static_field,
+};
 use crate::types::Type;
 
 /// A `print`/`println` statement, including member, literal and variable forms.
@@ -44,6 +46,48 @@ impl Parse for Print {
             ));
         }
         let arg = rest.split(')').next().unwrap_or("").trim();
+        let static_owner = arg.split('.').next().unwrap_or("").trim();
+        if !ctx.values.contains_key(static_owner) {
+            if let Some(field) = static_field(arg, &ctx.class_fields) {
+                let default = field.default.clone().unwrap_or_default();
+                match parse_literal(&default) {
+                    Some(Literal::Int(number)) => emit_print_const(
+                        &mut ctx.output,
+                        &Type::Int32,
+                        &number.to_string(),
+                        is_println,
+                    ),
+                    Some(Literal::Float(number)) => emit_print_const(
+                        &mut ctx.output,
+                        &Type::Float64,
+                        &number.to_string(),
+                        is_println,
+                    ),
+                    Some(Literal::Bool(flag)) => emit_print_const(
+                        &mut ctx.output,
+                        &Type::Boolean,
+                        if flag { "1" } else { "0" },
+                        is_println,
+                    ),
+                    Some(Literal::String(value)) => {
+                        ctx.output.push_str(&value);
+                        if is_println {
+                            ctx.output.push('\n');
+                        }
+                    }
+                    None => {
+                        return Err(diagnostic(
+                            &path,
+                            line.number,
+                            scope,
+                            &format!("Static field `{arg}` has no constant default"),
+                        ));
+                    }
+                }
+                cursor.advance(1);
+                return Ok(true);
+            }
+        }
         if let Some((base, field)) = arg.split_once('.') {
             if let Some(variable) = ctx.values.get(base) {
                 let fields = ctx.class_fields.get(&variable.value).ok_or_else(|| {
@@ -56,6 +100,7 @@ impl Parse for Print {
                 })?;
                 let (index, field_def) = fields
                     .iter()
+                    .filter(|field_def| !field_def.is_static)
                     .enumerate()
                     .find(|(_, field_def)| field_def.name == field)
                     .ok_or_else(|| {

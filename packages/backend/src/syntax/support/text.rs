@@ -145,6 +145,14 @@ pub fn is_identifier(text: &str) -> bool {
         .all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
 }
 
+/// Remove a leading `keyword` from `text` when it is followed by whitespace,
+/// returning the remainder with leading whitespace removed.
+pub fn strip_keyword<'a>(text: &'a str, keyword: &str) -> Option<&'a str> {
+    let rest = text.strip_prefix(keyword)?;
+    rest.starts_with(char::is_whitespace)
+        .then(|| rest.trim_start())
+}
+
 pub fn strip_line_comment(line: &str) -> &str {
     let bytes = line.as_bytes();
     let mut quoted = false;

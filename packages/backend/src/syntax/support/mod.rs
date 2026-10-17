@@ -11,7 +11,9 @@ pub mod text;
 pub mod value;
 
 pub use analysis::{parse_classes, parse_enums, parse_user_functions};
-pub use call::{inline_user_function, resolve_method, resolve_receiver};
+pub use call::{
+    inline_user_function, resolve_method, resolve_receiver, static_field, static_receiver,
+};
 pub use emit::{comparison_operand, emit_comparison, emit_link_call, emit_print, emit_print_const};
 pub use literal::{Literal, parse_literal};
 pub use text::{

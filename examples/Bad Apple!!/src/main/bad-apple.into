@@ -12,8 +12,7 @@ into vulkan: Vulkan = Vulkan();
 wayland.setRenderer(vulkan);
 
 into ffmpeg: FFmpeg = FFmpeg();
-now into source: Path = pathAbsolute("res/badapple.mp4");
-into video: Video = ffmpeg.read(source);
+into video: Video = ffmpeg.read("res/badapple.mp4");
 
 init {
     into delay: Int32 = video.delayMs();

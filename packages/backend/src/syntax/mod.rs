@@ -87,7 +87,7 @@ pub fn lower_named(source: &str, packages_dir: Option<&Path>, source_path: &str)
         ctx.output.push('\u{1e}');
         ctx.output.push_str("NATIVE_CLASS\t");
         ctx.output.push_str(class);
-        for field in fields {
+        for field in fields.iter().filter(|field| !field.is_static) {
             let (kind, value) = encode_field_default(field.default.as_deref());
             ctx.output.push('\t');
             ctx.output.push_str(&field.name);

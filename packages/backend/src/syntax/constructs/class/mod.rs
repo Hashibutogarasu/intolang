@@ -3,7 +3,7 @@ use anyhow::Result;
 use crate::syntax::context::ParseContext;
 use crate::syntax::format::Format;
 use crate::syntax::parse::{Cursor, Parse};
-use crate::syntax::support::text::brace_delta;
+use crate::syntax::support::text::{brace_delta, is_identifier};
 
 /// A `Name() { ... }` data carrier declaration.
 ///
@@ -14,7 +14,9 @@ pub struct Class;
 
 impl Format for Class {
     fn format(&self, line: &str) -> Option<String> {
-        if line.split_once("() {").is_some() {
+        let (prefix, _) = line.split_once("() {")?;
+        let name = prefix.strip_prefix("pub ").unwrap_or(prefix).trim();
+        if is_identifier(name) {
             Some(line.to_owned())
         } else {
             None
@@ -31,7 +33,7 @@ impl Parse for Class {
             return Ok(false);
         };
         let name = prefix.strip_prefix("pub ").unwrap_or(prefix).trim();
-        if name.is_empty() {
+        if !is_identifier(name) {
             return Ok(false);
         }
         let mut consumed = 1;

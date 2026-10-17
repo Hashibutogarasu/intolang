@@ -159,4 +159,24 @@ mod lowering_tests {
         let source = "init {\n    into source: Path = \"res/badapple.mp4\";\n    into text: String = source;\n}\n";
         assert!(lower(source).is_err());
     }
+
+    #[test]
+    fn excludes_static_fields_from_class_layout() {
+        let source = "pub Config() {\n    pub into: Int32 instance = 1;\n    pub static into: Int32 count = 5;\n}\n";
+        let output = lower(source).unwrap();
+        assert!(
+            output.contains("NATIVE_CLASS\tConfig\tinstance:Int32:n:1\n"),
+            "{output}"
+        );
+    }
+
+    #[test]
+    fn resolves_static_field_constant() {
+        let source = "pub Config() {\n    pub static into: Int32 count = 5;\n}\ninit {\n    into value: Int32 = Config.count;\n}\n";
+        let output = lower(source).unwrap();
+        assert!(
+            output.contains("NATIVE_ASSIGN\tvalue\tInt32\tn:5"),
+            "{output}"
+        );
+    }
 }

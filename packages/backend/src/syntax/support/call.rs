@@ -141,6 +141,38 @@ pub fn resolve_receiver(
     Ok((current, current_type))
 }
 
+/// Resolve a static receiver: `Class.method` where `Class` names a declared
+/// class rather than a bound value. Returns the class and method names.
+pub fn static_receiver<'a>(
+    function: &'a str,
+    values: &HashMap<String, Variable>,
+    class_fields: &ClassFields,
+) -> Option<(&'a str, &'a str)> {
+    let mut segments = function.split('.').filter(|segment| !segment.is_empty());
+    let class = segments.next()?;
+    let method = segments.next()?;
+    if segments.next().is_some() || values.contains_key(class) {
+        return None;
+    }
+    class_fields.contains_key(class).then_some((class, method))
+}
+
+/// Resolve a static field constant reference `Class.field`, returning the value
+/// literal written as its default.
+pub fn static_field<'a>(
+    expression: &str,
+    class_fields: &'a ClassFields,
+) -> Option<&'a crate::syntax::context::FieldDef> {
+    let (class, field) = expression.split_once('.')?;
+    if class.contains('.') || field.contains('.') {
+        return None;
+    }
+    class_fields
+        .get(class.trim())?
+        .iter()
+        .find(|def| def.is_static && def.name == field.trim())
+}
+
 #[allow(clippy::too_many_arguments)]
 #[allow(clippy::too_many_arguments)]
 pub fn inline_user_function(
@@ -183,6 +215,7 @@ pub fn inline_user_function(
     }
     let mut substitutions: Vec<(String, String)> = Vec::new();
     match (function.receiver.as_ref(), receiver) {
+        _ if function.is_static => {}
         (Some(_), Some(receiver)) => substitutions.push(("this".to_owned(), receiver)),
         (Some(_), None) => {
             return Err(format!("Method `{}` requires a receiver", function.name));
@@ -300,13 +333,45 @@ pub fn lower_inline_statement(
         .or_else(|| line.strip_prefix("print(").map(|rest| (false, rest)));
     if let Some((newline, rest)) = print {
         let arg = rest.split(')').next().unwrap_or("").trim();
+        let static_owner = arg.split('.').next().unwrap_or("").trim();
+        if !values.contains_key(static_owner) {
+            if let Some(field) = static_field(arg, class_fields) {
+                let default = field.default.clone().unwrap_or_default();
+                if let Some(literal) = parse_literal(&default) {
+                    match literal {
+                        Literal::String(value) => {
+                            output.push_str(&value);
+                            if newline {
+                                output.push('\n');
+                            }
+                        }
+                        Literal::Int(number) => {
+                            emit_print_const(output, &Type::Int32, &number.to_string(), newline)
+                        }
+                        Literal::Float(number) => {
+                            emit_print_const(output, &Type::Float64, &number.to_string(), newline)
+                        }
+                        Literal::Bool(flag) => emit_print_const(
+                            output,
+                            &Type::Boolean,
+                            if flag { "1" } else { "0" },
+                            newline,
+                        ),
+                    }
+                    return Ok(());
+                }
+            }
+        }
         if let Some((base, field)) = arg.split_once('.') {
             if let (Some(variable), Some(fields)) = (
                 values.get(base),
                 values.get(base).and_then(|v| class_fields.get(&v.value)),
             ) {
-                if let Some((index, field_def)) =
-                    fields.iter().enumerate().find(|(_, f)| f.name == field)
+                if let Some((index, field_def)) = fields
+                    .iter()
+                    .filter(|field_def| !field_def.is_static)
+                    .enumerate()
+                    .find(|(_, f)| f.name == field)
                 {
                     output.push('\u{1e}');
                     output.push_str("NATIVE_FIELD_PRINT\t");
@@ -421,6 +486,31 @@ pub fn lower_inline_statement(
         return Err(format!("Unsupported statement in function body: `{line}`"));
     };
     if call.contains('.') {
+        if let Some((class, method)) = static_receiver(call, values, class_fields) {
+            let key = format!("{class}.{method}");
+            if let Some(inner) = user_functions.get(&key) {
+                let inner = inner.clone();
+                return inline_user_function(
+                    output,
+                    &inner,
+                    None,
+                    call_args,
+                    values,
+                    native_links,
+                    class_fields,
+                    imported_functions,
+                    enum_values,
+                    temp_counter,
+                    user_functions,
+                    depth + 1,
+                )
+                .map(|_| ());
+            }
+            let link = native_links
+                .get(&key)
+                .ok_or_else(|| format!("Undefined static method `{key}`"))?;
+            return emit_link_call(output, link, call_args, enum_values, values, "", false);
+        }
         let (receiver, receiver_type) = resolve_receiver(
             output,
             call,
