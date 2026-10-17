@@ -1,4 +1,5 @@
 /dist/
-/res/frames/
 
 .into
+
+/res
