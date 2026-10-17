@@ -10,7 +10,7 @@ pub mod literal;
 pub mod text;
 pub mod value;
 
-pub use analysis::{parse_classes, parse_enums, parse_user_functions};
+pub use analysis::{parse_classes, parse_enums, parse_user_functions, public_items};
 pub use call::{
     inline_user_function, resolve_method, resolve_receiver, static_field, static_receiver,
 };

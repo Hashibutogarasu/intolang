@@ -58,16 +58,10 @@ fn compile_imported_native_sources(
     output: &Path,
     packages_dir: &Path,
 ) -> Result<(Vec<std::path::PathBuf>, bool, Vec<String>, Vec<String>)> {
-    let mut symbols = std::collections::HashSet::new();
-    let mut linked_symbols = std::collections::HashSet::new();
     let resource_root = packages_dir;
     let mut sources = Vec::new();
     for line in message.lines() {
-        if let Some(call) = line.strip_prefix("\u{1e}NATIVE\t") {
-            if let Some(symbol) = call.split('\t').next() {
-                symbols.insert(symbol.to_owned());
-            }
-        } else if let Some(call) = line.strip_prefix("\u{1e}NATIVE_LINK_ASSIGN\t") {
+        if let Some(call) = line.strip_prefix("\u{1e}NATIVE_LINK_ASSIGN\t") {
             let parts = call.split('\t').collect::<Vec<_>>();
             if parts.len() >= 4 {
                 let source = resource_root.join(parts[0]).join(parts[2]);
@@ -76,42 +70,6 @@ fn compile_imported_native_sources(
                     anyhow::bail!("Linked native source does not exist: {}", source.display());
                 }
                 sources.push((source, language == "cpp", resource_root.join(parts[0])));
-                symbols.insert(parts[3].to_owned());
-                linked_symbols.insert(parts[3].to_owned());
-            }
-        }
-    }
-    for alias in ["c", "cpp"] {
-        let package = resource_root.join(alias);
-        let info_path = package.join("src/main/into-info.into");
-        let Ok(info) = std::fs::read_to_string(info_path) else {
-            continue;
-        };
-        for declaration in info.lines().map(str::trim) {
-            let Some(export) = declaration.strip_prefix("pub ") else {
-                continue;
-            };
-            let Some((module, symbol)) = export.rsplit_once('/') else {
-                continue;
-            };
-            let symbol = symbol.trim_end_matches(".;");
-            if !symbols.contains(symbol) || linked_symbols.contains(symbol) {
-                continue;
-            }
-            let Some(module) = module.strip_prefix(&format!("{alias}/")) else {
-                continue;
-            };
-            let native_dir = package.join("src/main/native").join(module);
-            for extension in if alias == "c" {
-                vec!["c"]
-            } else {
-                vec!["cpp", "cc"]
-            } {
-                let source = native_dir.with_extension(extension);
-                if source.is_file() {
-                    sources.push((source, alias == "cpp", package.clone()));
-                    break;
-                }
             }
         }
     }

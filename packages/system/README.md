@@ -13,5 +13,6 @@ import "json://value";
 ```
 
 Each project publishes its module surface through `src/main/lib.into` and
-`src/main/into-info.into`. Foreign declarations use `pub c fun` or `pub cpp
-fun` and keep C and C++ names in Into source.
+`src/main/into-info.into`. Both use `export "alias://module";` declarations;
+declarations without the `pub` modifier are private. Foreign declarations use
+`pub c fun` or `pub cpp fun` and keep C and C++ names in Into source.

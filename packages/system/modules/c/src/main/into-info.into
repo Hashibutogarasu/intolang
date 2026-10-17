@@ -1,1 +1,1 @@
-pub c/stdio/output/puts.;
+export "c://stdio/output";

@@ -1,9 +1,1 @@
-pub ffmpeg/decoder/FFmpeg.;
-pub ffmpeg/decoder/Video.;
-pub ffmpeg/decoder/FFmpeg.read.;
-pub ffmpeg/decoder/Video.columns.;
-pub ffmpeg/decoder/Video.rows.;
-pub ffmpeg/decoder/Video.delayMs.;
-pub ffmpeg/decoder/Video.next.;
-pub ffmpeg/decoder/Video.text.;
-pub ffmpeg/decoder/Video.destroy.;
+export "ffmpeg://decoder";

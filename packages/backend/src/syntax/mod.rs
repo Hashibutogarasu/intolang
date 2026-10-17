@@ -24,7 +24,7 @@ use anyhow::Result;
 use crate::syntax::context::ParseContext;
 use crate::syntax::parse::Line;
 use crate::syntax::support::{
-    collect_type_params, parse_classes, parse_enums, parse_user_functions,
+    collect_type_params, parse_classes, parse_enums, parse_user_functions, public_items,
 };
 use crate::{imports, lexer::tokenize, validation};
 
@@ -62,15 +62,20 @@ pub fn lower_named(source: &str, packages_dir: Option<&Path>, source_path: &str)
     ctx.type_params = type_params;
 
     for module in &module_sources {
+        let public = public_items(module);
         let (module_enums, _) = parse_enums(module, source_path)?;
         for (name, variants) in module_enums {
             ctx.enum_values.entry(name).or_insert(variants);
         }
         for (name, fields) in parse_classes(module, source_path)? {
-            ctx.class_fields.insert(name, fields);
+            if public.contains(&name) {
+                ctx.class_fields.insert(name, fields);
+            }
         }
         for function in parse_user_functions(module, source_path)? {
-            ctx.user_functions.insert(function.name.clone(), function);
+            if public.contains(&function.name) {
+                ctx.user_functions.insert(function.name.clone(), function);
+            }
         }
     }
     for (name, variants) in entry_enums {

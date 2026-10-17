@@ -1,10 +1,4 @@
-pub cpp/http/client/http.;
-pub cpp/standard/string/std_string_create.;
-pub cpp/standard/string/std_string_data.;
-pub cpp/standard/string/std_string_destroy.;
-pub cpp/standard/filesystem/filesystem_list.;
-pub cpp/standard/filesystem/filesystem_has_next.;
-pub cpp/standard/filesystem/filesystem_next.;
-pub cpp/standard/filesystem/filesystem_read_text.;
-pub cpp/standard/time/sleep.;
-pub cpp/standard/time/monotonicMilliseconds.;
+export "cpp://http/client";
+export "cpp://standard/string";
+export "cpp://standard/filesystem";
+export "cpp://standard/time";

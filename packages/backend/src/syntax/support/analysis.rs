@@ -11,6 +11,7 @@ use crate::syntax::support::text::{
 /// The line span occupied by a class declaration, including its header.
 struct ClassSpan {
     name: String,
+    is_public: bool,
     start: usize,
     end: usize,
 }
@@ -26,12 +27,11 @@ fn scan_classes(source: &str) -> Vec<ClassSpan> {
             index += 1;
             continue;
         };
-        let name = prefix
-            .strip_prefix("pub ")
-            .unwrap_or(prefix)
-            .trim()
-            .to_owned();
-        if name.is_empty() || !is_identifier(&name) {
+        let (is_public, name) = match strip_keyword(prefix, "pub") {
+            Some(rest) => (true, rest.trim()),
+            None => (false, prefix.trim()),
+        };
+        if name.is_empty() || !is_identifier(name) {
             index += 1;
             continue;
         }
@@ -43,12 +43,65 @@ fn scan_classes(source: &str) -> Vec<ClassSpan> {
             index += 1;
         }
         spans.push(ClassSpan {
-            name,
+            name: name.to_owned(),
+            is_public,
             start,
             end: index,
         });
     }
     spans
+}
+
+/// Collect the names a module exposes publicly.
+///
+/// Only declarations carrying the `pub` modifier are visible to importers.
+/// Free declarations contribute their bare name and class members contribute
+/// `Class.member`; `pub` classes and `pub macro`s are included as well.
+pub fn public_items(source: &str) -> std::collections::HashSet<String> {
+    let lines = source.lines().collect::<Vec<_>>();
+    let spans = scan_classes(source);
+    let mut items = std::collections::HashSet::new();
+    for span in &spans {
+        if span.is_public {
+            items.insert(span.name.clone());
+        }
+    }
+    for (index, raw) in lines.iter().enumerate() {
+        let line = strip_line_comment(raw).trim();
+        let Some(rest) = strip_keyword(line, "pub") else {
+            continue;
+        };
+        if let Some(rest) = strip_keyword(rest, "macro") {
+            let name = rest.split_whitespace().next().unwrap_or("");
+            if is_identifier(name) {
+                items.insert(name.to_owned());
+            }
+            continue;
+        }
+        let rest = strip_keyword(rest, "static").unwrap_or(rest);
+        let rest = strip_keyword(rest, "c").unwrap_or(rest);
+        let rest = strip_keyword(rest, "cpp").unwrap_or(rest);
+        let Some(header) = strip_keyword(rest, "fun") else {
+            continue;
+        };
+        let name = header.split('(').next().unwrap_or("").trim();
+        if !is_identifier(name) {
+            continue;
+        }
+        let owner = spans
+            .iter()
+            .find(|span| index > span.start && index < span.end)
+            .map(|span| span.name.clone());
+        match owner {
+            Some(class) => {
+                items.insert(format!("{class}.{name}"));
+            }
+            None => {
+                items.insert(name.to_owned());
+            }
+        }
+    }
+    items
 }
 
 pub fn parse_enums(

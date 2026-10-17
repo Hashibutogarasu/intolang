@@ -1,6 +1,6 @@
-pub builtin/std/print.;
-pub builtin/std/println.;
-pub builtin/tests/macros/test/test.;
-pub builtin/tests/assert/assert.;
-pub builtin/tests/memory-check/memoryExists.;
-pub builtin/tests/memory-check/memoryNotExists.;
+export "builtin://std/print";
+export "builtin://std/println";
+export "builtin://tests/macros/test/test";
+export "builtin://tests/assert/assert";
+export "builtin://tests/memory-check/memoryExists";
+export "builtin://tests/memory-check/memoryNotExists";

@@ -11,6 +11,11 @@ pub use library::NativeFunction;
 pub use tests::TestSummary;
 pub use types::Type;
 
+/// Collect the names a module exposes publicly (declarations carrying `pub`).
+pub fn public_items(source: &str) -> std::collections::HashSet<String> {
+    syntax::support::public_items(source)
+}
+
 /// Format Into source text using the backend's canonical layout.
 pub fn format_source(source: &str) -> String {
     syntax::format_source(source)
@@ -178,5 +183,60 @@ mod lowering_tests {
             output.contains("NATIVE_ASSIGN\tvalue\tInt32\tn:5"),
             "{output}"
         );
+    }
+
+    #[test]
+    fn collects_only_public_declarations() {
+        let source = "pub fun visible() {}\nfun hidden() {}\npub Thing() {\n    pub fun new(): Thing;\n    fun secret(): Thing;\n}\n";
+        let items = super::public_items(source);
+        assert!(items.contains("visible"), "{items:?}");
+        assert!(!items.contains("hidden"), "{items:?}");
+        assert!(items.contains("Thing"), "{items:?}");
+        assert!(items.contains("Thing.new"), "{items:?}");
+        assert!(!items.contains("Thing.secret"), "{items:?}");
+        assert!(!items.contains("secret"), "{items:?}");
+    }
+
+    #[test]
+    fn resolves_module_exports_and_hides_private_items() {
+        let root = temp_package_root("exports");
+        let package = root.join("greet");
+        let main = package.join("src/main");
+        std::fs::create_dir_all(&main).unwrap();
+        std::fs::write(package.join("into-package.json"), "{\"alias\":\"greet\"}").unwrap();
+        std::fs::write(main.join("into-info.into"), "export \"greet://hello\";\n").unwrap();
+        std::fs::write(
+            main.join("hello.into"),
+            "#[link(\"c\", \"src/main/native/hello.c\", \"greet_hello\")]\npub fun hello(): Void;\nfun secret(): Void;\n",
+        )
+        .unwrap();
+
+        let public = super::lower_with_packages(
+            "import \"greet://hello\";\ninit {\n    hello();\n}\n",
+            Some(&root),
+        )
+        .unwrap();
+        assert!(public.contains("NATIVE_LINK_ASSIGN"), "{public}");
+
+        let private = super::lower_with_packages(
+            "import \"greet://hello\";\ninit {\n    secret();\n}\n",
+            Some(&root),
+        )
+        .unwrap();
+        assert!(!private.contains("NATIVE_LINK_ASSIGN"), "{private}");
+        assert!(!private.contains("secret"), "{private}");
+
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    fn temp_package_root(name: &str) -> std::path::PathBuf {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or_default();
+        std::env::temp_dir().join(format!(
+            "intolang-test-{name}-{}-{unique}",
+            std::process::id()
+        ))
     }
 }

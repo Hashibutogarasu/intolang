@@ -1,8 +1,1 @@
-pub path/std/Path.;
-pub path/std/Path.join.;
-pub path/std/Path.normalize.;
-pub path/std/Path.absolute.;
-pub path/std/Path.parent.;
-pub path/std/Path.fileName.;
-pub path/std/Path.extension.;
-pub path/std/Path.stem.;
+export "path://std";

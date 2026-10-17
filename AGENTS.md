@@ -93,9 +93,11 @@ CLI notes:
   via `value.field`.
 - Foreign declarations: `pub c fun puts(value: String): Int32;` or
   `pub cpp fun ...`, preceded by `#[link("c" | "cpp", "relative/source.cpp", "symbol")]`.
-- A package exposes its API through `src/main/into-info.into` with lines like
-  `pub alias/module/function.;`. Library packages list modules to export in
-  `src/main/lib.into` (`export "alias://module";`).
+- A package exposes its API through `src/main/into-info.into` with
+  `export "alias://module";` lines (every `pub` declaration in the module becomes
+  an exported name) or `export "alias://module/item";` for an explicit item.
+  Declarations without `pub` are private. Library packages list modules to export
+  in `src/main/lib.into` (`export "alias://module";`).
 
 ## Architecture / data flow
 

@@ -1,8 +1,1 @@
-pub vulkan/core/vulkan_create_instance.;
-pub vulkan/core/vulkan_destroy_instance.;
-pub vulkan/core/Vulkan.;
-pub vulkan/core/Vulkan.bind.;
-pub vulkan/core/Vulkan.beginFrame.;
-pub vulkan/core/Vulkan.fillRect.;
-pub vulkan/core/Vulkan.drawText.;
-pub vulkan/core/Vulkan.destroy.;
+export "vulkan://core";

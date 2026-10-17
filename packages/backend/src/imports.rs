@@ -1,6 +1,7 @@
 use anyhow::{Result, anyhow, bail};
 use std::{collections::HashSet, path::Path};
 
+use crate::syntax::support::public_items;
 use crate::syntax::support::text::{brace_delta, is_identifier, strip_line_comment};
 
 /// A module reached from the entry source, directly or transitively.
@@ -138,27 +139,7 @@ pub(super) fn resolve(source: &str, packages_dir: &Path) -> Result<HashSet<Strin
         let info_path = module.package.join("src/main/into-info.into");
         let info = std::fs::read_to_string(&info_path)
             .map_err(|_| anyhow!("Package `{}` has no into-info.into", module.alias))?;
-        let expected = format!("{}/{}/", module.alias, module.module);
-        let exact_export = format!("{}/{}.", module.alias, module.module);
-        let exports = info
-            .lines()
-            .filter_map(|decl| {
-                let export = decl.trim().strip_prefix("pub ")?;
-                let function = if export.trim_end_matches(';') == exact_export {
-                    module
-                        .module
-                        .rsplit('/')
-                        .next()
-                        .unwrap_or(module.module.as_str())
-                } else {
-                    export
-                        .strip_prefix(&expected)?
-                        .trim_end_matches(';')
-                        .trim_end_matches('.')
-                };
-                (!function.is_empty()).then(|| function.to_owned())
-            })
-            .collect::<Vec<_>>();
+        let exports = module_exports(&info, module)?;
         if exports.is_empty() {
             bail!(
                 "Package `{}` does not export module `{}`",
@@ -171,6 +152,50 @@ pub(super) fn resolve(source: &str, packages_dir: &Path) -> Result<HashSet<Strin
     Ok(imported_functions)
 }
 
+/// Read one `export "alias://path";` declaration from `into-info.into`.
+fn parse_export(line: &str) -> Option<(&str, &str)> {
+    let uri = strip_line_comment(line)
+        .trim()
+        .strip_prefix("export ")?
+        .trim_start()
+        .strip_prefix('"')?
+        .split_once('"')?
+        .0;
+    let (alias, path) = uri.split_once("://")?;
+    (!alias.is_empty() && !path.is_empty()).then_some((alias, path))
+}
+
+/// Collect the names `alias://module` exposes, honouring `pub` visibility.
+///
+/// A path that names an existing module file exports every `pub` declaration in
+/// that module. Otherwise the last path segment is an explicit item export,
+/// which lets packages expose symbols without a backing source file.
+fn module_exports(info: &str, module: &ImportedModule) -> Result<HashSet<String>> {
+    let mut names = HashSet::new();
+    for line in info.lines() {
+        let Some((alias, path)) = parse_export(line) else {
+            continue;
+        };
+        if alias != module.alias {
+            continue;
+        }
+        if path.split('/').any(|part| part.is_empty() || part == "..") {
+            bail!("Invalid export path in into-info.into: {path}");
+        }
+        let module_source = module.package.join("src/main").join(format!("{path}.into"));
+        if module_source.is_file() {
+            if path == module.module {
+                names.extend(public_items(&module.contents));
+            }
+        } else if let Some((export_module, item)) = path.rsplit_once('/') {
+            if export_module == module.module {
+                names.insert(item.to_owned());
+            }
+        }
+    }
+    Ok(names)
+}
+
 /// Read `#[link("c|cpp", path, symbol)]` metadata attached to imported
 /// foreign declarations. `path` is relative to the imported package root.
 pub(super) fn resolve_links(
@@ -181,6 +206,7 @@ pub(super) fn resolve_links(
     collect_modules(source, packages_dir, &mut HashSet::new(), &mut modules)?;
     let mut links = std::collections::HashMap::new();
     for module in &modules {
+        let public = public_items(&module.contents);
         let lines = module.contents.lines().collect::<Vec<_>>();
         let mut stack: Vec<(String, i32)> = Vec::new();
         let mut depth = 0i32;
@@ -201,7 +227,7 @@ pub(super) fn resolve_links(
                 continue;
             }
             if let Some((link, owner)) = pending.take() {
-                if let Some(rest) = line.split_once("fun ").map(|(_, rest)| rest) {
+                if let Some((_, rest)) = line.split_once("fun ") {
                     if let Some((name, _)) = rest.split_once('(') {
                         let return_type = rest
                             .rsplit_once("):")
@@ -220,7 +246,9 @@ pub(super) fn resolve_links(
                             Some(class) => format!("{class}.{name}"),
                             None => name.to_owned(),
                         };
-                        links.insert(key, link);
+                        if public.contains(&key) {
+                            links.insert(key, link);
+                        }
                     }
                 }
             }
