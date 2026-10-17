@@ -3,8 +3,51 @@ use std::collections::HashMap;
 use anyhow::Result;
 
 use crate::imports;
-use crate::syntax::context::{ClassFields, UserFunction};
-use crate::syntax::support::text::{brace_delta, diagnostic, strip_line_comment};
+use crate::syntax::context::{ClassFields, FieldDef, UserFunction};
+use crate::syntax::support::text::{brace_delta, diagnostic, is_identifier, strip_line_comment};
+
+/// The line span occupied by a class declaration, including its header.
+struct ClassSpan {
+    name: String,
+    start: usize,
+    end: usize,
+}
+
+/// Locate every `Name() { ... }` declaration and its body extent.
+fn scan_classes(source: &str) -> Vec<ClassSpan> {
+    let lines = source.lines().collect::<Vec<_>>();
+    let mut spans = Vec::new();
+    let mut index = 0;
+    while index < lines.len() {
+        let code = strip_line_comment(lines[index]).trim();
+        let Some((prefix, _)) = code.split_once("() {") else {
+            index += 1;
+            continue;
+        };
+        let name = prefix
+            .strip_prefix("pub ")
+            .unwrap_or(prefix)
+            .trim()
+            .to_owned();
+        if name.is_empty() || !is_identifier(&name) {
+            index += 1;
+            continue;
+        }
+        let start = index;
+        let mut depth = brace_delta(code);
+        index += 1;
+        while depth > 0 && index < lines.len() {
+            depth += brace_delta(strip_line_comment(lines[index]));
+            index += 1;
+        }
+        spans.push(ClassSpan {
+            name,
+            start,
+            end: index,
+        });
+    }
+    spans
+}
 
 pub fn parse_enums(
     source: &str,
@@ -117,46 +160,78 @@ pub fn parse_enums(
     Ok((enums, consumed))
 }
 
-pub fn parse_classes(source: &str) -> ClassFields {
+/// Parse `pub into: <Type> <name> = <default>;` fields from every class body.
+///
+/// The legacy `name: Type;` field syntax is rejected with a diagnostic.
+pub fn parse_classes(source: &str, source_path: &str) -> Result<ClassFields> {
     let lines = source.lines().collect::<Vec<_>>();
     let mut classes = HashMap::new();
-    let mut index = 0;
-    while index < lines.len() {
-        let line = lines[index].trim();
-        let Some((prefix, _)) = line.split_once("() {") else {
-            index += 1;
-            continue;
-        };
-        let name = prefix.strip_prefix("pub ").unwrap_or(prefix).trim();
-        if name.is_empty() {
-            index += 1;
-            continue;
-        }
-        if line
-            .split_once("() {")
-            .is_some_and(|(_, body)| body.contains('}'))
-        {
-            classes.insert(name.to_owned(), Vec::new());
-            index += 1;
-            continue;
-        }
+    for span in scan_classes(source) {
         let mut fields = Vec::new();
-        index += 1;
-        while index < lines.len() && !lines[index].trim().starts_with('}') {
-            let declaration = lines[index].trim().trim_end_matches(';');
-            if let Some((field, ty)) = declaration.split_once(':') {
-                fields.push((field.trim().to_owned(), ty.trim().to_owned()));
+        let mut depth = brace_delta(strip_line_comment(lines[span.start]));
+        let mut index = span.start + 1;
+        while depth > 0 && index < lines.len() {
+            let line = strip_line_comment(lines[index]).trim();
+            if depth == 1 {
+                if let Some(rest) = line.strip_prefix("pub into:") {
+                    let spec = rest.trim().trim_end_matches(';').trim();
+                    let (declaration, default) = match spec.split_once('=') {
+                        Some((declaration, default)) => {
+                            (declaration.trim(), Some(default.trim().to_owned()))
+                        }
+                        None => (spec, None),
+                    };
+                    let mut parts = declaration.split_whitespace();
+                    let ty = parts.next().unwrap_or("");
+                    let name = parts.next().unwrap_or("");
+                    if ty.is_empty() || !is_identifier(name) || parts.next().is_some() {
+                        return Err(diagnostic(
+                            source_path,
+                            index + 1,
+                            "module",
+                            &format!(
+                                "Expected class field 'pub into: <Type> <name> = <default>;' in `{}`",
+                                span.name
+                            ),
+                        ));
+                    }
+                    fields.push(FieldDef {
+                        name: name.to_owned(),
+                        ty: ty.to_owned(),
+                        default,
+                    });
+                } else if !line.is_empty()
+                    && !line.starts_with('}')
+                    && !line.contains("fun ")
+                    && !line.starts_with("#[")
+                {
+                    return Err(diagnostic(
+                        source_path,
+                        index + 1,
+                        "module",
+                        &format!(
+                            "Class `{}` fields must be declared as 'pub into: <Type> <name> = <default>;'",
+                            span.name
+                        ),
+                    ));
+                }
             }
+            depth += brace_delta(line);
             index += 1;
         }
-        classes.insert(name.to_owned(), fields);
-        index += 1;
+        classes.insert(span.name, fields);
     }
-    classes
+    Ok(classes)
 }
 
-pub fn parse_user_functions(source: &str) -> Vec<UserFunction> {
+/// Parse Into-bodied functions.
+///
+/// Functions declared inside a class body are methods of that class; their
+/// stored name is `Class.method`. The legacy top-level `pub fun Class.method`
+/// form is rejected.
+pub fn parse_user_functions(source: &str, source_path: &str) -> Result<Vec<UserFunction>> {
     let lines = source.lines().collect::<Vec<_>>();
+    let spans = scan_classes(source);
     let mut functions = Vec::new();
     let mut index = 0;
     while index < lines.len() {
@@ -187,10 +262,23 @@ pub fn parse_user_functions(source: &str) -> Vec<UserFunction> {
             continue;
         };
         let params_text = &after_open[..close];
-        let (receiver, name) = if let Some((receiver, name)) = name_part.rsplit_once('.') {
-            (Some(receiver.trim().to_owned()), name.trim().to_owned())
-        } else {
-            (None, name_part.to_owned())
+        let enclosing = spans
+            .iter()
+            .find(|span| index > span.start && index < span.end)
+            .map(|span| span.name.clone());
+        let (receiver, name) = match enclosing {
+            Some(class) => (Some(class), name_part.to_owned()),
+            None => {
+                if name_part.contains('.') {
+                    return Err(diagnostic(
+                        source_path,
+                        index + 1,
+                        "module",
+                        "Methods must be declared inside their class body as 'pub fun <name>(...)'",
+                    ));
+                }
+                (None, name_part.to_owned())
+            }
         };
         if name.is_empty() {
             index += 1;
@@ -229,5 +317,5 @@ pub fn parse_user_functions(source: &str) -> Vec<UserFunction> {
             body,
         });
     }
-    functions
+    Ok(functions)
 }

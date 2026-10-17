@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::imports;
-use crate::syntax::context::{UserFunction, Variable};
+use crate::syntax::context::{ClassFields, UserFunction, Variable};
 use crate::syntax::support::call::{inline_user_function, resolve_receiver};
 use crate::syntax::support::emit::{arithmetic_operand, emit_assign, emit_link_call};
 use crate::syntax::support::literal::{Literal, parse_literal};
@@ -15,6 +15,7 @@ pub fn declaration_value(
     values: &mut HashMap<String, Variable>,
     imported_functions: &HashSet<String>,
     native_links: &HashMap<String, imports::NativeLink>,
+    class_fields: &ClassFields,
     enum_values: &HashMap<String, HashMap<String, i32>>,
     type_params: &HashSet<String>,
     output: &mut String,
@@ -47,6 +48,8 @@ pub fn declaration_value(
                     args,
                     values,
                     native_links,
+                    class_fields,
+                    imported_functions,
                     enum_values,
                     temp_counter,
                     user_functions,
@@ -82,6 +85,22 @@ pub fn declaration_value(
             )?;
             let inferred = Type::parse(&link.return_type, type_params).unwrap_or(Type::Void);
             let ty = resolve_annotation(inferred, annotation)?;
+            return Ok((ty.name(), ty, true));
+        }
+        if class_fields.contains_key(function) {
+            if let Some(link) = native_links.get(&format!("{function}.new")) {
+                emit_link_call(output, link, args, enum_values, values, assigned_to, false)?;
+                let inferred = Type::parse(&link.return_type, type_params).unwrap_or(Type::Void);
+                let ty = resolve_annotation(inferred, annotation)?;
+                return Ok((ty.name(), ty, true));
+            }
+            let ty = resolve_annotation(Type::Named(function.to_owned()), annotation)?;
+            output.push('\u{1e}');
+            output.push_str("NATIVE_CONSTRUCT\t");
+            output.push_str(assigned_to);
+            output.push('\t');
+            output.push_str(function);
+            output.push('\n');
             return Ok((ty.name(), ty, true));
         }
         if imported_functions.contains(function) {

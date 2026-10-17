@@ -1,11 +1,16 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::imports;
-use crate::syntax::context::{UserFunction, Variable};
-use crate::syntax::support::emit::{comparison_operand, emit_comparison, emit_link_call};
-use crate::syntax::support::text::{
-    apply_substitutions, boolean_literal, parse_call, parse_comparison, split_argument_list,
+use crate::syntax::context::{ClassFields, UserFunction, Variable};
+use crate::syntax::support::emit::{
+    comparison_operand, emit_comparison, emit_link_call, emit_print, emit_print_const,
 };
+use crate::syntax::support::literal::{Literal, parse_literal};
+use crate::syntax::support::text::{
+    apply_substitutions, boolean_literal, parse_call, parse_comparison, split_annotation,
+    split_argument_list,
+};
+use crate::syntax::support::value::declaration_value;
 use crate::types::Type;
 
 #[allow(clippy::too_many_arguments)]
@@ -137,6 +142,7 @@ pub fn resolve_receiver(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments)]
 pub fn inline_user_function(
     output: &mut String,
     function: &UserFunction,
@@ -144,6 +150,8 @@ pub fn inline_user_function(
     args: &str,
     values: &mut HashMap<String, Variable>,
     native_links: &HashMap<String, imports::NativeLink>,
+    class_fields: &ClassFields,
+    imported_functions: &HashSet<String>,
     enum_values: &HashMap<String, HashMap<String, i32>>,
     temp_counter: &mut usize,
     user_functions: &HashMap<String, UserFunction>,
@@ -196,6 +204,8 @@ pub fn inline_user_function(
             &substituted,
             values,
             native_links,
+            class_fields,
+            imported_functions,
             enum_values,
             temp_counter,
             user_functions,
@@ -216,6 +226,8 @@ pub fn lower_inline_statement(
     line: &str,
     values: &mut HashMap<String, Variable>,
     native_links: &HashMap<String, imports::NativeLink>,
+    class_fields: &ClassFields,
+    imported_functions: &HashSet<String>,
     enum_values: &HashMap<String, HashMap<String, i32>>,
     temp_counter: &mut usize,
     user_functions: &HashMap<String, UserFunction>,
@@ -237,6 +249,123 @@ pub fn lower_inline_statement(
             .ok_or_else(|| format!("Unsupported return value `{expression}`"))?;
         *returned = Some((expression.to_owned(), variable.ty.clone()));
         return Ok(());
+    }
+    let declaration = line
+        .strip_prefix("const now into ")
+        .map(|rest| ("now", rest))
+        .or_else(|| line.strip_prefix("now into ").map(|rest| ("now", rest)))
+        .or_else(|| line.strip_prefix("late into ").map(|rest| ("late", rest)))
+        .or_else(|| line.strip_prefix("into ").map(|rest| ("local", rest)));
+    if let Some((prefix, rest)) = declaration {
+        let Some((lhs, rhs)) = rest.split_once('=') else {
+            return Ok(());
+        };
+        let (name, annotation) =
+            split_annotation(lhs.trim(), &HashSet::new()).map_err(|error| error.to_string())?;
+        if name.is_empty() {
+            return Err("Expected a variable name after `into`".to_owned());
+        }
+        let (value, ty, native_value) = declaration_value(
+            rhs.trim(),
+            annotation,
+            values,
+            imported_functions,
+            native_links,
+            class_fields,
+            enum_values,
+            &HashSet::new(),
+            output,
+            &name,
+            temp_counter,
+            user_functions,
+        )?;
+        values.insert(
+            name,
+            Variable {
+                value,
+                ty,
+                memory_backed: prefix != "local",
+                allocated: prefix == "now",
+                lazy: prefix == "late",
+                unloaded: false,
+                declared_in_init: false,
+                native: native_value,
+            },
+        );
+        return Ok(());
+    }
+    let print = line
+        .strip_prefix("println(")
+        .map(|rest| (true, rest))
+        .or_else(|| line.strip_prefix("print(").map(|rest| (false, rest)));
+    if let Some((newline, rest)) = print {
+        let arg = rest.split(')').next().unwrap_or("").trim();
+        if let Some((base, field)) = arg.split_once('.') {
+            if let (Some(variable), Some(fields)) = (
+                values.get(base),
+                values.get(base).and_then(|v| class_fields.get(&v.value)),
+            ) {
+                if let Some((index, field_def)) =
+                    fields.iter().enumerate().find(|(_, f)| f.name == field)
+                {
+                    output.push('\u{1e}');
+                    output.push_str("NATIVE_FIELD_PRINT\t");
+                    output.push_str(base);
+                    output.push('\t');
+                    output.push_str(&variable.value);
+                    output.push('\t');
+                    output.push_str(&index.to_string());
+                    output.push('\t');
+                    output.push_str(&field_def.ty);
+                    output.push('\t');
+                    output.push_str(if newline { "1" } else { "0" });
+                    output.push('\n');
+                    return Ok(());
+                }
+            }
+        }
+        if arg.len() >= 2 && arg.starts_with('"') && arg.ends_with('"') {
+            output.push_str(&arg[1..arg.len() - 1]);
+            if newline {
+                output.push('\n');
+            }
+            return Ok(());
+        }
+        if let Some(variable) = values.get(arg).cloned() {
+            if variable.native {
+                emit_print(output, arg, &variable.ty, newline);
+            } else {
+                output.push_str(&variable.value);
+                if newline {
+                    output.push('\n');
+                }
+            }
+            return Ok(());
+        }
+        if let Some(literal) = parse_literal(arg) {
+            match literal {
+                Literal::String(value) => {
+                    output.push_str(&value);
+                    if newline {
+                        output.push('\n');
+                    }
+                }
+                Literal::Int(number) => {
+                    emit_print_const(output, &Type::Int32, &number.to_string(), newline)
+                }
+                Literal::Float(number) => {
+                    emit_print_const(output, &Type::Float64, &number.to_string(), newline)
+                }
+                Literal::Bool(flag) => emit_print_const(
+                    output,
+                    &Type::Boolean,
+                    if flag { "1" } else { "0" },
+                    newline,
+                ),
+            }
+            return Ok(());
+        }
+        return Err(format!("Unsupported print argument `{arg}`"));
     }
     if line == "}" {
         match blocks.pop() {
@@ -315,6 +444,8 @@ pub fn lower_inline_statement(
                 call_args,
                 values,
                 native_links,
+                class_fields,
+                imported_functions,
                 enum_values,
                 temp_counter,
                 user_functions,
@@ -341,6 +472,8 @@ pub fn lower_inline_statement(
             call_args,
             values,
             native_links,
+            class_fields,
+            imported_functions,
             enum_values,
             temp_counter,
             user_functions,

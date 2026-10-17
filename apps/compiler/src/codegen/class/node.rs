@@ -6,10 +6,17 @@ use llvm::core::*;
 
 use crate::codegen::{Codegen, CodegenContext, CodegenResult};
 
+/// A single class field: `name:Type[:<kind>:<value>]`.
+struct FieldSpec {
+    name: String,
+    ty: String,
+    default: Option<(char, String)>,
+}
+
 /// `NATIVE_CLASS`: a struct type with named, typed fields.
 pub struct Class {
     name: String,
-    fields: Vec<(String, String)>,
+    fields: Vec<FieldSpec>,
 }
 
 impl Class {
@@ -22,8 +29,16 @@ impl Class {
             name: parts.next().unwrap_or_default().to_owned(),
             fields: parts
                 .map(|part| {
-                    let (field, ty) = part.split_once(':').unwrap_or((part, "String"));
-                    (field.to_owned(), ty.to_owned())
+                    let mut segments = part.splitn(4, ':');
+                    let name = segments.next().unwrap_or_default().to_owned();
+                    let ty = segments.next().unwrap_or("String").to_owned();
+                    let kind = segments.next().unwrap_or("-").to_owned();
+                    let value = segments.next().unwrap_or_default().to_owned();
+                    let default = match kind.as_str() {
+                        "-" | "" => None,
+                        _ => Some((kind.chars().next().unwrap_or('-'), value)),
+                    };
+                    FieldSpec { name, ty, default }
                 })
                 .collect(),
         })
@@ -46,10 +61,12 @@ impl Codegen for Class {
         unsafe {
             let mut fields = Vec::new();
             let mut field_types = Vec::new();
-            for (field, type_name) in &self.fields {
-                let llvm_type = ctx.into_type(type_name);
-                fields.push((field.clone(), llvm_type));
+            let mut defaults = Vec::new();
+            for field in &self.fields {
+                let llvm_type = ctx.into_type(&field.ty);
+                fields.push((field.name.clone(), llvm_type));
                 field_types.push(llvm_type);
+                defaults.push(field.default.clone());
             }
             let struct_type = *ctx
                 .named_types
@@ -62,6 +79,7 @@ impl Codegen for Class {
                 0,
             );
             ctx.class_fields.insert(self.name.clone(), fields);
+            ctx.class_defaults.insert(self.name.clone(), defaults);
             Ok(CodegenResult::unit())
         }
     }

@@ -3,10 +3,8 @@ enum Method {
 }
 
 pub HttpResponse() {
-    html: String;
+    pub into: String html = "";
 }
 
-pub cpp class HttpClient {
-    #[link("cpp", "src/main/native/http/client.cpp", "http")]
-    pub cpp fun http(method: Method, url: String): HttpResponse;
-}
+#[link("cpp", "src/main/native/http/client.cpp", "http")]
+pub cpp fun http(method: Method, url: String): HttpResponse;

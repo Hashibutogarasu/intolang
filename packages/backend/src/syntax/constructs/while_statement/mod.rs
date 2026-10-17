@@ -73,8 +73,8 @@ impl Parse for WhileStatement {
                     "while condition must compare numeric values or call a Boolean function",
                 ));
             };
-            let (link, combined) = if function.contains('.') {
-                resolve_method(
+            let (link, combined, has_receiver) = if function.contains('.') {
+                let (link, combined) = resolve_method(
                     &mut ctx.output,
                     function,
                     args,
@@ -83,7 +83,8 @@ impl Parse for WhileStatement {
                     &ctx.enum_values,
                     &mut ctx.temp_counter,
                 )
-                .map_err(|message| diagnostic(&path, line.number, scope, &message))?
+                .map_err(|message| diagnostic(&path, line.number, scope, &message))?;
+                (link, combined, true)
             } else {
                 if !ctx.imported_functions.contains(function) {
                     return Err(diagnostic(
@@ -101,7 +102,7 @@ impl Parse for WhileStatement {
                         &format!("Function `{function}` has no native link"),
                     )
                 })?;
-                (link.clone(), args.to_owned())
+                (link.clone(), args.to_owned(), false)
             };
             if link.return_type != "Boolean" {
                 return Err(diagnostic(
@@ -119,7 +120,7 @@ impl Parse for WhileStatement {
                 &ctx.enum_values,
                 &ctx.values,
                 "",
-                true,
+                has_receiver,
             )
             .map_err(|message| diagnostic(&path, line.number, scope, &message))?;
             let marker =

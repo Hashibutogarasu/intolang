@@ -58,6 +58,7 @@ impl Parse for Declaration {
             &mut ctx.values,
             &ctx.imported_functions,
             &ctx.native_links,
+            &ctx.class_fields,
             &ctx.enum_values,
             &ctx.type_params,
             &mut ctx.output,

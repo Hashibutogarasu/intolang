@@ -54,10 +54,10 @@ impl Parse for Print {
                         &format!("Type `{}` has no declared member fields", variable.value),
                     )
                 })?;
-                let (index, (_, field_type)) = fields
+                let (index, field_def) = fields
                     .iter()
                     .enumerate()
-                    .find(|(_, (name, _))| name == field)
+                    .find(|(_, field_def)| field_def.name == field)
                     .ok_or_else(|| {
                         diagnostic(
                             &path,
@@ -74,7 +74,7 @@ impl Parse for Print {
                 ctx.output.push('\t');
                 ctx.output.push_str(&index.to_string());
                 ctx.output.push('\t');
-                ctx.output.push_str(field_type);
+                ctx.output.push_str(&field_def.ty);
                 ctx.output.push('\t');
                 ctx.output.push_str(if is_println { "1" } else { "0" });
                 ctx.output.push('\n');

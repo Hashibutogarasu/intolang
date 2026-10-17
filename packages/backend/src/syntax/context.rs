@@ -17,7 +17,15 @@ pub struct Variable {
     pub native: bool,
 }
 
-pub type ClassFields = HashMap<String, Vec<(String, String)>>;
+/// A formally declared class field: `pub into: <Type> <name> = <default>;`.
+#[derive(Debug, Clone)]
+pub struct FieldDef {
+    pub name: String,
+    pub ty: String,
+    pub default: Option<String>,
+}
+
+pub type ClassFields = HashMap<String, Vec<FieldDef>>;
 
 /// A user defined function collected from the entry file or an imported module.
 #[derive(Clone)]

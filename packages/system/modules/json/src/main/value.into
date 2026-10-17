@@ -2,8 +2,8 @@ enum JsonKind { Null, Boolean, Number, String, Array, Object }
 enum Format { Text, JSON }
 
 pub JsonObject() {
-    kind: Int32;
-    text: String;
+    pub into: Int32 kind = 0;
+    pub into: String text = "";
 }
 
 pub JsonIterator() { }

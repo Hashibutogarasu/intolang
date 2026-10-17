@@ -1,25 +1,25 @@
-pub Vulkan() { }
+pub Vulkan() {
+    #[link("cpp", "src/main/native/vulkan/wayland.cpp", "vulkan_new")]
+    pub fun new(): Vulkan;
+
+    #[link("cpp", "src/main/native/vulkan/wayland.cpp", "vulkan_bind")]
+    pub fun bind(pixels: Pointer, width: Int32, height: Int32): Void;
+
+    #[link("cpp", "src/main/native/vulkan/wayland.cpp", "vulkan_begin_frame")]
+    pub fun beginFrame(clearColor: Int32): Void;
+
+    #[link("cpp", "src/main/native/vulkan/wayland.cpp", "vulkan_fill_rect")]
+    pub fun fillRect(x: Int32, y: Int32, width: Int32, height: Int32, color: Int32): Void;
+
+    #[link("cpp", "src/main/native/vulkan/wayland.cpp", "vulkan_draw_text")]
+    pub fun drawText(text: String, color: Int32): Void;
+
+    #[link("cpp", "src/main/native/vulkan/wayland.cpp", "vulkan_destroy")]
+    pub fun destroy(): Void;
+}
 
 #[link("c", "src/main/native/vulkan/core.c", "vulkan_create_instance")]
 pub c fun vulkan_create_instance(createInfo: Pointer, allocator: Pointer, instance: Pointer): Int32;
 
 #[link("c", "src/main/native/vulkan/core.c", "vulkan_destroy_instance")]
 pub c fun vulkan_destroy_instance(instance: Pointer, allocator: Pointer): Void;
-
-#[link("cpp", "src/main/native/vulkan/wayland.cpp", "vulkan_new")]
-pub fun Vulkan(): Vulkan;
-
-#[link("cpp", "src/main/native/vulkan/wayland.cpp", "vulkan_bind")]
-pub fun Vulkan.bind(pixels: Pointer, width: Int32, height: Int32): Void;
-
-#[link("cpp", "src/main/native/vulkan/wayland.cpp", "vulkan_begin_frame")]
-pub fun Vulkan.beginFrame(clearColor: Int32): Void;
-
-#[link("cpp", "src/main/native/vulkan/wayland.cpp", "vulkan_fill_rect")]
-pub fun Vulkan.fillRect(x: Int32, y: Int32, width: Int32, height: Int32, color: Int32): Void;
-
-#[link("cpp", "src/main/native/vulkan/wayland.cpp", "vulkan_draw_text")]
-pub fun Vulkan.drawText(text: String, color: Int32): Void;
-
-#[link("cpp", "src/main/native/vulkan/wayland.cpp", "vulkan_destroy")]
-pub fun Vulkan.destroy(): Void;

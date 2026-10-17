@@ -1,87 +1,87 @@
-pub Wayland() { }
+pub Wayland() {
+    #[link("cpp", "src/main/native/wayland/window.cpp", "wayland_new")]
+    pub fun new(): Wayland;
 
-pub Window() { }
+    #[link("cpp", "src/main/native/wayland/window.cpp", "wayland_window")]
+    pub fun window(): Window;
 
-pub TitleBar() { }
+    #[link("cpp", "src/main/native/wayland/window.cpp", "wayland_set_renderer")]
+    pub fun setRenderer(renderer: Vulkan): Void;
 
-#[link("cpp", "src/main/native/wayland/window.cpp", "wayland_new")]
-pub fun Wayland(): Wayland;
-
-#[link("cpp", "src/main/native/wayland/window.cpp", "wayland_window")]
-pub fun Wayland.window(): Window;
-
-#[link("cpp", "src/main/native/wayland/window.cpp", "wayland_set_renderer")]
-pub fun Wayland.setRenderer(renderer: Vulkan): Void;
-
-#[link("cpp", "src/main/native/wayland/window.cpp", "wayland_destroy")]
-pub fun Wayland.destroy(): Void;
-
-#[link("cpp", "src/main/native/wayland/window.cpp", "window_create")]
-pub fun Window.create(width: Int32, height: Int32, title: String): Void;
-
-#[link("cpp", "src/main/native/wayland/window.cpp", "window_is_open")]
-pub fun Window.isOpen(): Boolean;
-
-#[link("cpp", "src/main/native/wayland/window.cpp", "window_clear")]
-pub fun Window.clear(color: Int32): Void;
-
-#[link("cpp", "src/main/native/wayland/window.cpp", "window_fill_rect")]
-pub fun Window.fillRect(x: Int32, y: Int32, width: Int32, height: Int32, color: Int32): Void;
-
-#[link("cpp", "src/main/native/wayland/window.cpp", "window_draw_text")]
-pub fun Window.drawText(text: String, color: Int32): Void;
-
-#[link("cpp", "src/main/native/wayland/window.cpp", "window_reset_cursor")]
-pub fun Window.resetCursor(): Void;
-
-#[link("cpp", "src/main/native/wayland/window.cpp", "window_attach")]
-pub fun Window.attach(): Void;
-
-#[link("cpp", "src/main/native/wayland/window.cpp", "window_damage")]
-pub fun Window.damage(): Void;
-
-#[link("cpp", "src/main/native/wayland/window.cpp", "window_commit")]
-pub fun Window.commit(): Void;
-
-#[link("cpp", "src/main/native/wayland/window.cpp", "window_flush")]
-pub fun Window.flush(): Void;
-
-pub fun Window.present() {
-    this.attach();
-    this.damage();
-    this.commit();
-    this.flush();
+    #[link("cpp", "src/main/native/wayland/window.cpp", "wayland_destroy")]
+    pub fun destroy(): Void;
 }
 
-#[link("cpp", "src/main/native/wayland/window.cpp", "window_titlebar")]
-pub fun Window.titlebar(): TitleBar;
+pub Window() {
+    #[link("cpp", "src/main/native/wayland/window.cpp", "window_create")]
+    pub fun create(width: Int32, height: Int32, title: String): Void;
 
-#[link("cpp", "src/main/native/wayland/window.cpp", "window_titlebar_use_standard")]
-pub fun TitleBar.useStandard(): Void;
+    #[link("cpp", "src/main/native/wayland/window.cpp", "window_is_open")]
+    pub fun isOpen(): Boolean;
 
-#[link("cpp", "src/main/native/wayland/window.cpp", "window_titlebar_allow_maximize")]
-pub fun TitleBar.allowMaximize(): Void;
+    #[link("cpp", "src/main/native/wayland/window.cpp", "window_clear")]
+    pub fun clear(color: Int32): Void;
 
-#[link("cpp", "src/main/native/wayland/window.cpp", "window_titlebar_prevent_maximize")]
-pub fun TitleBar.preventMaximize(): Void;
+    #[link("cpp", "src/main/native/wayland/window.cpp", "window_fill_rect")]
+    pub fun fillRect(x: Int32, y: Int32, width: Int32, height: Int32, color: Int32): Void;
 
-#[link("cpp", "src/main/native/wayland/window.cpp", "window_titlebar_allow_close")]
-pub fun TitleBar.allowClose(): Void;
+    #[link("cpp", "src/main/native/wayland/window.cpp", "window_draw_text")]
+    pub fun drawText(text: String, color: Int32): Void;
 
-#[link("cpp", "src/main/native/wayland/window.cpp", "window_titlebar_prevent_close")]
-pub fun TitleBar.preventClose(): Void;
+    #[link("cpp", "src/main/native/wayland/window.cpp", "window_reset_cursor")]
+    pub fun resetCursor(): Void;
 
-pub fun TitleBar.create(maximizable: Boolean = true, closable: Boolean = true): TitleBar {
-    this.useStandard();
-    if (maximizable) {
-        this.allowMaximize();
-    } else {
-        this.preventMaximize();
+    #[link("cpp", "src/main/native/wayland/window.cpp", "window_attach")]
+    pub fun attach(): Void;
+
+    #[link("cpp", "src/main/native/wayland/window.cpp", "window_damage")]
+    pub fun damage(): Void;
+
+    #[link("cpp", "src/main/native/wayland/window.cpp", "window_commit")]
+    pub fun commit(): Void;
+
+    #[link("cpp", "src/main/native/wayland/window.cpp", "window_flush")]
+    pub fun flush(): Void;
+
+    pub fun present() {
+        this.attach();
+        this.damage();
+        this.commit();
+        this.flush();
     }
-    if (closable) {
-        this.allowClose();
-    } else {
-        this.preventClose();
+
+    #[link("cpp", "src/main/native/wayland/window.cpp", "window_titlebar")]
+    pub fun titlebar(): TitleBar;
+}
+
+pub TitleBar() {
+    #[link("cpp", "src/main/native/wayland/window.cpp", "window_titlebar_use_standard")]
+    pub fun useStandard(): Void;
+
+    #[link("cpp", "src/main/native/wayland/window.cpp", "window_titlebar_allow_maximize")]
+    pub fun allowMaximize(): Void;
+
+    #[link("cpp", "src/main/native/wayland/window.cpp", "window_titlebar_prevent_maximize")]
+    pub fun preventMaximize(): Void;
+
+    #[link("cpp", "src/main/native/wayland/window.cpp", "window_titlebar_allow_close")]
+    pub fun allowClose(): Void;
+
+    #[link("cpp", "src/main/native/wayland/window.cpp", "window_titlebar_prevent_close")]
+    pub fun preventClose(): Void;
+
+    pub fun create(maximizable: Boolean = true, closable: Boolean = true): TitleBar {
+        this.useStandard();
+        if (maximizable) {
+            this.allowMaximize();
+        } else {
+            this.preventMaximize();
+        }
+        if (closable) {
+            this.allowClose();
+        } else {
+            this.preventClose();
+        }
+        return this;
     }
-    return this;
 }

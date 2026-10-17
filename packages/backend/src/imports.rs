@@ -1,6 +1,66 @@
 use anyhow::{Result, anyhow, bail};
 use std::{collections::HashSet, path::Path};
 
+use crate::syntax::support::text::{brace_delta, is_identifier, strip_line_comment};
+
+/// A module reached from the entry source, directly or transitively.
+struct ImportedModule {
+    alias: String,
+    module: String,
+    package: std::path::PathBuf,
+    contents: String,
+}
+
+fn parse_import(line: &str) -> Option<(String, String)> {
+    let line = line.trim();
+    let uri = line.strip_prefix("import ")?.strip_prefix('"')?;
+    let uri = uri.split_once('"')?.0;
+    let (scheme, path) = uri.split_once("://")?;
+    let (alias, module) = match scheme {
+        "intolang" => {
+            let mut segments = path.split('/');
+            let first = segments.next().unwrap_or_default().to_owned();
+            (first, segments.collect::<Vec<_>>().join("/"))
+        }
+        _ => (scheme.to_owned(), path.to_owned()),
+    };
+    if alias.is_empty() || module.is_empty() {
+        return None;
+    }
+    Some((alias, module))
+}
+
+/// Follow `import` statements breadth-first, returning every reachable module.
+fn collect_modules(
+    source: &str,
+    packages_dir: &Path,
+    seen: &mut HashSet<String>,
+    out: &mut Vec<ImportedModule>,
+) -> Result<()> {
+    for line in source.lines() {
+        let Some((alias, module)) = parse_import(line) else {
+            continue;
+        };
+        let key = format!("{alias}://{module}");
+        if !seen.insert(key) {
+            continue;
+        }
+        let Some(package) = find_by_alias(packages_dir, &alias)? else {
+            continue;
+        };
+        let module_path = package.join("src/main").join(format!("{module}.into"));
+        let contents = std::fs::read_to_string(&module_path).unwrap_or_default();
+        collect_modules(&contents, packages_dir, seen, out)?;
+        out.push(ImportedModule {
+            alias,
+            module,
+            package,
+            contents,
+        });
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone)]
 pub(super) struct Param {
     pub name: String,
@@ -67,48 +127,29 @@ pub(super) struct NativeLink {
 }
 
 /// Resolve Into package and native-language module imports using package exports.
+///
+/// Imports are followed transitively so a module may itself import other
+/// packages (for example `ffmpeg` importing `fs`).
 pub(super) fn resolve(source: &str, packages_dir: &Path) -> Result<HashSet<String>> {
+    let mut modules = Vec::new();
+    collect_modules(source, packages_dir, &mut HashSet::new(), &mut modules)?;
     let mut imported_functions = HashSet::new();
-    for line in source.lines() {
-        let line = line.trim();
-        let Some(uri) = line
-            .strip_prefix("import ")
-            .and_then(|v| v.strip_prefix('"'))
-            .and_then(|v| v.split_once('"').map(|(uri, _)| uri))
-        else {
-            continue;
-        };
-        let Some((scheme, path)) = uri.split_once("://") else {
-            bail!("Invalid import URI: {uri}");
-        };
-        let (alias, module) = match scheme {
-            "intolang" => {
-                let mut segments = path.split('/');
-                (
-                    segments.next().unwrap_or_default(),
-                    segments.collect::<Vec<_>>().join("/"),
-                )
-            }
-            _ => (scheme, path.to_owned()),
-        };
-        if alias.is_empty() || module.is_empty() {
-            bail!("Invalid Into package import: {uri}");
-        }
-
-        let package = find_by_alias(packages_dir, alias)?.ok_or_else(|| {
-            anyhow!("Imported package or language module `{alias}` is not bundled")
-        })?;
-        let info_path = package.join("src/main/into-info.into");
+    for module in &modules {
+        let info_path = module.package.join("src/main/into-info.into");
         let info = std::fs::read_to_string(&info_path)
-            .map_err(|_| anyhow!("Package `{alias}` has no into-info.into"))?;
-        let expected = format!("{alias}/{module}/");
-        let exact_export = format!("{alias}/{module}.;");
+            .map_err(|_| anyhow!("Package `{}` has no into-info.into", module.alias))?;
+        let expected = format!("{}/{}/", module.alias, module.module);
+        let exact_export = format!("{}/{}.", module.alias, module.module);
         let exports = info
             .lines()
             .filter_map(|decl| {
                 let export = decl.trim().strip_prefix("pub ")?;
-                let function = if export == exact_export {
-                    module.rsplit('/').next().unwrap_or(module.as_str())
+                let function = if export.trim_end_matches(';') == exact_export {
+                    module
+                        .module
+                        .rsplit('/')
+                        .next()
+                        .unwrap_or(module.module.as_str())
                 } else {
                     export
                         .strip_prefix(&expected)?
@@ -119,7 +160,11 @@ pub(super) fn resolve(source: &str, packages_dir: &Path) -> Result<HashSet<Strin
             })
             .collect::<Vec<_>>();
         if exports.is_empty() {
-            bail!("Package `{alias}` does not export module `{module}`");
+            bail!(
+                "Package `{}` does not export module `{}`",
+                module.alias,
+                module.module
+            );
         }
         imported_functions.extend(exports);
     }
@@ -132,34 +177,31 @@ pub(super) fn resolve_links(
     source: &str,
     packages_dir: &Path,
 ) -> Result<std::collections::HashMap<String, NativeLink>> {
+    let mut modules = Vec::new();
+    collect_modules(source, packages_dir, &mut HashSet::new(), &mut modules)?;
     let mut links = std::collections::HashMap::new();
-    for line in source.lines() {
-        let line = line.trim();
-        let Some(uri) = line
-            .strip_prefix("import ")
-            .and_then(|v| v.strip_prefix('"'))
-            .and_then(|v| v.split_once('"').map(|(uri, _)| uri))
-        else {
-            continue;
-        };
-        let Some((alias, module)) = uri.split_once("://") else {
-            continue;
-        };
-        let Some(package) = find_by_alias(packages_dir, alias)? else {
-            continue;
-        };
-        let declaration = package.join("src/main").join(format!("{module}.into"));
-        let Ok(contents) = std::fs::read_to_string(declaration) else {
-            continue;
-        };
-        let mut pending: Option<NativeLink> = None;
-        for declaration in contents.lines().map(str::trim) {
-            if declaration.starts_with("#[link(") {
-                pending = parse_link_attribute(declaration, alias, &package)?;
+    for module in &modules {
+        let lines = module.contents.lines().collect::<Vec<_>>();
+        let mut stack: Vec<(String, i32)> = Vec::new();
+        let mut depth = 0i32;
+        let mut pending: Option<(NativeLink, Option<String>)> = None;
+        for raw in &lines {
+            while let Some((_, level)) = stack.last() {
+                if depth <= *level {
+                    stack.pop();
+                } else {
+                    break;
+                }
+            }
+            let line = strip_line_comment(raw).trim();
+            let current_class = stack.last().map(|(name, _)| name.clone());
+            if line.starts_with("#[link(") {
+                pending = parse_link_attribute(line, &module.alias, &module.package)?
+                    .map(|link| (link, current_class.clone()));
                 continue;
             }
-            if let Some(link) = pending.take() {
-                if let Some(rest) = declaration.split_once("fun ").map(|(_, rest)| rest) {
+            if let Some((link, owner)) = pending.take() {
+                if let Some(rest) = line.split_once("fun ").map(|(_, rest)| rest) {
                     if let Some((name, _)) = rest.split_once('(') {
                         let return_type = rest
                             .rsplit_once("):")
@@ -173,10 +215,22 @@ pub(super) fn resolve_links(
                         let mut link = link;
                         link.return_type = return_type;
                         link.params = parse_params(params_text);
-                        links.insert(name.trim().to_owned(), link);
+                        let name = name.trim();
+                        let key = match owner.or(current_class) {
+                            Some(class) => format!("{class}.{name}"),
+                            None => name.to_owned(),
+                        };
+                        links.insert(key, link);
                     }
                 }
             }
+            if let Some((prefix, _)) = line.split_once("() {") {
+                let name = prefix.strip_prefix("pub ").unwrap_or(prefix).trim();
+                if is_identifier(name) {
+                    stack.push((name.to_owned(), depth));
+                }
+            }
+            depth += brace_delta(line);
         }
     }
     Ok(links)
@@ -184,26 +238,12 @@ pub(super) fn resolve_links(
 
 pub(super) fn imported_module_sources(source: &str, packages_dir: &Path) -> Result<Vec<String>> {
     let mut modules = Vec::new();
-    for line in source.lines().map(str::trim) {
-        let Some(uri) = line
-            .strip_prefix("import ")
-            .and_then(|v| v.strip_prefix('"'))
-            .and_then(|v| v.split_once('"').map(|(uri, _)| uri))
-        else {
-            continue;
-        };
-        let Some((alias, module)) = uri.split_once("://") else {
-            continue;
-        };
-        let Some(package) = find_by_alias(packages_dir, alias)? else {
-            continue;
-        };
-        let module_path = package.join("src/main").join(format!("{module}.into"));
-        if let Ok(contents) = std::fs::read_to_string(module_path) {
-            modules.push(contents);
-        }
-    }
-    Ok(modules)
+    collect_modules(source, packages_dir, &mut HashSet::new(), &mut modules)?;
+    Ok(modules
+        .into_iter()
+        .map(|module| module.contents)
+        .filter(|contents| !contents.is_empty())
+        .collect())
 }
 
 fn parse_link_attribute(

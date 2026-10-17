@@ -66,17 +66,20 @@ pub fn lower_named(source: &str, packages_dir: Option<&Path>, source_path: &str)
         for (name, variants) in module_enums {
             ctx.enum_values.entry(name).or_insert(variants);
         }
-        for (name, fields) in parse_classes(module) {
+        for (name, fields) in parse_classes(module, source_path)? {
             ctx.class_fields.insert(name, fields);
         }
-        for function in parse_user_functions(module) {
+        for function in parse_user_functions(module, source_path)? {
             ctx.user_functions.insert(function.name.clone(), function);
         }
     }
     for (name, variants) in entry_enums {
         ctx.enum_values.insert(name, variants);
     }
-    for function in parse_user_functions(source) {
+    for (name, fields) in parse_classes(source, source_path)? {
+        ctx.class_fields.entry(name).or_insert(fields);
+    }
+    for function in parse_user_functions(source, source_path)? {
         ctx.user_functions.insert(function.name.clone(), function);
     }
 
@@ -84,11 +87,16 @@ pub fn lower_named(source: &str, packages_dir: Option<&Path>, source_path: &str)
         ctx.output.push('\u{1e}');
         ctx.output.push_str("NATIVE_CLASS\t");
         ctx.output.push_str(class);
-        for (field, ty) in fields {
+        for field in fields {
+            let (kind, value) = encode_field_default(field.default.as_deref());
             ctx.output.push('\t');
-            ctx.output.push_str(field);
+            ctx.output.push_str(&field.name);
             ctx.output.push(':');
-            ctx.output.push_str(ty);
+            ctx.output.push_str(&field.ty);
+            ctx.output.push(':');
+            ctx.output.push(kind);
+            ctx.output.push(':');
+            ctx.output.push_str(&value);
         }
         ctx.output.push('\n');
     }
@@ -97,6 +105,30 @@ pub fn lower_named(source: &str, packages_dir: Option<&Path>, source_path: &str)
     let parser = Parser::new(constructs::default_constructs());
     parser.parse(&mut ctx, &lines)?;
     Ok(ctx.output)
+}
+
+/// Encode a class field default as `(kind, value)` for the compiler message.
+///
+/// Kinds are `n` (numeric literal), `b` (boolean), `s` (hex-encoded string) and
+/// `-` (no default, zero-initialised).
+fn encode_field_default(default: Option<&str>) -> (char, String) {
+    let Some(default) = default.map(str::trim) else {
+        return ('-', String::new());
+    };
+    if default.len() >= 2 && default.starts_with('"') && default.ends_with('"') {
+        let decoded =
+            crate::syntax::support::text::decode_string_literal(&default[1..default.len() - 1]);
+        let mut hex = String::new();
+        for byte in decoded.bytes() {
+            hex.push_str(&format!("{byte:02x}"));
+        }
+        return ('s', hex);
+    }
+    match default {
+        "true" => ('b', "1".to_owned()),
+        "false" => ('b', "0".to_owned()),
+        other => ('n', other.to_owned()),
+    }
 }
 
 fn prepare_lines(source: &str) -> Vec<Line> {

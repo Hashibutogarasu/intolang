@@ -40,6 +40,8 @@ impl Parse for FunctionCall {
                 args,
                 &mut ctx.values,
                 &ctx.native_links,
+                &ctx.class_fields,
+                &ctx.imported_functions,
                 &ctx.enum_values,
                 &mut ctx.temp_counter,
                 &ctx.user_functions,
