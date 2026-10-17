@@ -60,6 +60,7 @@
               pkgs.weston
               pkgs.vulkan-headers
               pkgs.vulkan-loader
+              pkgs.SDL2
             ];
 
             LLVM_SYS_231_PREFIX = "${llvm.dev}";
@@ -72,6 +73,7 @@
               pkgs.stdenv.cc.cc.lib
               pkgs.wayland
               pkgs.vulkan-loader
+              pkgs.SDL2
             ];
 
             shellHook = ''
