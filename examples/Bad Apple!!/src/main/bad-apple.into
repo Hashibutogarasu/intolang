@@ -1,36 +1,85 @@
 import "wayland://window";
 import "vulkan://core";
 import "ffmpeg://decoder";
+import "ffmpeg://audio";
+import "sdl2://audio";
+import "fs://file";
 import "path://std";
 import "cpp://standard/time";
 
-into wayland: Wayland = Wayland();
+into wayland = Wayland();
 wayland.window.create(854, 480, "Bad Apple!!");
-now into titleBar: TitleBar = wayland.window.titlebar.create();
+now into titleBar = wayland.window.titlebar.create();
 
-into vulkan: Vulkan = Vulkan();
+into vulkan = Vulkan();
 wayland.setRenderer(vulkan);
 
-into ffmpeg: FFmpeg = FFmpeg();
-into video: Video = ffmpeg.read("res/badapple.mp4");
+into ffmpeg = FFmpeg();
+into video = ffmpeg.read("res/badapple.mp4");
+
+now into soundFile = File();
+now into soundBytes = soundFile.read("res/badapple.mp4");
+now into audio = openAudioBuffer(soundBytes);
+
+into output = SDL2Audio();
 
 init {
-    into delay: Int32 = video.delayMs();
-    into start: Int32 = monotonicMilliseconds();
-    into frame: Int32 = 0;
+    now into sampleRate = audio.sampleRate();
+    now into channels = audio.channels();
+    into speaker = output.open(sampleRate, channels);
+
+    now into* format = audio.format();
+    now into* codec = audio.decoder();
+    now into* packet = audio.packet();
+    now into* audioFrame = audio.frame();
+    now into* resampler = audio.resampler();
+    now into audioStream = audio.streamIndex();
+
+    into reading = 0;
+    into received = 0;
+
+    while (reading >= 0) {
+        reading = readAudioFrame(format, packet);
+        if (reading >= 0) {
+            now into packetStream = audioPacketStream(packet);
+            if (packetStream == audioStream) {
+                sendAudioPacket(codec, packet);
+                received = receiveAudioFrame(codec, audioFrame);
+                while (received == 0) {
+                    now into sampleCount = audioFrameSamples(audioFrame);
+                    now into capacity = audio.outCapacity();
+                    now into* planes = audio.reserve(capacity);
+                    now into* source = audioFrameData(audioFrame);
+                    now into produced = convertAudio(resampler, planes, capacity, source, sampleCount);
+                    now into perChannel = produced * channels;
+                    now into byteCount = perChannel * 2;
+                    now into* pcm = audio.buffer();
+                    speaker.queue(pcm, byteCount);
+                    unrefAudioFrame(audioFrame);
+                    received = receiveAudioFrame(codec, audioFrame);
+                }
+            }
+            unrefAudioPacket(packet);
+        }
+    }
+    speaker.resume();
+
+    into delay = video.delayMs();
+    into start = monotonicMilliseconds();
+    into frame = 0;
 
     while (wayland.window.isOpen()) {
         if (video.next()) {
-            into text: String = video.text();
+            into text = video.text();
             vulkan.beginFrame(0);
             vulkan.drawText(text, 16777215);
             wayland.window.present();
 
             frame = frame + 1;
-            into elapsed: Int32 = frame * delay;
-            into deadline: Int32 = start + elapsed;
-            into now: Int32 = monotonicMilliseconds();
-            into wait: Int32 = deadline - now;
+            into elapsed = frame * delay;
+            into deadline = start + elapsed;
+            into now = monotonicMilliseconds();
+            into wait = deadline - now;
             if (wait > 0) {
                 sleep(wait);
             }
@@ -40,6 +89,8 @@ init {
     }
 }
 
+audio.destroy();
+output.destroy();
 video.destroy();
 vulkan.destroy();
 wayland.destroy();

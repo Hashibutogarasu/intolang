@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "LICENCE": "MIT",
   "nativeDependencies": {
-    "src/main/native/ffmpeg/decoder.cpp": ["libavformat", "libavcodec", "libswscale", "libavutil"]
+    "src/main/native/ffmpeg/decoder.cpp": ["libavformat", "libavcodec", "libswscale", "libavutil"],
+    "src/main/native/ffmpeg/audio.cpp": ["libavformat", "libavcodec", "libswresample", "libavutil"]
   },
   "library": "src/main/lib.into",
   "builtConfig": {

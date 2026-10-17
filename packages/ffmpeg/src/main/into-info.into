@@ -1,1 +1,2 @@
 export "ffmpeg://decoder";
+export "ffmpeg://audio";

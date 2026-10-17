@@ -120,8 +120,7 @@ Media *open_media(const char *path, const unsigned char *data, size_t length) {
         if (media->decoder->ch_layout.nb_channels > 0) {
             av_channel_layout_copy(&in_layout, &media->decoder->ch_layout);
         } else {
-            av_channel_layout_default(&in_layout,
-                                      media->decoder->channels > 0 ? media->decoder->channels : 2);
+            av_channel_layout_default(&in_layout, 2);
         }
         AVChannelLayout out_layout;
         av_channel_layout_default(&out_layout, in_layout.nb_channels);
