@@ -1,7 +1,7 @@
 use crate::codegen::{
     Class, Codegen, NativeArith, NativeAssign, NativeBreak, NativeCall, NativeConstruct,
     NativeFieldPrint, NativeIfBegin, NativeIfCall, NativeIfConst, NativeIfElse, NativeIfEnd,
-    NativeLinkAssign, NativeLoopBegin, NativeLoopEnd, NativePrint, NativePrintConst,
+    NativeLinkAssign, NativeLoopBegin, NativeLoopEnd, NativeModule, NativePrint, NativePrintConst,
     NativeWhileBegin, Text,
 };
 
@@ -51,6 +51,8 @@ pub(crate) fn parse(message: &str) -> Program {
         } else if let Some(node) = NativeLinkAssign::parse(line) {
             statements.push(Box::new(node));
         } else if let Some(node) = NativeConstruct::parse(line) {
+            statements.push(Box::new(node));
+        } else if let Some(node) = NativeModule::parse(line) {
             statements.push(Box::new(node));
         } else if let Some(node) = NativeCall::parse(line) {
             statements.push(Box::new(node));

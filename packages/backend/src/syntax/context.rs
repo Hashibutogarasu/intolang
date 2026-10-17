@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::imports::{self, NativeLink};
+use moduler::{Module, NativeLink, Param};
 use crate::syntax::support::text::diagnostic;
 use crate::types::Type;
 
@@ -34,7 +34,7 @@ pub struct UserFunction {
     pub name: String,
     pub receiver: Option<String>,
     pub is_static: bool,
-    pub params: Vec<imports::Param>,
+    pub params: Vec<Param>,
     pub body: Vec<String>,
 }
 
@@ -43,6 +43,7 @@ pub struct ParseContext {
     pub source_path: String,
     pub values: HashMap<String, Variable>,
     pub native_links: HashMap<String, NativeLink>,
+    pub modules: Vec<Module>,
     pub enum_values: HashMap<String, HashMap<String, i32>>,
     pub class_fields: ClassFields,
     pub user_functions: HashMap<String, UserFunction>,
@@ -61,6 +62,7 @@ impl ParseContext {
             source_path: source_path.into(),
             values: HashMap::new(),
             native_links: HashMap::new(),
+            modules: Vec::new(),
             enum_values: HashMap::new(),
             class_fields: HashMap::new(),
             user_functions: HashMap::new(),

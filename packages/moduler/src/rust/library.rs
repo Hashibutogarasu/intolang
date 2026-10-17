@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, bail};
 use std::path::Path;
 
-use crate::syntax::support::text::strip_keyword;
+use super::text::strip_keyword;
 
 /// A function exposed from a native library.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -11,7 +11,7 @@ pub struct NativeFunction {
 }
 
 /// Resolve the modules exported by `lib.into` and collect their public functions.
-pub fn lower(source: &str, entry: &Path, _packages_dir: &Path) -> Result<Vec<NativeFunction>> {
+pub fn lower_library(source: &str, entry: &Path, _packages_dir: &Path) -> Result<Vec<NativeFunction>> {
     let module_root = entry.parent().context("Library entry has no parent")?;
     let mut functions = Vec::new();
     for module in exported_modules(source)? {
@@ -29,21 +29,17 @@ pub fn lower(source: &str, entry: &Path, _packages_dir: &Path) -> Result<Vec<Nat
 fn exported_modules(source: &str) -> Result<Vec<String>> {
     let mut modules = Vec::new();
     for line in source.lines().map(str::trim) {
-        let Some(uri) = line
-            .strip_prefix("export ")
-            .and_then(|line| line.strip_prefix('"'))
-            .and_then(|line| line.split_once('"').map(|(uri, _)| uri))
-        else {
+        let Some(rest) = strip_keyword(line, "export") else {
             continue;
         };
+        let Some(uri) = rest.trim_start().strip_prefix('"') else {
+            continue;
+        };
+        let uri = uri.split_once('"').map(|(uri, _)| uri).unwrap_or(uri);
         let Some((_, module)) = uri.split_once("://") else {
             bail!("Invalid library export URI: {uri}");
         };
-        if module.is_empty()
-            || module
-                .split('/')
-                .any(|part| part == ".." || part.is_empty())
-        {
+        if module.is_empty() || module.split('/').any(|part| part == ".." || part.is_empty()) {
             bail!("Invalid library export module: {uri}");
         }
         modules.push(module.to_owned());

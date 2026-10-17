@@ -1,8 +1,8 @@
 use anyhow::{Result, anyhow, bail};
 use std::{collections::HashMap, path::Path};
 
-use crate::imports;
 use crate::validation;
+use moduler;
 
 #[derive(Debug, Default)]
 pub struct TestSummary {
@@ -35,8 +35,8 @@ struct Function {
 
 pub(super) fn run(source: &str, path: &Path, packages_dir: &Path) -> Result<TestSummary> {
     validation::function_scopes(source, &path.display().to_string())?;
-    let imported = imports::resolve(source, packages_dir)?;
-    let package = imports::find_by_alias(packages_dir, "builtin")?
+    let imported = moduler::resolve(source, packages_dir)?;
+    let package = moduler::find_by_alias(packages_dir, "builtin")?
         .ok_or_else(|| anyhow!("Builtin package is not bundled"))?;
     let mut functions = HashMap::new();
     for (module, function) in [

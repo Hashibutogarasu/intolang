@@ -1,0 +1,4 @@
+pub Module() {
+    pub into: PackageInfo package;
+    pub into: Path sourcePath = "";
+}

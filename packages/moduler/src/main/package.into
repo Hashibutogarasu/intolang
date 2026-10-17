@@ -1,0 +1,7 @@
+pub PackageInfo() {
+    pub into: String alias = "";
+    pub into: String name = "";
+    pub into: String version = "";
+    pub into: String licence = "";
+    pub into: Path root = "";
+}

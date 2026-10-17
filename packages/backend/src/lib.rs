@@ -1,13 +1,11 @@
-mod imports;
 mod lexer;
-mod library;
 mod syntax;
 mod tests;
 mod types;
 mod validation;
 
 pub use lexer::{Token, TokenKind, tokenize};
-pub use library::NativeFunction;
+pub use moduler::NativeFunction;
 pub use tests::TestSummary;
 pub use types::Type;
 
@@ -58,7 +56,7 @@ pub fn lower_library(
     source_path: &std::path::Path,
     packages_dir: &std::path::Path,
 ) -> anyhow::Result<Vec<NativeFunction>> {
-    library::lower(source, source_path, packages_dir)
+    moduler::lower_library(source, source_path, packages_dir)
 }
 
 #[cfg(test)]

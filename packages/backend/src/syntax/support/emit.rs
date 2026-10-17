@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use crate::imports;
 use crate::syntax::context::Variable;
 use crate::syntax::support::text::decode_string_literal;
 use crate::types::Type;
+use moduler::{Module, NativeLink};
 
 pub fn arithmetic_operand(
     right: &str,
@@ -102,9 +102,60 @@ pub fn emit_print_const(output: &mut String, ty: &Type, value: &str, newline: bo
     output.push('\n');
 }
 
+/// Encode `value` as lowercase hexadecimal, one pair of digits per byte.
+pub fn to_hex(value: &str) -> String {
+    let mut hex = String::with_capacity(value.len() * 2);
+    for byte in value.bytes() {
+        hex.push_str(&format!("{byte:02x}"));
+    }
+    hex
+}
+
+/// Emit the `PackageInfo` and `Module` class layouts the module machinery uses.
+pub fn emit_module_classes(output: &mut String) {
+    output.push('\u{1e}');
+    output.push_str("NATIVE_CLASS\tPackageInfo");
+    for field in [
+        "alias:String",
+        "name:String",
+        "version:String",
+        "licence:String",
+        "root:Path",
+    ] {
+        output.push('\t');
+        output.push_str(field);
+        output.push_str(":-:");
+    }
+    output.push('\n');
+    output.push('\u{1e}');
+    output.push_str("NATIVE_CLASS\tModule\tpackage:PackageInfo:-:\tsourcePath:Path:-:\n");
+}
+
+/// Emit a `NATIVE_MODULE` record describing a resolved module instance.
+pub fn emit_module(output: &mut String, index: usize, module: &Module) {
+    output.push('\u{1e}');
+    output.push_str("NATIVE_MODULE\t");
+    output.push_str(&index.to_string());
+    let root = module.package.root.to_string_lossy();
+    let source_path = module.source_path.to_string_lossy();
+    for field in [
+        module.name.as_str(),
+        module.package.alias.as_str(),
+        module.package.name.as_str(),
+        module.package.version.as_str(),
+        module.package.licence.as_str(),
+        root.as_ref(),
+        source_path.as_ref(),
+    ] {
+        output.push('\t');
+        output.push_str(&to_hex(field));
+    }
+    output.push('\n');
+}
+
 pub fn emit_link_call(
     output: &mut String,
-    link: &imports::NativeLink,
+    link: &NativeLink,
     args: &str,
     enums: &HashMap<String, HashMap<String, i32>>,
     values: &HashMap<String, Variable>,

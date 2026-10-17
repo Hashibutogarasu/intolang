@@ -13,4 +13,4 @@ compiler = { path = "apps/compiler" }
 backend = { path = "packages/backend" }
 
 [workspace]
-members = ["apps/compiler", "packages/backend", "packages/lld"]
+members = ["apps/compiler", "packages/backend", "packages/lld", "packages/moduler"]

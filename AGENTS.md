@@ -32,6 +32,20 @@ It is a Cargo workspace (Rust edition 2024).
 Each Into package has an `into-package.json` manifest, `src/main/`, and build
 output under `dist/<os>/<arch>/` (also git-ignored).
 
+### Package source layout
+
+Packages that combine Rust, FFI and Into split their sources by role:
+
+| Path | Contents |
+| --- | --- |
+| `src/rust/` | Rust crate source; the manifest sets `[lib] path = "src/rust/lib.rs"` |
+| `src/ffi/` | FFI sources (C ABI shims referenced from Into via `#[link]`) |
+| `src/main/` | Into language sources (the manifest `library`/`runs` entry lives here) |
+
+`packages/moduler` is the reference example. `apps/compiler/build.rs` copies
+third-party packages while skipping `src/rust`, `target` and `dist`, so only the
+language-facing parts are embedded.
+
 ## Toolchain requirements
 
 - **LLVM 23** and **LLD**. The compiler expects `LLVM_SYS_231_PREFIX` to point at

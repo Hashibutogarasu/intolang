@@ -17,6 +17,26 @@ fn copy_dir(source: &Path, target: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
+/// Copy an Into package into the bundle, skipping the Rust crate sources
+/// (`src/rust`) and build outputs so only the language-facing parts ship.
+fn copy_package(source: &Path, target: &Path, relative: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(target)?;
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        let child = relative.join(entry.file_name());
+        if matches!(child.to_str(), Some("target" | "dist")) || child.starts_with("src/rust") {
+            continue;
+        }
+        let to = target.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_package(&entry.path(), &to, &child)?;
+        } else {
+            fs::copy(entry.path(), to)?;
+        }
+    }
+    Ok(())
+}
+
 fn main() {
     let manifest_dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
     let workspace = manifest_dir.join("../..");
@@ -68,8 +88,12 @@ fn main() {
         let Some(alias) = manifest.get("alias").and_then(serde_json::Value::as_str) else {
             continue;
         };
-        copy_dir(&entry.path(), &bundled.join("packages").join(alias))
-            .expect("embed third-party package");
+        copy_package(
+            &entry.path(),
+            &bundled.join("packages").join(alias),
+            Path::new(""),
+        )
+        .expect("embed third-party package");
     }
     let system_manifest = workspace.join("packages/system/into-package.json");
     let system: serde_json::Value =

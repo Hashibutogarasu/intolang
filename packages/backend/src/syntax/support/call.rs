@@ -1,6 +1,5 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::imports;
 use crate::syntax::context::{ClassFields, UserFunction, Variable};
 use crate::syntax::support::emit::{
     comparison_operand, emit_comparison, emit_link_call, emit_print, emit_print_const,
@@ -12,6 +11,7 @@ use crate::syntax::support::text::{
 };
 use crate::syntax::support::value::declaration_value;
 use crate::types::Type;
+use moduler::NativeLink;
 
 #[allow(clippy::too_many_arguments)]
 pub fn resolve_method(
@@ -19,10 +19,10 @@ pub fn resolve_method(
     path: &str,
     args: &str,
     values: &mut HashMap<String, Variable>,
-    native_links: &HashMap<String, imports::NativeLink>,
+    native_links: &HashMap<String, NativeLink>,
     enum_values: &HashMap<String, HashMap<String, i32>>,
     temp_counter: &mut usize,
-) -> std::result::Result<(imports::NativeLink, String), String> {
+) -> std::result::Result<(NativeLink, String), String> {
     let segments = path
         .split('.')
         .filter(|segment| !segment.is_empty())
@@ -88,7 +88,7 @@ pub fn resolve_receiver(
     output: &mut String,
     path: &str,
     values: &mut HashMap<String, Variable>,
-    native_links: &HashMap<String, imports::NativeLink>,
+    native_links: &HashMap<String, NativeLink>,
     enum_values: &HashMap<String, HashMap<String, i32>>,
     temp_counter: &mut usize,
 ) -> std::result::Result<(String, Type), String> {
@@ -181,7 +181,7 @@ pub fn inline_user_function(
     receiver: Option<String>,
     args: &str,
     values: &mut HashMap<String, Variable>,
-    native_links: &HashMap<String, imports::NativeLink>,
+    native_links: &HashMap<String, NativeLink>,
     class_fields: &ClassFields,
     imported_functions: &HashSet<String>,
     enum_values: &HashMap<String, HashMap<String, i32>>,
@@ -258,7 +258,7 @@ pub fn lower_inline_statement(
     output: &mut String,
     line: &str,
     values: &mut HashMap<String, Variable>,
-    native_links: &HashMap<String, imports::NativeLink>,
+    native_links: &HashMap<String, NativeLink>,
     class_fields: &ClassFields,
     imported_functions: &HashSet<String>,
     enum_values: &HashMap<String, HashMap<String, i32>>,

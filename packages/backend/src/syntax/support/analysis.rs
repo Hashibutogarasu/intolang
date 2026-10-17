@@ -2,107 +2,13 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 
-use crate::imports;
 use crate::syntax::context::{ClassFields, FieldDef, UserFunction};
 use crate::syntax::support::text::{
     brace_delta, diagnostic, is_identifier, strip_keyword, strip_line_comment,
 };
+use moduler::parse_params;
 
-/// The line span occupied by a class declaration, including its header.
-struct ClassSpan {
-    name: String,
-    is_public: bool,
-    start: usize,
-    end: usize,
-}
-
-/// Locate every `Name() { ... }` declaration and its body extent.
-fn scan_classes(source: &str) -> Vec<ClassSpan> {
-    let lines = source.lines().collect::<Vec<_>>();
-    let mut spans = Vec::new();
-    let mut index = 0;
-    while index < lines.len() {
-        let code = strip_line_comment(lines[index]).trim();
-        let Some((prefix, _)) = code.split_once("() {") else {
-            index += 1;
-            continue;
-        };
-        let (is_public, name) = match strip_keyword(prefix, "pub") {
-            Some(rest) => (true, rest.trim()),
-            None => (false, prefix.trim()),
-        };
-        if name.is_empty() || !is_identifier(name) {
-            index += 1;
-            continue;
-        }
-        let start = index;
-        let mut depth = brace_delta(code);
-        index += 1;
-        while depth > 0 && index < lines.len() {
-            depth += brace_delta(strip_line_comment(lines[index]));
-            index += 1;
-        }
-        spans.push(ClassSpan {
-            name: name.to_owned(),
-            is_public,
-            start,
-            end: index,
-        });
-    }
-    spans
-}
-
-/// Collect the names a module exposes publicly.
-///
-/// Only declarations carrying the `pub` modifier are visible to importers.
-/// Free declarations contribute their bare name and class members contribute
-/// `Class.member`; `pub` classes and `pub macro`s are included as well.
-pub fn public_items(source: &str) -> std::collections::HashSet<String> {
-    let lines = source.lines().collect::<Vec<_>>();
-    let spans = scan_classes(source);
-    let mut items = std::collections::HashSet::new();
-    for span in &spans {
-        if span.is_public {
-            items.insert(span.name.clone());
-        }
-    }
-    for (index, raw) in lines.iter().enumerate() {
-        let line = strip_line_comment(raw).trim();
-        let Some(rest) = strip_keyword(line, "pub") else {
-            continue;
-        };
-        if let Some(rest) = strip_keyword(rest, "macro") {
-            let name = rest.split_whitespace().next().unwrap_or("");
-            if is_identifier(name) {
-                items.insert(name.to_owned());
-            }
-            continue;
-        }
-        let rest = strip_keyword(rest, "static").unwrap_or(rest);
-        let rest = strip_keyword(rest, "c").unwrap_or(rest);
-        let rest = strip_keyword(rest, "cpp").unwrap_or(rest);
-        let Some(header) = strip_keyword(rest, "fun") else {
-            continue;
-        };
-        let name = header.split('(').next().unwrap_or("").trim();
-        if !is_identifier(name) {
-            continue;
-        }
-        let owner = spans
-            .iter()
-            .find(|span| index > span.start && index < span.end)
-            .map(|span| span.name.clone());
-        match owner {
-            Some(class) => {
-                items.insert(format!("{class}.{name}"));
-            }
-            None => {
-                items.insert(name.to_owned());
-            }
-        }
-    }
-    items
-}
+pub use moduler::{public_items, scan_classes};
 
 pub fn parse_enums(
     source: &str,
@@ -349,7 +255,7 @@ pub fn parse_user_functions(source: &str, source_path: &str) -> Result<Vec<UserF
             index += 1;
             continue;
         }
-        let params = imports::parse_params(params_text);
+        let params = parse_params(params_text);
         let first_brace = clean.find('{').unwrap_or(clean.len());
         let mut body = Vec::new();
         let inline = clean[first_brace + 1..].trim().trim_end_matches('}').trim();

@@ -24,9 +24,10 @@ use anyhow::Result;
 use crate::syntax::context::ParseContext;
 use crate::syntax::parse::Line;
 use crate::syntax::support::{
-    collect_type_params, parse_classes, parse_enums, parse_user_functions, public_items,
+    collect_type_params, emit_module_classes, parse_classes, parse_enums, parse_user_functions,
+    public_items,
 };
-use crate::{imports, lexer::tokenize, validation};
+use crate::{lexer::tokenize, validation};
 
 /// Parse and lower an Into source file to its observable output.
 pub fn lower(source: &str, packages_dir: Option<&Path>) -> Result<String> {
@@ -39,27 +40,39 @@ pub fn lower_named(source: &str, packages_dir: Option<&Path>, source_path: &str)
     validation::function_scopes(source, source_path)?;
 
     let imported_functions = if let Some(packages_dir) = packages_dir {
-        imports::resolve(source, packages_dir)?
+        moduler::resolve(source, packages_dir)?
     } else {
         Default::default()
     };
     let native_links = if let Some(packages_dir) = packages_dir {
-        imports::resolve_links(source, packages_dir)?
+        moduler::resolve_links(source, packages_dir)?
     } else {
         HashMap::new()
     };
     let type_params = collect_type_params(source);
     let (entry_enums, _) = parse_enums(source, source_path)?;
-    let module_sources = if let Some(packages_dir) = packages_dir {
-        imports::imported_module_sources(source, packages_dir)?
+    let (modules, module_sources) = if let Some(packages_dir) = packages_dir {
+        let loaded = moduler::collect_modules(source, packages_dir)?;
+        let modules = loaded
+            .iter()
+            .map(|loaded| loaded.module.clone())
+            .collect::<Vec<_>>();
+        let sources = loaded
+            .into_iter()
+            .map(|loaded| loaded.contents)
+            .filter(|contents| !contents.is_empty())
+            .collect::<Vec<_>>();
+        (modules, sources)
     } else {
-        Vec::new()
+        (Vec::new(), Vec::new())
     };
 
     let mut ctx = ParseContext::new(source_path);
     ctx.imported_functions = imported_functions;
     ctx.native_links = native_links;
     ctx.type_params = type_params;
+    ctx.modules = modules;
+    emit_module_classes(&mut ctx.output);
 
     for module in &module_sources {
         let public = public_items(module);

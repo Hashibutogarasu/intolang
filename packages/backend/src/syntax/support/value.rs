@@ -1,6 +1,5 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::imports;
 use crate::syntax::context::{ClassFields, UserFunction, Variable};
 use crate::syntax::support::call::{
     inline_user_function, resolve_receiver, static_field, static_receiver,
@@ -9,6 +8,7 @@ use crate::syntax::support::emit::{arithmetic_operand, emit_assign, emit_link_ca
 use crate::syntax::support::literal::{Literal, parse_literal};
 use crate::syntax::support::text::{base_type_name, parse_arithmetic, parse_call};
 use crate::types::Type;
+use moduler::NativeLink;
 
 #[allow(clippy::too_many_arguments)]
 pub fn declaration_value(
@@ -16,7 +16,7 @@ pub fn declaration_value(
     annotation: Option<Type>,
     values: &mut HashMap<String, Variable>,
     imported_functions: &HashSet<String>,
-    native_links: &HashMap<String, imports::NativeLink>,
+    native_links: &HashMap<String, NativeLink>,
     class_fields: &ClassFields,
     enum_values: &HashMap<String, HashMap<String, i32>>,
     type_params: &HashSet<String>,

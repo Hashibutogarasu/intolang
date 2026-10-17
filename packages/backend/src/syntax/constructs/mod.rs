@@ -12,6 +12,7 @@ pub mod class;
 pub mod declaration;
 pub mod else_block;
 pub mod enum_decl;
+pub mod export;
 pub mod function;
 pub mod function_call;
 pub mod if_statement;
@@ -30,6 +31,7 @@ pub use class::Class;
 pub use declaration::Declaration;
 pub use else_block::ElseBlock;
 pub use enum_decl::EnumDecl;
+pub use export::Export;
 pub use function::FunctionDecl;
 pub use function_call::FunctionCall;
 pub use if_statement::IfStatement;
@@ -50,6 +52,7 @@ use crate::syntax::parse::Parse;
 pub fn default_constructs() -> Vec<Box<dyn Parse>> {
     vec![
         Box::new(Import),
+        Box::new(Export),
         Box::new(EnumDecl),
         Box::new(Class),
         Box::new(FunctionDecl),

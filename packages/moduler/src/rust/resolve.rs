@@ -1,76 +1,34 @@
 use anyhow::{Result, anyhow, bail};
-use std::{collections::HashSet, path::Path};
+use std::collections::{HashMap, HashSet};
+use std::path::Path;
 
-use crate::syntax::support::public_items;
-use crate::syntax::support::text::{brace_delta, is_identifier, strip_line_comment};
+use super::items::public_items;
+use super::module::{Module, parse_export, parse_import};
+use super::package::{PackageInfo, find_by_alias};
+use super::text::{brace_delta, is_identifier, strip_line_comment};
 
-/// A module reached from the entry source, directly or transitively.
-struct ImportedModule {
-    alias: String,
-    module: String,
-    package: std::path::PathBuf,
-    contents: String,
+/// A module together with the source text that was read for it.
+pub struct LoadedModule {
+    pub module: Module,
+    pub contents: String,
 }
 
-fn parse_import(line: &str) -> Option<(String, String)> {
-    let line = line.trim();
-    let uri = line.strip_prefix("import ")?.strip_prefix('"')?;
-    let uri = uri.split_once('"')?.0;
-    let (scheme, path) = uri.split_once("://")?;
-    let (alias, module) = match scheme {
-        "intolang" => {
-            let mut segments = path.split('/');
-            let first = segments.next().unwrap_or_default().to_owned();
-            (first, segments.collect::<Vec<_>>().join("/"))
-        }
-        _ => (scheme.to_owned(), path.to_owned()),
-    };
-    if alias.is_empty() || module.is_empty() {
-        return None;
+impl LoadedModule {
+    /// The package the module belongs to.
+    pub fn package(&self) -> &PackageInfo {
+        &self.module.package
     }
-    Some((alias, module))
-}
-
-/// Follow `import` statements breadth-first, returning every reachable module.
-fn collect_modules(
-    source: &str,
-    packages_dir: &Path,
-    seen: &mut HashSet<String>,
-    out: &mut Vec<ImportedModule>,
-) -> Result<()> {
-    for line in source.lines() {
-        let Some((alias, module)) = parse_import(line) else {
-            continue;
-        };
-        let key = format!("{alias}://{module}");
-        if !seen.insert(key) {
-            continue;
-        }
-        let Some(package) = find_by_alias(packages_dir, &alias)? else {
-            continue;
-        };
-        let module_path = package.join("src/main").join(format!("{module}.into"));
-        let contents = std::fs::read_to_string(&module_path).unwrap_or_default();
-        collect_modules(&contents, packages_dir, seen, out)?;
-        out.push(ImportedModule {
-            alias,
-            module,
-            package,
-            contents,
-        });
-    }
-    Ok(())
 }
 
 #[derive(Debug, Clone)]
-pub(super) struct Param {
+pub struct Param {
     pub name: String,
     pub default: Option<String>,
 }
 
 /// Parse a comma separated parameter list, honouring optional markers written
 /// as `name: Type?` or `name: Type = <literal>`.
-pub(super) fn parse_params(text: &str) -> Vec<Param> {
+pub fn parse_params(text: &str) -> Vec<Param> {
     let mut params = Vec::new();
     for part in text
         .split(',')
@@ -118,7 +76,7 @@ fn default_for_type(type_text: &str) -> String {
 }
 
 #[derive(Debug, Clone)]
-pub(super) struct NativeLink {
+pub struct NativeLink {
     pub language: String,
     pub package_alias: String,
     pub source_path: String,
@@ -127,24 +85,67 @@ pub(super) struct NativeLink {
     pub params: Vec<Param>,
 }
 
+/// Follow `import` statements breadth-first, returning every reachable module.
+fn collect(
+    source: &str,
+    packages_dir: &Path,
+    seen: &mut HashSet<String>,
+    out: &mut Vec<LoadedModule>,
+) -> Result<()> {
+    for line in source.lines() {
+        let Some(spec) = parse_import(line) else {
+            continue;
+        };
+        let key = spec.uri();
+        if !seen.insert(key) {
+            continue;
+        }
+        let Some(root) = find_by_alias(packages_dir, &spec.alias)? else {
+            continue;
+        };
+        let module_path = root.join("src/main").join(format!("{}.into", spec.module));
+        let contents = std::fs::read_to_string(&module_path).unwrap_or_default();
+        collect(&contents, packages_dir, seen, out)?;
+        let manifest_contents = std::fs::read_to_string(root.join("into-package.json"))?;
+        let manifest: serde_json::Value = serde_json::from_str(&manifest_contents)?;
+        let package = PackageInfo::new(&spec.alias, root, &manifest);
+        out.push(LoadedModule {
+            module: Module {
+                package,
+                source_path: module_path,
+                alias: spec.alias,
+                name: spec.module,
+            },
+            contents,
+        });
+    }
+    Ok(())
+}
+
+/// Follow the imports reachable from `source`, returning every module.
+pub fn collect_modules(source: &str, packages_dir: &Path) -> Result<Vec<LoadedModule>> {
+    let mut modules = Vec::new();
+    collect(source, packages_dir, &mut HashSet::new(), &mut modules)?;
+    Ok(modules)
+}
+
 /// Resolve Into package and native-language module imports using package exports.
 ///
 /// Imports are followed transitively so a module may itself import other
 /// packages (for example `ffmpeg` importing `fs`).
-pub(super) fn resolve(source: &str, packages_dir: &Path) -> Result<HashSet<String>> {
-    let mut modules = Vec::new();
-    collect_modules(source, packages_dir, &mut HashSet::new(), &mut modules)?;
+pub fn resolve(source: &str, packages_dir: &Path) -> Result<HashSet<String>> {
+    let modules = collect_modules(source, packages_dir)?;
     let mut imported_functions = HashSet::new();
-    for module in &modules {
-        let info_path = module.package.join("src/main/into-info.into");
+    for loaded in &modules {
+        let info_path = loaded.package().root.join("src/main/into-info.into");
         let info = std::fs::read_to_string(&info_path)
-            .map_err(|_| anyhow!("Package `{}` has no into-info.into", module.alias))?;
-        let exports = module_exports(&info, module)?;
+            .map_err(|_| anyhow!("Package `{}` has no into-info.into", loaded.module.alias))?;
+        let exports = module_exports(&info, loaded)?;
         if exports.is_empty() {
             bail!(
                 "Package `{}` does not export module `{}`",
-                module.alias,
-                module.module
+                loaded.module.alias,
+                loaded.module.name
             );
         }
         imported_functions.extend(exports);
@@ -152,43 +153,35 @@ pub(super) fn resolve(source: &str, packages_dir: &Path) -> Result<HashSet<Strin
     Ok(imported_functions)
 }
 
-/// Read one `export "alias://path";` declaration from `into-info.into`.
-fn parse_export(line: &str) -> Option<(&str, &str)> {
-    let uri = strip_line_comment(line)
-        .trim()
-        .strip_prefix("export ")?
-        .trim_start()
-        .strip_prefix('"')?
-        .split_once('"')?
-        .0;
-    let (alias, path) = uri.split_once("://")?;
-    (!alias.is_empty() && !path.is_empty()).then_some((alias, path))
-}
-
 /// Collect the names `alias://module` exposes, honouring `pub` visibility.
 ///
 /// A path that names an existing module file exports every `pub` declaration in
 /// that module. Otherwise the last path segment is an explicit item export,
 /// which lets packages expose symbols without a backing source file.
-fn module_exports(info: &str, module: &ImportedModule) -> Result<HashSet<String>> {
+pub fn module_exports(info: &str, loaded: &LoadedModule) -> Result<HashSet<String>> {
+    let module = &loaded.module;
     let mut names = HashSet::new();
     for line in info.lines() {
-        let Some((alias, path)) = parse_export(line) else {
+        let Some(spec) = parse_export(line) else {
             continue;
         };
-        if alias != module.alias {
+        if spec.alias != module.alias {
             continue;
         }
-        if path.split('/').any(|part| part.is_empty() || part == "..") {
-            bail!("Invalid export path in into-info.into: {path}");
+        if spec.path.split('/').any(|part| part.is_empty() || part == "..") {
+            bail!("Invalid export path in into-info.into: {}", spec.path);
         }
-        let module_source = module.package.join("src/main").join(format!("{path}.into"));
+        let module_source = module
+            .package
+            .root
+            .join("src/main")
+            .join(format!("{}.into", spec.path));
         if module_source.is_file() {
-            if path == module.module {
-                names.extend(public_items(&module.contents));
+            if spec.path == module.name {
+                names.extend(public_items(&loaded.contents));
             }
-        } else if let Some((export_module, item)) = path.rsplit_once('/') {
-            if export_module == module.module {
+        } else if let Some((export_module, item)) = spec.path.rsplit_once('/') {
+            if export_module == module.name {
                 names.insert(item.to_owned());
             }
         }
@@ -198,16 +191,12 @@ fn module_exports(info: &str, module: &ImportedModule) -> Result<HashSet<String>
 
 /// Read `#[link("c|cpp", path, symbol)]` metadata attached to imported
 /// foreign declarations. `path` is relative to the imported package root.
-pub(super) fn resolve_links(
-    source: &str,
-    packages_dir: &Path,
-) -> Result<std::collections::HashMap<String, NativeLink>> {
-    let mut modules = Vec::new();
-    collect_modules(source, packages_dir, &mut HashSet::new(), &mut modules)?;
-    let mut links = std::collections::HashMap::new();
-    for module in &modules {
-        let public = public_items(&module.contents);
-        let lines = module.contents.lines().collect::<Vec<_>>();
+pub fn resolve_links(source: &str, packages_dir: &Path) -> Result<HashMap<String, NativeLink>> {
+    let modules = collect_modules(source, packages_dir)?;
+    let mut links = HashMap::new();
+    for loaded in &modules {
+        let public = public_items(&loaded.contents);
+        let lines = loaded.contents.lines().collect::<Vec<_>>();
         let mut stack: Vec<(String, i32)> = Vec::new();
         let mut depth = 0i32;
         let mut pending: Option<(NativeLink, Option<String>)> = None;
@@ -222,8 +211,9 @@ pub(super) fn resolve_links(
             let line = strip_line_comment(raw).trim();
             let current_class = stack.last().map(|(name, _)| name.clone());
             if line.starts_with("#[link(") {
-                pending = parse_link_attribute(line, &module.alias, &module.package)?
-                    .map(|link| (link, current_class.clone()));
+                pending =
+                    parse_link_attribute(line, &loaded.module.alias, &loaded.module.package.root)?
+                        .map(|link| (link, current_class.clone()));
                 continue;
             }
             if let Some((link, owner)) = pending.take() {
@@ -264,12 +254,11 @@ pub(super) fn resolve_links(
     Ok(links)
 }
 
-pub(super) fn imported_module_sources(source: &str, packages_dir: &Path) -> Result<Vec<String>> {
-    let mut modules = Vec::new();
-    collect_modules(source, packages_dir, &mut HashSet::new(), &mut modules)?;
+pub fn imported_module_sources(source: &str, packages_dir: &Path) -> Result<Vec<String>> {
+    let modules = collect_modules(source, packages_dir)?;
     Ok(modules
         .into_iter()
-        .map(|module| module.contents)
+        .map(|loaded| loaded.contents)
         .filter(|contents| !contents.is_empty())
         .collect())
 }
@@ -318,29 +307,4 @@ fn parse_link_attribute(
         return_type: String::new(),
         params: Vec::new(),
     }))
-}
-
-pub(super) fn find_by_alias(
-    packages_dir: &Path,
-    alias: &str,
-) -> Result<Option<std::path::PathBuf>> {
-    for entry in std::fs::read_dir(packages_dir)? {
-        let entry = entry?;
-        if !entry.file_type()?.is_dir() {
-            continue;
-        }
-        let manifest_path = entry.path().join("into-package.json");
-        let Ok(contents) = std::fs::read_to_string(manifest_path) else {
-            continue;
-        };
-        let Ok(manifest): std::result::Result<serde_json::Value, _> =
-            serde_json::from_str(&contents)
-        else {
-            continue;
-        };
-        if manifest.get("alias").and_then(serde_json::Value::as_str) == Some(alias) {
-            return Ok(Some(entry.path()));
-        }
-    }
-    Ok(None)
 }

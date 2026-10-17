@@ -3,6 +3,8 @@ use std::collections::HashSet;
 
 use crate::types::Type;
 
+pub use moduler::{brace_delta, is_identifier, strip_keyword, strip_line_comment};
+
 pub fn diagnostic(path: &str, line: usize, scope: &str, message: &str) -> anyhow::Error {
     anyhow!("{message}\n\nInto language backtrace:\n  0: {scope} at {path}:{line}")
 }
@@ -135,16 +137,6 @@ pub fn boolean_literal(text: &str) -> Option<bool> {
     }
 }
 
-pub fn is_identifier(text: &str) -> bool {
-    let mut chars = text.chars();
-    match chars.next() {
-        Some(ch) if ch.is_ascii_alphabetic() || ch == '_' => {}
-        _ => return false,
-    }
-    text.chars()
-        .all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
-}
-
 /// The class name underlying a (possibly generic) type spelling, e.g.
 /// `List<Int32>` becomes `List`. Non-generic names are returned unchanged.
 pub fn base_type_name(name: &str) -> &str {
@@ -223,61 +215,6 @@ pub fn strip_declaration_prefix(text: &str) -> Option<(&'static str, bool, &str)
         return Some((storage, is_pointer, rest));
     }
     None
-}
-
-/// Remove a leading `keyword` from `text` when it is followed by whitespace,
-/// returning the remainder with leading whitespace removed.
-pub fn strip_keyword<'a>(text: &'a str, keyword: &str) -> Option<&'a str> {
-    let rest = text.strip_prefix(keyword)?;
-    rest.starts_with(char::is_whitespace)
-        .then(|| rest.trim_start())
-}
-
-pub fn strip_line_comment(line: &str) -> &str {
-    let bytes = line.as_bytes();
-    let mut quoted = false;
-    let mut escaped = false;
-    let mut index = 0;
-    while index < bytes.len() {
-        match bytes[index] {
-            b'\\' if quoted => escaped = !escaped,
-            b'"' if !escaped => quoted = !quoted,
-            b'/' if !quoted && bytes.get(index + 1) == Some(&b'/') => return &line[..index],
-            _ if escaped => escaped = false,
-            _ => {}
-        }
-        if bytes[index] != b'\\' {
-            escaped = false;
-        }
-        index += 1;
-    }
-    line
-}
-
-pub fn brace_delta(line: &str) -> i32 {
-    let line = strip_line_comment(line);
-    let mut delta = 0i32;
-    let mut in_string = false;
-    let mut escaped = false;
-    for ch in line.chars() {
-        if in_string {
-            if escaped {
-                escaped = false;
-            } else if ch == '\\' {
-                escaped = true;
-            } else if ch == '"' {
-                in_string = false;
-            }
-            continue;
-        }
-        match ch {
-            '"' => in_string = true,
-            '{' => delta += 1,
-            '}' => delta -= 1,
-            _ => {}
-        }
-    }
-    delta
 }
 
 pub fn parse_call(expression: &str) -> Option<(&str, &str)> {

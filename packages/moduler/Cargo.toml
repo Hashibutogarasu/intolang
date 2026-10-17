@@ -1,0 +1,11 @@
+[package]
+name = "moduler"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+path = "src/rust/lib.rs"
+
+[dependencies]
+anyhow = "1.0.104"
+serde_json = "1.0"
