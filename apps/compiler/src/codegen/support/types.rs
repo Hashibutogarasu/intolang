@@ -10,6 +10,9 @@ impl CodegenContext {
     /// Resolve an Into type name to its LLVM representation.
     pub(crate) unsafe fn into_type(&self, name: &str) -> *mut LLVMType {
         unsafe {
+            if name.ends_with('*') || name.starts_with("List<") {
+                return LLVMPointerType(LLVMInt8TypeInContext(self.context), 0);
+            }
             match name {
                 "String" => LLVMPointerType(LLVMInt8TypeInContext(self.context), 0),
                 "Path" => LLVMPointerType(LLVMInt8TypeInContext(self.context), 0),
@@ -41,6 +44,7 @@ impl CodegenContext {
                     let value = text.parse::<f64>()?;
                     Ok(LLVMConstReal(ty, value))
                 }
+                LLVMTypeKind::LLVMPointerTypeKind => Ok(LLVMConstNull(ty)),
                 _ => {
                     let value = text.parse::<i64>()?;
                     Ok(LLVMConstInt(ty, value as u64, 1))

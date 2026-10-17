@@ -15,6 +15,10 @@ pub enum Type {
     Float32,
     Float64,
     Pointer,
+    /// A pointer to another type, written `T*`.
+    PointerTo(Box<Type>),
+    /// A growable list of another type, written `List<T>`.
+    List(Box<Type>),
     /// A generic type parameter such as `T`.
     Generic(String),
     /// A user-defined or otherwise named type, e.g. `JsonObject` or `Vec<T>`.
@@ -28,6 +32,23 @@ impl Type {
         let text = text.trim();
         if text.is_empty() {
             bail!("Expected a type name");
+        }
+        if let Some(inner) = text.strip_suffix('*') {
+            let inner = inner.trim();
+            if inner.is_empty() {
+                bail!("Pointer type `*` needs a pointee type");
+            }
+            return Ok(Type::PointerTo(Box::new(Type::parse(inner, params)?)));
+        }
+        if let Some(inner) = text
+            .strip_prefix("List<")
+            .and_then(|inner| inner.strip_suffix('>'))
+        {
+            let inner = inner.trim();
+            if inner.is_empty() {
+                bail!("List type `List<>` needs an element type");
+            }
+            return Ok(Type::List(Box::new(Type::parse(inner, params)?)));
         }
         Ok(match text {
             "void" | "Void" => Type::Void,
@@ -68,6 +89,11 @@ impl Type {
         matches!(self, Type::Void)
     }
 
+    /// Whether this type denotes a pointer (opaque or typed).
+    pub fn is_pointer(&self) -> bool {
+        matches!(self, Type::Pointer | Type::PointerTo(_))
+    }
+
     /// Whether a value of this type may be bound to a target annotated with
     /// `target`. Identical types are always assignable; numeric values may be
     /// widened or narrowed across integer/float widths, and a plain string may
@@ -85,6 +111,17 @@ impl Type {
             }
             (Type::Float32 | Type::Float64, Type::Float32 | Type::Float64) => true,
             (Type::String, Type::Path) => true,
+            (Type::PointerTo(inner), Type::PointerTo(target)) => {
+                inner == target || target.is_pointer()
+            }
+            (Type::List(inner), Type::List(target)) => inner.is_assignable_to(target),
+            (Type::PointerTo(_), Type::Pointer) => true,
+            (Type::Pointer, Type::PointerTo(_)) => true,
+            (Type::List(_), Type::Pointer) => true,
+            (Type::Pointer, Type::List(_)) => true,
+            (Type::List(_), Type::Named(name)) | (Type::Named(name), Type::List(_)) => {
+                name == "List"
+            }
             _ => false,
         }
     }
@@ -103,6 +140,8 @@ impl Type {
             Type::Float32 => "Float32".into(),
             Type::Float64 => "Float64".into(),
             Type::Pointer => "Pointer".into(),
+            Type::PointerTo(inner) => format!("{}*", inner.name()),
+            Type::List(inner) => format!("List<{}>", inner.name()),
             Type::Generic(name) | Type::Named(name) => name.clone(),
         }
     }
@@ -135,6 +174,33 @@ fn normalize_named(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_pointer_types() {
+        let params = HashSet::new();
+        assert_eq!(
+            Type::parse("String*", &params).unwrap(),
+            Type::PointerTo(Box::new(Type::String))
+        );
+        assert_eq!(
+            Type::parse("Int32*", &params).unwrap(),
+            Type::PointerTo(Box::new(Type::Int32))
+        );
+        assert_eq!(
+            Type::parse("List<Int32>*", &params).unwrap(),
+            Type::PointerTo(Box::new(Type::List(Box::new(Type::Int32))))
+        );
+        assert_eq!(
+            Type::parse("List<String>", &params).unwrap(),
+            Type::List(Box::new(Type::String))
+        );
+        assert_eq!(
+            Type::parse("List<String>", &params).unwrap().name(),
+            "List<String>"
+        );
+        assert_eq!(Type::parse("String*", &params).unwrap().name(), "String*");
+        assert!(Type::parse("String*", &params).unwrap().is_pointer());
+    }
 
     #[test]
     fn parses_primitives() {

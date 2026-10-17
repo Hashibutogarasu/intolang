@@ -7,8 +7,8 @@ use crate::syntax::support::emit::{
 };
 use crate::syntax::support::literal::{Literal, parse_literal};
 use crate::syntax::support::text::{
-    apply_substitutions, boolean_literal, parse_call, parse_comparison, split_annotation,
-    split_argument_list,
+    apply_substitutions, base_type_name, boolean_literal, parse_call, parse_comparison,
+    split_annotation, split_argument_list, strip_declaration_prefix,
 };
 use crate::syntax::support::value::declaration_value;
 use crate::types::Type;
@@ -37,7 +37,7 @@ pub fn resolve_method(
         .map(|variable| variable.ty.clone())
         .ok_or_else(|| format!("Unknown receiver `{receiver}`"))?;
     for segment in &segments[1..segments.len() - 1] {
-        let key = format!("{}.{}", current_type.name(), segment);
+        let key = format!("{}.{}", base_type_name(&current_type.name()), segment);
         let link = native_links
             .get(&key)
             .ok_or_else(|| format!("Undefined member `{segment}` on `{}`", current_type.name()))?;
@@ -70,7 +70,7 @@ pub fn resolve_method(
         current_type = ty;
     }
     let method = segments[segments.len() - 1];
-    let key = format!("{}.{}", current_type.name(), method);
+    let key = format!("{}.{}", base_type_name(&current_type.name()), method);
     let link = native_links
         .get(&key)
         .ok_or_else(|| format!("Undefined method `{key}`"))?
@@ -106,7 +106,7 @@ pub fn resolve_receiver(
         .map(|variable| variable.ty.clone())
         .ok_or_else(|| format!("Unknown receiver `{receiver}`"))?;
     for segment in &segments[1..segments.len() - 1] {
-        let key = format!("{}.{}", current_type.name(), segment);
+        let key = format!("{}.{}", base_type_name(&current_type.name()), segment);
         let link = native_links
             .get(&key)
             .ok_or_else(|| format!("Undefined member `{segment}` on `{}`", current_type.name()))?;
@@ -283,18 +283,16 @@ pub fn lower_inline_statement(
         *returned = Some((expression.to_owned(), variable.ty.clone()));
         return Ok(());
     }
-    let declaration = line
-        .strip_prefix("const now into ")
-        .map(|rest| ("now", rest))
-        .or_else(|| line.strip_prefix("now into ").map(|rest| ("now", rest)))
-        .or_else(|| line.strip_prefix("late into ").map(|rest| ("late", rest)))
-        .or_else(|| line.strip_prefix("into ").map(|rest| ("local", rest)));
-    if let Some((prefix, rest)) = declaration {
+    if let Some((prefix, is_pointer, rest)) = strip_declaration_prefix(line) {
         let Some((lhs, rhs)) = rest.split_once('=') else {
             return Ok(());
         };
         let (name, annotation) =
             split_annotation(lhs.trim(), &HashSet::new()).map_err(|error| error.to_string())?;
+        let annotation = match (is_pointer, annotation) {
+            (true, None) => Some(Type::Pointer),
+            (_, annotation) => annotation,
+        };
         if name.is_empty() {
             return Err("Expected a variable name after `into`".to_owned());
         }
@@ -524,7 +522,7 @@ pub fn lower_inline_statement(
             .filter(|segment| !segment.is_empty())
             .next_back()
             .unwrap_or_default();
-        let key = format!("{}.{}", receiver_type.name(), method);
+        let key = format!("{}.{}", base_type_name(&receiver_type.name()), method);
         if let Some(inner) = user_functions.get(&key) {
             let inner = inner.clone();
             return inline_user_function(

@@ -64,12 +64,13 @@ fn compile_imported_native_sources(
         if let Some(call) = line.strip_prefix("\u{1e}NATIVE_LINK_ASSIGN\t") {
             let parts = call.split('\t').collect::<Vec<_>>();
             if parts.len() >= 4 {
-                let source = resource_root.join(parts[0]).join(parts[2]);
+                let package = package_dir(resource_root, parts[0]);
+                let source = package.join(parts[2]);
                 let language = parts[1];
                 if !source.is_file() {
                     anyhow::bail!("Linked native source does not exist: {}", source.display());
                 }
-                sources.push((source, language == "cpp", resource_root.join(parts[0])));
+                sources.push((source, language == "cpp", package));
             }
         }
     }
@@ -135,6 +136,29 @@ fn compile_imported_native_sources(
         objects.push(object);
     }
     Ok((objects, uses_cxx, libraries, library_paths))
+}
+
+/// Locate a package directory by its manifest `alias`. The directory name is
+/// not required to match the alias (the bundled builtin package lives in
+/// `intolang` while its alias is `builtin`).
+fn package_dir(packages_dir: &Path, alias: &str) -> std::path::PathBuf {
+    if let Ok(entries) = std::fs::read_dir(packages_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+            let manifest = path.join("into-package.json");
+            if let Ok(contents) = std::fs::read_to_string(&manifest) {
+                if let Ok(value) = serde_json::from_str::<serde_json::Value>(&contents) {
+                    if value.get("alias").and_then(serde_json::Value::as_str) == Some(alias) {
+                        return path;
+                    }
+                }
+            }
+        }
+    }
+    packages_dir.join(alias)
 }
 
 fn native_dependencies(package: &Path, source: &Path) -> Result<Vec<String>> {

@@ -6,5 +6,8 @@
   "builtConfig": {
     "dist": "./dist"
   },
+  "nativeDependencies": {
+    "src/main/native/list.c": []
+  },
   "supported-platforms": ["linux", "windows", "macos", "android"]
 }

@@ -1,0 +1,29 @@
+import "ffmpeg://decoder";
+
+pub SDL2() {
+    #[link("cpp", "src/main/native/sdl2/audio.cpp", "sdl2_new")]
+    pub fun new(): SDL2;
+
+    #[link("cpp", "src/main/native/sdl2/audio.cpp", "sdl2_audio")]
+    pub fun audio(): Audio;
+
+    #[link("cpp", "src/main/native/sdl2/audio.cpp", "sdl2_destroy")]
+    pub fun destroy(): Void;
+}
+
+pub Audio() {
+    #[link("cpp", "src/main/native/sdl2/audio.cpp", "sdl2_audio_read")]
+    pub fun read(video: Video): Audio;
+
+    #[link("cpp", "src/main/native/sdl2/audio.cpp", "sdl2_audio_play")]
+    pub fun play(): Void;
+
+    #[link("cpp", "src/main/native/sdl2/audio.cpp", "sdl2_audio_pause")]
+    pub fun pause(): Void;
+
+    #[link("cpp", "src/main/native/sdl2/audio.cpp", "sdl2_audio_seek")]
+    pub fun seek(milliseconds: Int32): Void;
+
+    #[link("cpp", "src/main/native/sdl2/audio.cpp", "sdl2_audio_destroy")]
+    pub fun destroy(): Void;
+}

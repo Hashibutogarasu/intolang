@@ -4,7 +4,8 @@ use crate::syntax::context::ParseContext;
 use crate::syntax::format::Format;
 use crate::syntax::parse::{Cursor, Parse};
 use crate::syntax::support::{
-    diagnostic, emit_link_call, inline_user_function, parse_call, resolve_receiver, static_receiver,
+    base_type_name, diagnostic, emit_link_call, inline_user_function, parse_call, resolve_receiver,
+    static_receiver,
 };
 
 /// A method call statement such as `client.send("hi");`.
@@ -90,7 +91,7 @@ impl Parse for MethodCall {
             .filter(|segment| !segment.is_empty())
             .next_back()
             .unwrap_or_default();
-        let key = format!("{}.{}", receiver_type.name(), method);
+        let key = format!("{}.{}", base_type_name(&receiver_type.name()), method);
         if let Some(inner) = ctx.user_functions.get(&key).cloned() {
             let _ = inline_user_function(
                 &mut ctx.output,

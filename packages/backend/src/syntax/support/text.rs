@@ -145,6 +145,86 @@ pub fn is_identifier(text: &str) -> bool {
         .all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
 }
 
+/// The class name underlying a (possibly generic) type spelling, e.g.
+/// `List<Int32>` becomes `List`. Non-generic names are returned unchanged.
+pub fn base_type_name(name: &str) -> &str {
+    name.split('<').next().unwrap_or(name).trim()
+}
+
+/// Consume a leading identifier token. The token ends at the first character
+/// that cannot appear in an identifier, so the boundary is defined by the
+/// identifier alphabet rather than by surrounding whitespace. Returns the
+/// identifier and the remaining text.
+pub fn take_identifier(text: &str) -> Option<(&str, &str)> {
+    let mut end = 0;
+    for (index, ch) in text.char_indices() {
+        if ch.is_ascii_alphanumeric() || ch == '_' {
+            end = index + ch.len_utf8();
+        } else {
+            break;
+        }
+    }
+    if end == 0 {
+        return None;
+    }
+    let name = &text[..end];
+    let first = name.chars().next()?;
+    if !(first.is_ascii_alphabetic() || first == '_') {
+        return None;
+    }
+    Some((name, &text[end..]))
+}
+
+/// Read the next identifier token, ignoring any leading whitespace. Returns the
+/// word and the text after it.
+fn next_word(text: &str) -> Option<(&str, &str)> {
+    take_identifier(text.trim_start())
+}
+
+/// Match a sequence of keyword words, ignoring the amount of whitespace between
+/// them. Returns the text following the final word.
+fn match_words<'a>(text: &'a str, words: &[&str]) -> Option<&'a str> {
+    let mut rest = text;
+    for word in words {
+        let (actual, after) = next_word(rest)?;
+        if actual != *word {
+            return None;
+        }
+        rest = after;
+    }
+    Some(rest)
+}
+
+/// Recognise an `into`-family declaration prefix, returning the storage keyword
+/// (`local`/`now`/`late`), whether the declaration marks a pointer with `*`, and
+/// the remainder beginning at the variable name.
+///
+/// Keywords are matched as a sequence of identifier words, so the number of
+/// spaces between them is irrelevant, and the variable name is read with
+/// [`take_identifier`], so identifiers such as `intoVariable` are never mistaken
+/// for a declaration.
+pub fn strip_declaration_prefix(text: &str) -> Option<(&'static str, bool, &str)> {
+    const KEYWORDS: [(&[&str], &str); 4] = [
+        (&["const", "now", "into"], "now"),
+        (&["now", "into"], "now"),
+        (&["late", "into"], "late"),
+        (&["into"], "local"),
+    ];
+    for (words, storage) in KEYWORDS {
+        let Some(rest) = match_words(text, words) else {
+            continue;
+        };
+        let rest = rest.trim_start();
+        let (is_pointer, rest) = match rest.strip_prefix('*') {
+            Some(rest) => (true, rest.trim_start()),
+            None => (false, rest),
+        };
+        take_identifier(rest)?;
+        return Some((storage, is_pointer, rest));
+    }
+    None
+}
+
 /// Remove a leading `keyword` from `text` when it is followed by whitespace,
 /// returning the remainder with leading whitespace removed.
 pub fn strip_keyword<'a>(text: &'a str, keyword: &str) -> Option<&'a str> {

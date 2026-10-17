@@ -7,7 +7,7 @@ use crate::syntax::support::call::{
 };
 use crate::syntax::support::emit::{arithmetic_operand, emit_assign, emit_link_call};
 use crate::syntax::support::literal::{Literal, parse_literal};
-use crate::syntax::support::text::{parse_arithmetic, parse_call};
+use crate::syntax::support::text::{base_type_name, parse_arithmetic, parse_call};
 use crate::types::Type;
 
 #[allow(clippy::too_many_arguments)]
@@ -77,7 +77,7 @@ pub fn declaration_value(
                 .filter(|segment| !segment.is_empty())
                 .next_back()
                 .unwrap_or_default();
-            let key = format!("{}.{}", receiver_type.name(), method);
+            let key = format!("{}.{}", base_type_name(&receiver_type.name()), method);
             if let Some(inner) = user_functions.get(&key) {
                 let inner = inner.clone();
                 let returned = inline_user_function(
@@ -126,19 +126,24 @@ pub fn declaration_value(
             let ty = resolve_annotation(inferred, annotation)?;
             return Ok((ty.name(), ty, true));
         }
-        if class_fields.contains_key(function) {
-            if let Some(link) = native_links.get(&format!("{function}.new")) {
+        let class = base_type_name(function);
+        if class_fields.contains_key(class) {
+            if let Some(link) = native_links.get(&format!("{class}.new")) {
                 emit_link_call(output, link, args, enum_values, values, assigned_to, false)?;
                 let inferred = Type::parse(&link.return_type, type_params).unwrap_or(Type::Void);
                 let ty = resolve_annotation(inferred, annotation)?;
                 return Ok((ty.name(), ty, true));
             }
-            let ty = resolve_annotation(Type::Named(function.to_owned()), annotation)?;
+            let ty = resolve_annotation(
+                Type::parse(function, type_params)
+                    .unwrap_or_else(|_| Type::Named(function.to_owned())),
+                annotation,
+            )?;
             output.push('\u{1e}');
             output.push_str("NATIVE_CONSTRUCT\t");
             output.push_str(assigned_to);
             output.push('\t');
-            output.push_str(function);
+            output.push_str(class);
             output.push('\n');
             return Ok((ty.name(), ty, true));
         }

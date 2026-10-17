@@ -17,7 +17,7 @@ pub use call::{
 pub use emit::{comparison_operand, emit_comparison, emit_link_call, emit_print, emit_print_const};
 pub use literal::{Literal, parse_literal};
 pub use text::{
-    collect_type_params, diagnostic, imported_call, is_identifier, parse_call, parse_comparison,
-    split_annotation,
+    base_type_name, collect_type_params, diagnostic, imported_call, is_identifier, parse_call,
+    parse_comparison, split_annotation, strip_declaration_prefix, take_identifier,
 };
 pub use value::declaration_value;

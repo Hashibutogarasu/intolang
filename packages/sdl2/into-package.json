@@ -1,0 +1,13 @@
+{
+  "name": "Into SDL2 Modules",
+  "alias": "sdl2",
+  "version": "0.1.0",
+  "LICENCE": "MIT",
+  "nativeDependencies": {
+    "src/main/native/sdl2/audio.cpp": ["sdl2"]
+  },
+  "library": "src/main/lib.into",
+  "builtConfig": {
+    "dist": "./dist"
+  }
+}

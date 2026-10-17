@@ -3,19 +3,18 @@ use anyhow::Result;
 use crate::syntax::context::{ParseContext, Variable};
 use crate::syntax::format::Format;
 use crate::syntax::parse::{Cursor, Parse};
-use crate::syntax::support::{declaration_value, diagnostic, split_annotation};
+use crate::syntax::support::emit::emit_assign;
+use crate::syntax::support::{
+    declaration_value, diagnostic, split_annotation, strip_declaration_prefix, take_identifier,
+};
+use crate::types::Type;
 
 /// A binding declaration: `into`, `now into`, `late into` or `const now into`.
 pub struct Declaration;
 
 impl Format for Declaration {
     fn format(&self, line: &str) -> Option<String> {
-        let declaration = line.trim_end_matches(';');
-        let prefixes = ["const now into ", "now into ", "late into ", "into "];
-        if prefixes
-            .iter()
-            .any(|prefix| declaration.starts_with(prefix))
-        {
+        if strip_declaration_prefix(line.trim_end_matches(';')).is_some() {
             Some(line.to_owned())
         } else {
             None
@@ -29,23 +28,38 @@ impl Parse for Declaration {
             return Ok(false);
         };
         let declaration = line.code.trim_end_matches(';');
-        let (prefix, decl) = if let Some(rest) = declaration.strip_prefix("const now into ") {
-            ("now", rest)
-        } else if let Some(rest) = declaration.strip_prefix("now into ") {
-            ("now", rest)
-        } else if let Some(rest) = declaration.strip_prefix("late into ") {
-            ("late", rest)
-        } else if let Some(rest) = declaration.strip_prefix("into ") {
-            ("local", rest)
-        } else {
+        let Some((prefix, is_pointer, decl)) = strip_declaration_prefix(declaration) else {
             return Ok(false);
         };
         let Some((lhs, rhs)) = decl.split_once('=') else {
+            if is_pointer {
+                let name = take_identifier(decl)
+                    .map(|(name, _)| name)
+                    .unwrap_or_default();
+                emit_assign(&mut ctx.output, name, &Type::Pointer, "n", "0");
+                ctx.values.insert(
+                    name.to_owned(),
+                    Variable {
+                        value: name.to_owned(),
+                        ty: Type::Pointer,
+                        memory_backed: prefix != "local",
+                        allocated: true,
+                        lazy: false,
+                        unloaded: false,
+                        declared_in_init: ctx.in_init,
+                        native: true,
+                    },
+                );
+            }
             cursor.advance(1);
             return Ok(true);
         };
         let (name, annotation) = split_annotation(lhs.trim(), &ctx.type_params)
             .map_err(|error| ctx.diagnostic(line.number, &error.to_string()))?;
+        let annotation = match (is_pointer, annotation) {
+            (true, None) => Some(Type::Pointer),
+            (_, annotation) => annotation,
+        };
         if name.is_empty() {
             return Err(ctx.diagnostic(line.number, "Expected a variable name after `into`"));
         }
