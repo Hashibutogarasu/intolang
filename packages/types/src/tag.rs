@@ -29,4 +29,10 @@ pub enum MessageTag {
     Break,
     Alias,
     Copy,
+    HandlerBegin,
+    HandlerEnd,
+    EventOn,
+    Emit,
+    EventOff,
+    EventDestroy,
 }

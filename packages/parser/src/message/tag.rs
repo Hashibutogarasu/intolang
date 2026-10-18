@@ -32,6 +32,12 @@ impl FromStr for TagLexeme {
             "NATIVE_BREAK" => MessageTag::Break,
             "NATIVE_ALIAS" => MessageTag::Alias,
             "NATIVE_COPY" => MessageTag::Copy,
+            "NATIVE_HANDLER_BEGIN" => MessageTag::HandlerBegin,
+            "NATIVE_HANDLER_END" => MessageTag::HandlerEnd,
+            "NATIVE_EVENT_ON" => MessageTag::EventOn,
+            "NATIVE_EMIT" => MessageTag::Emit,
+            "NATIVE_EVENT_OFF" => MessageTag::EventOff,
+            "NATIVE_EVENT_DESTROY" => MessageTag::EventDestroy,
             other => bail!("Unknown message tag `{other}`"),
         }))
     }
@@ -81,6 +87,12 @@ impl fmt::Display for TagLexeme {
             MessageTag::Break => "NATIVE_BREAK",
             MessageTag::Alias => "NATIVE_ALIAS",
             MessageTag::Copy => "NATIVE_COPY",
+            MessageTag::HandlerBegin => "NATIVE_HANDLER_BEGIN",
+            MessageTag::HandlerEnd => "NATIVE_HANDLER_END",
+            MessageTag::EventOn => "NATIVE_EVENT_ON",
+            MessageTag::Emit => "NATIVE_EMIT",
+            MessageTag::EventOff => "NATIVE_EVENT_OFF",
+            MessageTag::EventDestroy => "NATIVE_EVENT_DESTROY",
         })
     }
 }

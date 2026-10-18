@@ -44,6 +44,22 @@ fn parses_tags_and_languages() {
 }
 
 #[test]
+fn parses_the_event_tags_both_ways() {
+    for (text, tag) in [
+        ("NATIVE_HANDLER_BEGIN", MessageTag::HandlerBegin),
+        ("NATIVE_HANDLER_END", MessageTag::HandlerEnd),
+        ("NATIVE_EVENT_ON", MessageTag::EventOn),
+        ("NATIVE_EMIT", MessageTag::Emit),
+        ("NATIVE_EVENT_OFF", MessageTag::EventOff),
+        ("NATIVE_EVENT_DESTROY", MessageTag::EventDestroy),
+    ] {
+        let parsed: MessageTag = text.parse::<TagLexeme>().unwrap().into();
+        assert_eq!(parsed, tag);
+        assert_eq!(TagLexeme::from(tag).to_string(), text);
+    }
+}
+
+#[test]
 fn parses_operators_and_paths() {
     let operator: ComparisonOperator = ">=".parse::<ComparisonLexeme>().unwrap().into();
     assert_eq!(operator, ComparisonOperator::GreaterEqual);

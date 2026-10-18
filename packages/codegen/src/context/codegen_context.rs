@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ffi::CString;
 use std::ptr;
 
@@ -10,12 +10,34 @@ use llvm::*;
 
 /// Storage for a lowered native value. Values live in stack slots so that loop
 /// carried variables observe updates made in the loop body.
+#[derive(Clone, Copy)]
 pub struct Slot {
     pub ptr: *mut LLVMValue,
     pub ty: *mut LLVMType,
 }
 
 pub type Slots = HashMap<String, Slot>;
+
+/// The globals holding the registered handlers of one event.
+#[derive(Clone, Copy)]
+pub struct EventTable {
+    pub handlers: *mut LLVMValue,
+    pub handlers_type: *mut LLVMType,
+    pub ids: *mut LLVMValue,
+    pub ids_type: *mut LLVMType,
+    pub count: *mut LLVMValue,
+    pub next: *mut LLVMValue,
+}
+
+/// What a handler function replaces while its body is generated.
+pub struct SavedFunction {
+    pub main: *mut LLVMValue,
+    pub entry: *mut LLVMBasicBlock,
+    pub block: *mut LLVMBasicBlock,
+    pub slots: Slots,
+    pub loop_blocks: Vec<(*mut LLVMBasicBlock, *mut LLVMBasicBlock)>,
+    pub if_blocks: Vec<(*mut LLVMBasicBlock, *mut LLVMBasicBlock, bool)>,
+}
 
 /// Shared LLVM state threaded through every [`crate::Codegen`] node.
 pub struct CodegenContext {
@@ -34,6 +56,10 @@ pub struct CodegenContext {
     pub loop_blocks: Vec<(*mut LLVMBasicBlock, *mut LLVMBasicBlock)>,
     pub if_blocks: Vec<(*mut LLVMBasicBlock, *mut LLVMBasicBlock, bool)>,
     pub text: String,
+    pub events: HashMap<String, EventTable>,
+    pub globals: HashSet<String>,
+    pub functions: Vec<SavedFunction>,
+    pub labels: usize,
 }
 
 impl CodegenContext {
@@ -78,6 +104,10 @@ impl CodegenContext {
                 loop_blocks: Vec::new(),
                 if_blocks: Vec::new(),
                 text: String::new(),
+                events: HashMap::new(),
+                globals: HashSet::new(),
+                functions: Vec::new(),
+                labels: 0,
             })
         }
     }

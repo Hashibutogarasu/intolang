@@ -4,7 +4,8 @@ use types::MessageTag;
 
 use crate::native::{
     Class, NativeAlias, NativeArith, NativeAssign, NativeBreak, NativeCall, NativeConstruct,
-    NativeCopy, NativeFieldPrint, NativeIfBegin, NativeIfCall, NativeIfConst, NativeIfElse,
+    NativeCopy, NativeEmit, NativeEventDestroy, NativeEventOff, NativeEventOn, NativeFieldPrint,
+    NativeHandlerBegin, NativeHandlerEnd, NativeIfBegin, NativeIfCall, NativeIfConst, NativeIfElse,
     NativeIfEnd, NativeLinkAssign, NativeLoopBegin, NativeLoopEnd, NativeModule, NativePrint,
     NativePrintConst, NativeWhileBegin,
 };
@@ -52,6 +53,12 @@ pub(crate) fn parse(message: &str) -> Result<Program> {
             MessageTag::Break => Box::new(NativeBreak::from(&record)),
             MessageTag::Alias => Box::new(NativeAlias::try_from(&record)?),
             MessageTag::Copy => Box::new(NativeCopy::try_from(&record)?),
+            MessageTag::HandlerBegin => Box::new(NativeHandlerBegin::try_from(&record)?),
+            MessageTag::HandlerEnd => Box::new(NativeHandlerEnd::from(&record)),
+            MessageTag::EventOn => Box::new(NativeEventOn::try_from(&record)?),
+            MessageTag::Emit => Box::new(NativeEmit::try_from(&record)?),
+            MessageTag::EventOff => Box::new(NativeEventOff::try_from(&record)?),
+            MessageTag::EventDestroy => Box::new(NativeEventDestroy::try_from(&record)?),
         };
         statements.push(node);
     }
