@@ -214,7 +214,14 @@ fn prepare_package_environment(
         .unwrap_or_default();
     let root =
         std::env::temp_dir().join(format!("intolang-packages-{}-{suffix}", std::process::id()));
-    copy_dir(embedded, &root)?;
+    std::fs::create_dir_all(&root)?;
+    for entry in std::fs::read_dir(embedded)? {
+        let entry = entry?;
+        if entry.path().is_dir() {
+            let target = std::fs::canonicalize(entry.path())?;
+            moduler::link_directory(&target, &root.join(entry.file_name()))?;
+        }
+    }
 
     let installed = project.join(".into/packages");
     if installed.is_dir() {
@@ -235,11 +242,24 @@ fn prepare_package_environment(
             let Some(alias) = manifest.get("alias").and_then(serde_json::Value::as_str) else {
                 continue;
             };
-            if !dependencies.contains_key(alias) {
+            let Some(declared) = dependencies
+                .get(alias)
+                .map(|version| version.trim())
+                .filter(|version| !version.is_empty())
+            else {
                 continue;
-            }
+            };
             if !valid_alias(alias) {
                 anyhow::bail!("Invalid installed package alias `{alias}`");
+            }
+            let installed_version = manifest
+                .get("version")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_default();
+            if installed_version != declared {
+                anyhow::bail!(
+                    "Package `{alias}` is declared as version {declared} but version {installed_version} is installed"
+                );
             }
             let target = std::fs::canonicalize(entry.path())?;
             moduler::link_directory(&target, &root.join(alias))?;
@@ -255,20 +275,6 @@ fn valid_alias(alias: &str) -> bool {
         && alias
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
-}
-
-fn copy_dir(source: &Path, destination: &Path) -> Result<()> {
-    std::fs::create_dir_all(destination)?;
-    for entry in std::fs::read_dir(source)? {
-        let entry = entry?;
-        let target = destination.join(entry.file_name());
-        if entry.file_type()?.is_dir() {
-            copy_dir(&entry.path(), &target)?;
-        } else {
-            std::fs::copy(entry.path(), target)?;
-        }
-    }
-    Ok(())
 }
 
 fn run_tests(package_dir: &Path, embedded_packages: &Path) -> Result<()> {

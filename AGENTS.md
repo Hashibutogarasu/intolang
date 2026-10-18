@@ -104,6 +104,11 @@ CLI notes:
   `hash` that ignores `.git` and `dist`, and the `location` of the package,
   relative to the project). Builds reference the links: the temporary package
   environment symlinks every installed package instead of copying it.
+- The compiler embeds the builtin packages and every build links them into the
+  package environment by default; they need no `into install`. An installed
+  package replaces the embedded one only when the project manifest's `packages`
+  map gives it an explicit, non-empty version (which must equal the installed
+  package's version); without such an entry the compiler's version is used.
 - `into install` without a directory restores the links of the packages in the
   lock file from their locations and fails if a package's hash differs from the
   lock.
