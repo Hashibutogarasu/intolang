@@ -20,10 +20,10 @@ impl Lowerer<'_> {
             MessageTag::IfCall,
             condition,
         )?;
-        self.lower_block(then_body)?;
+        self.lower_scope(line, then_body)?;
         if let Some(else_body) = else_body {
             emit::bare(&mut self.state.output, MessageTag::IfElse);
-            self.lower_block(else_body)?;
+            self.lower_scope(line, else_body)?;
         }
         emit::bare(&mut self.state.output, MessageTag::IfEnd);
         Ok(())
@@ -38,7 +38,9 @@ impl Lowerer<'_> {
             condition,
         )?;
         self.state.loop_depth += 1;
-        let lowered = self.lower_block(body);
+        self.state.loop_scopes.push(self.state.scopes.len());
+        let lowered = self.lower_scope(line, body);
+        self.state.loop_scopes.pop();
         self.state.loop_depth -= 1;
         lowered?;
         emit::bare(&mut self.state.output, MessageTag::LoopEnd);

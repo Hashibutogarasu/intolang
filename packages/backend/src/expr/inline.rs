@@ -60,11 +60,31 @@ impl<'a> Lowerer<'a> {
             substitutions.push((param.name.clone(), argument));
         }
         let mut returned = None;
-        for stmt in &function.body {
-            let stmt = stmt.substitute(&substitutions);
-            self.lower_inline_statement(&stmt, depth, &mut returned)?;
-        }
+        let body: Vec<Stmt> = function
+            .body
+            .iter()
+            .map(|stmt| stmt.substitute(&substitutions))
+            .collect();
+        self.inline_block(&body, depth, &mut returned)?;
         Ok(returned)
+    }
+
+    /// Lower the statements of an inlined body as one scope. What the scope
+    /// returns is handed to the caller instead of being destroyed.
+    fn inline_block(
+        &mut self,
+        body: &[Stmt],
+        depth: usize,
+        returned: &mut Returned,
+    ) -> Result<(), String> {
+        self.state.scopes.push(Vec::new());
+        let lowered = body
+            .iter()
+            .try_for_each(|stmt| self.lower_inline_statement(stmt, depth, returned));
+        let names = self.state.scopes.pop().unwrap_or_default();
+        lowered?;
+        let keep = returned.as_ref().map(|(name, _)| name.clone());
+        self.release_scope(&names, keep.as_deref())
     }
 
     fn lower_inline_statement(
@@ -139,6 +159,7 @@ impl<'a> Lowerer<'a> {
                 tracking,
             },
         );
+        self.declare_in_scope(&declaration.name);
         Ok(())
     }
 
@@ -164,14 +185,10 @@ impl<'a> Lowerer<'a> {
                 ));
             }
         }
-        for stmt in then_body {
-            self.lower_inline_statement(stmt, depth, returned)?;
-        }
+        self.inline_block(then_body, depth, returned)?;
         if let Some(else_body) = else_body {
             emit::bare(&mut self.state.output, MessageTag::IfElse);
-            for stmt in else_body {
-                self.lower_inline_statement(stmt, depth, returned)?;
-            }
+            self.inline_block(else_body, depth, returned)?;
         }
         emit::bare(&mut self.state.output, MessageTag::IfEnd);
         Ok(())
@@ -204,7 +221,12 @@ impl<'a> Lowerer<'a> {
         Err(format!("Unsupported print argument `{argument}`"))
     }
 
-    fn inline_call(&mut self, callee: &Path, args: &[Expr], depth: usize) -> Result<(), String> {
+    pub fn inline_call(
+        &mut self,
+        callee: &Path,
+        args: &[Expr],
+        depth: usize,
+    ) -> Result<(), String> {
         let env = self.env;
         if callee.is_member() {
             if let Some((class, method)) = self.static_receiver(callee) {

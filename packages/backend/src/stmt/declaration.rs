@@ -62,6 +62,7 @@ impl Lowerer<'_> {
                 tracking,
             },
         );
+        self.declare_in_scope(&declaration.name);
         Ok(())
     }
 }

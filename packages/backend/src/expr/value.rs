@@ -5,8 +5,9 @@ use std::collections::HashSet;
 use types::{Literal, MessageTag, Type};
 
 use super::annotation::resolve_annotation;
+use super::ownership::DESTROY;
 use super::type_name::{base_type_name, parse_type};
-use crate::context::Lowerer;
+use crate::context::{Lowerer, Tracking};
 use crate::emit;
 
 /// The value a declaration binds: the text kept for it, its type, and whether
@@ -48,6 +49,14 @@ impl<'a> Lowerer<'a> {
                 if let Some(source) = path.as_ident().and_then(|name| self.state.values.get(name)) {
                     let ty = resolve_annotation(source.ty.clone(), annotation)?;
                     if source.native {
+                        let shares_instance =
+                            self.is_ownership_method(base_type_name(&source.ty.name()), DESTROY);
+                        if shares_instance {
+                            self.state.pending_tracking = Some(Tracking {
+                                reference: true,
+                                ..Tracking::default()
+                            });
+                        }
                         emit::assign(&mut self.state.output, assigned_to, &ty, "p", path.first());
                         return Ok((ty.name(), ty, true));
                     }

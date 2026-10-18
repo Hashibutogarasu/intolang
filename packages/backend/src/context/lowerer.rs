@@ -14,10 +14,9 @@ pub struct Lowerer<'a> {
 
 impl<'a> Lowerer<'a> {
     pub fn new(env: &'a Env) -> Self {
-        Self {
-            env,
-            state: State::default(),
-        }
+        let mut state = State::default();
+        state.scopes.push(Vec::new());
+        Self { env, state }
     }
 
     /// A diagnostic bound to the entry source path and the current scope.

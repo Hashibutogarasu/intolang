@@ -19,6 +19,9 @@ pub struct Tracking {
     pub borrowed_by: usize,
     /// Whether the binding is a reference (`T&`) that owns nothing.
     pub reference: bool,
+    /// Whether the state changed inside a nested scope, so that whether the
+    /// instance is still owned is only known at run time (its drop flag).
+    pub conditional: bool,
 }
 
 /// A lowered local binding tracked while lowering statements.

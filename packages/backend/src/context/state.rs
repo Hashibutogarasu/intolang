@@ -14,6 +14,10 @@ pub struct State {
     pub in_init: bool,
     pub init_has_run: bool,
     pub loop_depth: usize,
+    /// For each open scope, the bindings it declared in order.
+    pub scopes: Vec<Vec<String>>,
+    /// The index in `scopes` of the body scope of each open loop.
+    pub loop_scopes: Vec<usize>,
 }
 
 impl State {

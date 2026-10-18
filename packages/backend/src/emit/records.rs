@@ -2,7 +2,7 @@ use ast::Expr;
 use moduler::Module;
 use native::{Comparison, NativeArg, Operand};
 use parser::{Hex, Record};
-use types::{Literal, MessageTag, Type};
+use types::{ComparisonOperator, Literal, MessageTag, Type};
 
 use crate::context::FieldDef;
 
@@ -122,6 +122,33 @@ pub fn copy(output: &mut String, target: &str, source: &str, class: &str) {
             .field(source)
             .field(class),
     );
+}
+
+/// The hidden `Int32` slot telling whether the scope that declared `name`
+/// still has to destroy it.
+pub fn drop_flag_name(name: &str) -> String {
+    format!("__drop_{name}")
+}
+
+pub fn drop_flag(output: &mut String, name: &str, owned: bool) {
+    assign(
+        output,
+        &drop_flag_name(name),
+        &Type::Int32,
+        "n",
+        flag(owned),
+    );
+}
+
+/// Open an `if` that runs only while the drop flag of `name` is set.
+pub fn drop_guard(output: &mut String, name: &str) {
+    let condition = Comparison {
+        left: drop_flag_name(name),
+        operator: ComparisonOperator::Equal,
+        operand: Operand::Number("1".to_owned()),
+        type_name: Type::Int32.name(),
+    };
+    comparison(output, MessageTag::IfBegin, &condition);
 }
 
 /// A call to an imported function that is lowered to a plain `NATIVE` record.

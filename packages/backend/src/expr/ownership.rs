@@ -64,14 +64,23 @@ impl Lowerer<'_> {
         }
     }
 
-    fn set_state(&mut self, name: &str, state: Ownership) {
+    /// Record that `name` gave up its instance. When that happens in a scope
+    /// nested inside the one that declared `name`, the scope end cannot know
+    /// statically whether the instance is still owned, so the drop flag is
+    /// cleared at run time.
+    pub fn set_state(&mut self, name: &str, state: Ownership) {
+        let conditional = self.declared_in_outer_scope(name) && self.owns_instance(name);
         if let Some(variable) = self.state.values.get_mut(name) {
             variable.tracking.state = state;
+            variable.tracking.conditional |= conditional;
+        }
+        if conditional {
+            emit::drop_flag(&mut self.state.output, name, false);
         }
     }
 
     /// Give back the borrow `name` holds on its owner, if it is a borrow.
-    fn release_borrow(&mut self, name: &str) {
+    pub fn release_borrow(&mut self, name: &str) {
         let owner = self
             .state
             .values

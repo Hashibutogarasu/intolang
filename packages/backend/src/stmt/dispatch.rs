@@ -31,10 +31,11 @@ impl Lowerer<'_> {
                 if self.state.loop_depth == 0 {
                     return Err(self.diagnostic(line, "`break` must be inside a while loop"));
                 }
+                self.release_for_break(line)?;
                 emit::bare(&mut self.state.output, MessageTag::Break);
                 Ok(())
             }
-            StmtKind::Init(body) => self.lower_init(body),
+            StmtKind::Init(body) => self.lower_init(line, body),
             StmtKind::Expr(expression) => self.lower_expression_statement(line, expression),
             StmtKind::Return(_) | StmtKind::Throw(_) => Ok(()),
         }

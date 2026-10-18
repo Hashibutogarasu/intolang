@@ -57,6 +57,7 @@ fn lower_named(source: &str, packages_dir: Option<&Path>, source_path: &str) -> 
             | Item::Macro(_) => {}
         }
     }
+    lowerer.finish_program()?;
     Ok(lowerer.into_output())
 }
 

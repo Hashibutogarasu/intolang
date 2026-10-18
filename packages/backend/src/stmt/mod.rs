@@ -5,4 +5,5 @@ mod declaration;
 mod dispatch;
 mod init;
 mod print;
+mod scope;
 mod use_decl;
