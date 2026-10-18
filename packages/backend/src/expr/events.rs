@@ -29,6 +29,9 @@ impl Lowerer<'_> {
         args: &[Expr],
         assigned_to: &str,
     ) -> Result<RuntimeCall, String> {
+        if callee.segments().len() > 2 {
+            return self.lower_signal_call(callee, args, assigned_to);
+        }
         let [receiver, method] = callee.segments() else {
             return Ok(RuntimeCall::NotRuntime);
         };
@@ -40,7 +43,10 @@ impl Lowerer<'_> {
             return Ok(RuntimeCall::Done);
         }
         let Some(event) = self.event_of(receiver) else {
-            return self.lower_thread_call(callee, assigned_to);
+            return match self.lower_thread_call(callee, assigned_to)? {
+                RuntimeCall::NotRuntime => self.lower_signal_call(callee, args, assigned_to),
+                handled => Ok(handled),
+            };
         };
         match method.as_str() {
             ON => {
@@ -115,7 +121,7 @@ impl Lowerer<'_> {
         Ok(())
     }
 
-    fn register_handler(
+    pub fn register_handler(
         &mut self,
         event: &str,
         args: &[Expr],

@@ -18,6 +18,7 @@ impl From<&Record> for NativeIfEnd {
 impl Codegen for NativeIfEnd {
     fn generate(&self, ctx: &mut CodegenContext) -> Result<CodegenResult> {
         unsafe {
+            ctx.flush_text()?;
             let (else_block, merge_block, has_else) = ctx
                 .if_blocks
                 .pop()

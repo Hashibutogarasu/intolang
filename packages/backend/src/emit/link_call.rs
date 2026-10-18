@@ -72,6 +72,16 @@ impl Lowerer<'_> {
                 .map_err(|_| format!("Unsupported native argument `{arg}`")),
             Expr::Literal(Literal::Bool(flag)) => Ok(NativeArg::Int(i32::from(*flag))),
             Expr::Path(path) if path.is_member() => {
+                if let Some(field) = self.static_field(path) {
+                    return match field.default_literal() {
+                        Some(Literal::Int(number)) => i32::try_from(*number)
+                            .map(NativeArg::Int)
+                            .map_err(|_| format!("Unsupported native argument `{arg}`")),
+                        Some(Literal::String(value)) => Ok(NativeArg::from(value.as_str())),
+                        Some(Literal::Bool(flag)) => Ok(NativeArg::Int(i32::from(*flag))),
+                        _ => Err(format!("Static field `{arg}` has no constant default")),
+                    };
+                }
                 let variant = path.segments()[1..].join(".");
                 self.env
                     .enum_values

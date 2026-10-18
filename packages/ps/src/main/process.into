@@ -1,0 +1,65 @@
+import "ps://events";
+
+pub Signal() {
+    pub static into: Int32 SIGHUP = 1;
+    pub static into: Int32 SIGINT = 2;
+    pub static into: Int32 SIGKILL = 9;
+    pub static into: Int32 SIGUSR1 = 10;
+    pub static into: Int32 SIGUSR2 = 12;
+    pub static into: Int32 SIGALRM = 14;
+    pub static into: Int32 SIGTERM = 15;
+    pub static into: Int32 SIGCHLD = 17;
+
+    #[link("c", "src/ffi/ps/process.c", "ps_signal_send")]
+    pub c fun send(signal: Int32): Int32;
+
+    #[link("c", "src/ffi/ps/process.c", "ps_signal_watch")]
+    pub static c fun watch(signal: Int32): Void;
+}
+
+pub Usage() {
+    pub into: Int64 userMicros = 0;
+    pub into: Int64 systemMicros = 0;
+    pub into: Int64 maxResidentKilobytes = 0;
+
+    #[link("c", "src/ffi/ps/process.c", "ps_usage_release")]
+    pub override c fun destroy(): Void;
+}
+
+pub Process() {
+    pub into: Int32 pid = 0;
+
+    #[link("c", "src/ffi/ps/process.c", "ps_process_current")]
+    pub static c fun current(): Process;
+
+    #[link("c", "src/ffi/ps/process.c", "ps_process_attach")]
+    pub static c fun attach(pid: Int32): Process;
+
+    #[link("c", "src/ffi/ps/process.c", "ps_process_spawn")]
+    pub static c fun spawn(path: String, args: String): Process;
+
+    #[link("c", "src/ffi/ps/process.c", "ps_process_signal")]
+    pub c fun signal(): Signal;
+
+    #[link("c", "src/ffi/ps/process.c", "ps_process_usage")]
+    pub c fun usage(): Usage;
+
+    #[link("c", "src/ffi/ps/process.c", "ps_process_kill")]
+    pub c fun kill(): Int32;
+
+    #[link("c", "src/ffi/ps/process.c", "ps_process_reap")]
+    pub c fun reap(): Int32;
+
+    pub fun wait(): Int32 {
+        now into code: Int32 = this.reap();
+        exited.emit(this, code);
+        return code;
+    }
+
+    #[consumes("detached")]
+    #[link("c", "src/ffi/ps/process.c", "ps_process_detach")]
+    pub c fun detach(): Void;
+
+    #[link("c", "src/ffi/ps/process.c", "ps_process_release")]
+    pub override c fun destroy(): Void;
+}

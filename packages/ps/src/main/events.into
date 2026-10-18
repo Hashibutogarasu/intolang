@@ -1,0 +1,26 @@
+import "ps://process";
+
+pub event started(process: Process&) {}
+
+pub event exited(process: Process&, code: Int32) {}
+
+pub event signalReceived(signal: Int32) {}
+
+#[link("c", "src/ffi/ps/process.c", "ps_signal_next")]
+pub c fun nextSignal(): Int32;
+
+#[link("c", "src/ffi/ps/process.c", "ps_exit_request")]
+pub c fun requestExit(code: Int32): Void;
+
+pub fun dispatch(process: Process&) {
+    into pending: Int32 = nextSignal();
+    while (pending > 0) {
+        signalReceived.emit(pending);
+        pending = nextSignal();
+    }
+}
+
+pub fun exit(process: Process&, code: Int32) {
+    exited.emit(process, code);
+    requestExit(code);
+}

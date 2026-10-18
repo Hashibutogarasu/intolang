@@ -18,6 +18,7 @@ impl From<&Record> for NativeLoopEnd {
 impl Codegen for NativeLoopEnd {
     fn generate(&self, ctx: &mut CodegenContext) -> Result<CodegenResult> {
         unsafe {
+            ctx.flush_text()?;
             let (condition, exit) = ctx
                 .loop_blocks
                 .pop()

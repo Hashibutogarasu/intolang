@@ -90,6 +90,14 @@ fn a_listener_leaving_its_scope_unregisters_the_handler() {
 }
 
 #[test]
+fn text_inside_a_branch_only_prints_when_the_branch_runs() {
+    let stdout = run_events(
+        "now into n = 1;\nif (n == 2) {\n    println(\"never\");\n} else {\n    println(\"else\");\n}\nif (n == 1) {\n    println(\"taken\");\n}\nwhile (n < 3) {\n    println(\"loop\");\n    n = n + 1;\n}\nprintln(\"after\");\n",
+    );
+    assert_eq!(stdout, "else\ntaken\nloop\nloop\nafter\n");
+}
+
+#[test]
 fn await_waits_for_the_thread_before_the_next_line() {
     let stdout = run_events(
         "now into worker = thread { println(\"in thread\"); };\nawait worker.run();\nprintln(\"after\");\n",

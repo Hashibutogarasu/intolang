@@ -4,4 +4,5 @@ pub struct Execution {
     pub stdout: String,
     pub stderr: String,
     pub success: bool,
+    pub code: Option<i32>,
 }

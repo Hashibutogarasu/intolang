@@ -18,6 +18,7 @@ impl From<&Record> for NativeBreak {
 impl Codegen for NativeBreak {
     fn generate(&self, ctx: &mut CodegenContext) -> Result<CodegenResult> {
         unsafe {
+            ctx.flush_text()?;
             let (_, exit) = *ctx
                 .loop_blocks
                 .last()

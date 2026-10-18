@@ -225,6 +225,9 @@ impl<'a> Lowerer<'a> {
                 Ok(())
             }
             StmtKind::Declaration(declaration) => self.inline_declaration(declaration),
+            StmtKind::While { .. } | StmtKind::Assign { .. } => {
+                self.lower_stmt(stmt).map_err(|error| error.to_string())
+            }
             StmtKind::If {
                 condition,
                 then_body,
