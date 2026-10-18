@@ -5,10 +5,16 @@ use std::str::FromStr;
 use types::{ArithmeticOperator, ComparisonOperator, Literal, Punct, TokenKind};
 
 use super::path::Path;
-use crate::Cursor;
+use crate::stmt::{Scope, parse_block};
+use crate::{Cursor, Param, Stmt};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
+    /// `(params) => { body }`: an anonymous function.
+    Lambda {
+        params: Vec<Param>,
+        body: Vec<Stmt>,
+    },
     Literal(Literal),
     Path(Path),
     Call {
@@ -54,6 +60,17 @@ impl Expr {
     pub fn substitute(&self, bindings: &[(String, Expr)]) -> Expr {
         match self {
             Expr::Literal(_) => self.clone(),
+            Expr::Lambda { params, body } => {
+                let visible: Vec<(String, Expr)> = bindings
+                    .iter()
+                    .filter(|(name, _)| params.iter().all(|param| &param.name != name))
+                    .cloned()
+                    .collect();
+                Expr::Lambda {
+                    params: params.clone(),
+                    body: body.iter().map(|stmt| stmt.substitute(&visible)).collect(),
+                }
+            }
             Expr::Path(path) => substitute_path(path, bindings).map_or_else(
                 || self.clone(),
                 |replacement| match replacement {
@@ -124,6 +141,16 @@ impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Expr::Literal(literal) => f.write_str(&literal_text(literal)),
+            Expr::Lambda { params, .. } => {
+                f.write_str("(")?;
+                for (index, param) in params.iter().enumerate() {
+                    if index > 0 {
+                        f.write_str(", ")?;
+                    }
+                    f.write_str(&param.name)?;
+                }
+                f.write_str(") => { .. }")
+            }
             Expr::Path(path) => write!(f, "{path}"),
             Expr::Call { callee, args } => {
                 write!(f, "{callee}(")?;
@@ -287,6 +314,7 @@ fn primary(cursor: &mut Cursor<'_>) -> Result<Expr> {
                 Ok(Expr::Path(path))
             }
         }
+        TokenKind::Symbol('(') if lambda_ahead(cursor) => lambda(cursor),
         TokenKind::Symbol('(') => {
             cursor.bump();
             let inner = Expr::try_from(&mut *cursor)?;
@@ -295,6 +323,46 @@ fn primary(cursor: &mut Cursor<'_>) -> Result<Expr> {
         }
         _ => Err(cursor.error("Expected an expression")),
     }
+}
+
+/// Whether the parenthesis at the cursor closes right before `=>`.
+fn lambda_ahead(cursor: &Cursor<'_>) -> bool {
+    let mut probe = cursor.clone();
+    let mut depth = 0usize;
+    while let Some(token) = probe.bump() {
+        match token.kind {
+            TokenKind::Symbol('(') => depth += 1,
+            TokenKind::Symbol(')') => {
+                depth -= 1;
+                if depth == 0 {
+                    return probe.peek_symbol(0) == Some('=')
+                        && probe.peek_symbol(1) == Some('>')
+                        && probe.adjacent(1);
+                }
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
+fn lambda(cursor: &mut Cursor<'_>) -> Result<Expr> {
+    cursor.expect_punct(Punct::LeftParen, "`(`")?;
+    let mut params = Vec::new();
+    if !cursor.eat_punct(Punct::RightParen) {
+        loop {
+            params.push(Param::try_from(&mut *cursor)?);
+            if cursor.eat_punct(Punct::Comma) {
+                continue;
+            }
+            cursor.expect_punct(Punct::RightParen, "`)` to close the parameters")?;
+            break;
+        }
+    }
+    cursor.bump();
+    cursor.bump();
+    let body = parse_block(cursor, Scope::Function)?;
+    Ok(Expr::Lambda { params, body })
 }
 
 fn arguments(cursor: &mut Cursor<'_>) -> Result<Vec<Expr>> {

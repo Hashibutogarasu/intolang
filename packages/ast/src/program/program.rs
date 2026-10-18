@@ -3,7 +3,7 @@ use std::str::FromStr;
 use tokenizer::Tokens;
 
 use super::item::Item;
-use crate::decl::{ClassDecl, EnumDecl, FunctionDecl, MacroDecl, UseDecl};
+use crate::decl::{ClassDecl, EnumDecl, EventDecl, FunctionDecl, MacroDecl, UseDecl};
 use crate::{Cursor, Stmt};
 
 /// A parsed source file: its top-level items in source order.
@@ -44,6 +44,13 @@ impl Program {
     pub fn functions(&self) -> impl Iterator<Item = &FunctionDecl> {
         self.items.iter().filter_map(|item| match item {
             Item::Function(decl) => Some(decl),
+            _ => None,
+        })
+    }
+
+    pub fn events(&self) -> impl Iterator<Item = &EventDecl> {
+        self.items.iter().filter_map(|item| match item {
+            Item::Event(decl) => Some(decl),
             _ => None,
         })
     }

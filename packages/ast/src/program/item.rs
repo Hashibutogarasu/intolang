@@ -1,7 +1,7 @@
 use anyhow::Result;
 use types::Keyword;
 
-use crate::decl::{Attribute, ClassDecl, EnumDecl, FunctionDecl, MacroDecl, UseDecl};
+use crate::decl::{Attribute, ClassDecl, EnumDecl, EventDecl, FunctionDecl, MacroDecl, UseDecl};
 use crate::{Cursor, Stmt, SyntaxError};
 
 /// One top-level element of a module.
@@ -12,6 +12,7 @@ pub enum Item {
     Enum(EnumDecl),
     Class(ClassDecl),
     Function(FunctionDecl),
+    Event(EventDecl),
     Macro(MacroDecl),
     Stmt(Stmt),
 }
@@ -25,6 +26,9 @@ impl TryFrom<&mut Cursor<'_>> for Item {
         }
         if FunctionDecl::ahead(cursor) {
             return Ok(Item::Function(FunctionDecl::try_from(&mut *cursor)?));
+        }
+        if EventDecl::ahead(cursor) {
+            return Ok(Item::Event(EventDecl::try_from(&mut *cursor)?));
         }
         if let Some(attribute) = Attribute::parse_all(&mut cursor.clone())?.first() {
             return Err(SyntaxError::new(

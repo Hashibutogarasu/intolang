@@ -47,7 +47,11 @@ fn lower_named(source: &str, packages_dir: Option<&Path>, source_path: &str) -> 
             Item::Import(decl) => lowerer.lower_import(decl),
             Item::Export(decl) => lowerer.lower_export(decl),
             Item::Stmt(stmt) => lowerer.lower_stmt(stmt)?,
-            Item::Enum(_) | Item::Class(_) | Item::Function(_) | Item::Macro(_) => {}
+            Item::Enum(_)
+            | Item::Class(_)
+            | Item::Function(_)
+            | Item::Event(_)
+            | Item::Macro(_) => {}
         }
     }
     Ok(lowerer.into_output())

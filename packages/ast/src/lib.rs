@@ -6,7 +6,8 @@ mod stmt;
 mod ty;
 
 pub use decl::{
-    Attribute, ClassDecl, EnumDecl, EnumVariant, FieldDecl, FunctionDecl, MacroDecl, Param, UseDecl,
+    Attribute, ClassDecl, EnumDecl, EnumVariant, EventDecl, FieldDecl, FunctionDecl, MacroDecl,
+    Param, UseDecl,
 };
 pub use expr::{Expr, Path};
 pub use parse::{Cursor, SyntaxError};

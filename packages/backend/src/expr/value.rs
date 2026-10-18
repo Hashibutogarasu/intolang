@@ -51,6 +51,9 @@ impl<'a> Lowerer<'a> {
                     return Ok((source.value.clone(), ty, false));
                 }
             }
+            Expr::Lambda { .. } => {
+                return Err("Lambda expressions are not supported in this position".into());
+            }
             Expr::Compare { .. } | Expr::Not(_) => {}
         }
         Ok((

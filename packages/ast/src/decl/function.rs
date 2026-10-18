@@ -4,6 +4,7 @@ use types::{Keyword, Language, Punct};
 
 use super::attribute::Attribute;
 use super::param::Param;
+use super::type_params::parse_type_params;
 use crate::stmt::{Scope, parse_block};
 use crate::{Cursor, Stmt, TypeRef};
 
@@ -75,21 +76,7 @@ impl TryFrom<&mut Cursor<'_>> for FunctionDecl {
             return Err(cursor.error("Expected `fun`"));
         }
         let (name, _) = cursor.expect_ident("a function name")?;
-        let mut type_params = Vec::new();
-        if cursor.peek_symbol(0) == Some('<') {
-            cursor.bump();
-            loop {
-                let (param, _) = cursor.expect_ident("a type parameter name")?;
-                type_params.push(param);
-                if !cursor.eat_punct(Punct::Comma) {
-                    break;
-                }
-            }
-            if cursor.peek_symbol(0) != Some('>') {
-                return Err(cursor.error("Expected `>` after the type parameters"));
-            }
-            cursor.bump();
-        }
+        let type_params = parse_type_params(cursor)?;
         cursor.expect_punct(Punct::LeftParen, "`(` after the function name")?;
         let mut params = Vec::new();
         if !cursor.eat_punct(Punct::RightParen) {
