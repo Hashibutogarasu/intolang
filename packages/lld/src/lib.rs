@@ -32,6 +32,35 @@ pub fn link_objects(
     )
 }
 
+/// The C++ runtime libraries the executable loads. The driver finds them, but
+/// linking with LLD in place of the driver's own linker leaves out the
+/// run-path that points at them, so a program started outside the build
+/// environment could not load them.
+const RUNTIME_LIBRARIES: [&str; 2] = ["libstdc++.so.6", "libgcc_s.so.1"];
+
+pub fn runtime_directories(driver: &str) -> Vec<String> {
+    let mut directories: Vec<String> = Vec::new();
+    for library in RUNTIME_LIBRARIES {
+        let Ok(output) = std::process::Command::new(driver)
+            .arg(format!("-print-file-name={library}"))
+            .output()
+        else {
+            continue;
+        };
+        let printed = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+        let found = Path::new(&printed);
+        if found.is_absolute()
+            && let Some(directory) = found.parent()
+        {
+            let directory = directory.to_string_lossy().into_owned();
+            if !directories.contains(&directory) {
+                directories.push(directory);
+            }
+        }
+    }
+    directories
+}
+
 fn link_with_args(
     object: &Path,
     extra_objects: &[std::path::PathBuf],
@@ -66,7 +95,7 @@ fn link_with_args(
     let linker = if cxx { "CXX" } else { "CC" };
     let default_driver = if cxx { "c++" } else { "cc" };
     let driver = std::env::var(linker).unwrap_or_else(|_| default_driver.into());
-    let mut command = std::process::Command::new(driver);
+    let mut command = std::process::Command::new(&driver);
     command.arg(prefix).arg("-fuse-ld=lld");
     if shared {
         command.arg("-shared");
@@ -81,6 +110,11 @@ fn link_with_args(
     for path in library_paths {
         command.arg(format!("-L{path}"));
         command.arg(format!("-Wl,-rpath,{path}"));
+    }
+    if cxx {
+        for directory in runtime_directories(&driver) {
+            command.arg(format!("-Wl,-rpath,{directory}"));
+        }
     }
     let result = command
         .arg("-o")
