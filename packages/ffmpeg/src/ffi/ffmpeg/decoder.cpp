@@ -9,6 +9,7 @@ extern "C" {
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -64,6 +65,7 @@ struct FFmpegVideo {
     AVFormatContext *format = nullptr;
     AVIOContext *avio = nullptr;
     BufferReader *reader = nullptr;
+    FsBytes *owned = nullptr;
     AVCodecContext *decoder = nullptr;
     const AVCodec *codec = nullptr;
     AVStream *stream = nullptr;
@@ -102,6 +104,11 @@ void release(FFmpegVideo *video) {
     if (video->format) avformat_close_input(&video->format);
     if (video->avio) avio_context_free(&video->avio);
     delete video->reader;
+    if (video->owned) {
+        std::free(video->owned->data);
+        std::free(video->owned);
+        video->owned = nullptr;
+    }
 }
 
 int scale_to_gray(FFmpegVideo *video) {
@@ -174,8 +181,14 @@ extern "C" FFmpegVideo *ffmpeg_video_open(const char *path, int32_t max_columns,
 
 extern "C" FFmpegVideo *ffmpeg_open_buffer(FFmpeg *ffmpeg, FsBytes *bytes) {
     (void)ffmpeg;
-    if (!bytes || !bytes->data || bytes->length <= 0) return nullptr;
+    if (!bytes) return nullptr;
+    if (!bytes->data || bytes->length <= 0) {
+        std::free(bytes->data);
+        std::free(bytes);
+        return nullptr;
+    }
     auto *video = new FFmpegVideo();
+    video->owned = bytes;
     video->reader = new BufferReader{bytes->data, static_cast<size_t>(bytes->length), 0};
     unsigned char *buffer = static_cast<unsigned char *>(av_malloc(BUFFER_SIZE));
     if (!buffer) {

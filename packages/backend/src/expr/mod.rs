@@ -11,5 +11,5 @@ mod type_name;
 mod value;
 
 pub use events::EventCall;
-pub use ownership::DESTROY;
+pub use ownership::{DESTROY, MOVE};
 pub use type_name::{base_type_name, parse_type};

@@ -2,7 +2,8 @@ use ast::Expr;
 use native::{LinkCall, NativeArg, NativeLink};
 use types::{Literal, MessageTag};
 
-use crate::context::Lowerer;
+use crate::context::{Lowerer, Ownership};
+use crate::expr::MOVE;
 
 impl Lowerer<'_> {
     /// Emit a call to the native function `link` binds. `args` holds the
@@ -17,6 +18,17 @@ impl Lowerer<'_> {
         assigned_to: &str,
         has_receiver: bool,
     ) -> Result<(), String> {
+        let mut handed_over = Vec::new();
+        for arg in &mut args {
+            let moves = matches!(
+                arg,
+                Expr::Call { callee, args } if args.is_empty() && callee.last() == MOVE
+            );
+            *arg = self.materialize_argument(arg.clone())?;
+            if moves && let Some(name) = arg.as_ident() {
+                handed_over.push(name.to_owned());
+            }
+        }
         let receivers = usize::from(has_receiver);
         let provided = args.len().saturating_sub(receivers);
         if provided > link.params.len() {
@@ -46,6 +58,9 @@ impl Lowerer<'_> {
                 .collect::<Result<_, _>>()?,
         };
         self.state.output.push_str(&call.to_record(tag).to_string());
+        for name in handed_over {
+            self.set_state(&name, Ownership::Moved);
+        }
         Ok(())
     }
 

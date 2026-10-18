@@ -13,7 +13,7 @@ pub FFmpeg() {
     pub fun read(path: Path): Video {
         now into file: File = File();
         late into data: Bytes = file.read(path);
-        now into video: Video = this.openBuffer(data);
+        now into video: Video = this.openBuffer(data.move());
         return video;
     }
 }

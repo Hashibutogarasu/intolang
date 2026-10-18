@@ -154,7 +154,7 @@ impl<'a> Lowerer<'a> {
 
     /// Lower an ownership call used as an argument into a temporary binding
     /// that the call's scope owns.
-    fn materialize_argument(&mut self, argument: Expr) -> Result<Expr, String> {
+    pub fn materialize_argument(&mut self, argument: Expr) -> Result<Expr, String> {
         let Expr::Call { callee, args } = &argument else {
             return Ok(argument);
         };
