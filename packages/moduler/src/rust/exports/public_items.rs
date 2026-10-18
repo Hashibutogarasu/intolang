@@ -5,7 +5,8 @@ use std::collections::HashSet;
 ///
 /// Only declarations carrying the `pub` modifier are visible to importers.
 /// Free declarations contribute their bare name and class members contribute
-/// `Class.member`; `pub` classes and `pub macro`s are included as well.
+/// `Class.member`; `pub` classes, `pub macro`s and `pub event`s are included
+/// as well.
 pub fn public_items(program: &Program) -> HashSet<String> {
     let mut items = HashSet::new();
     for class in program.classes() {
@@ -21,6 +22,9 @@ pub fn public_items(program: &Program) -> HashSet<String> {
     }
     for function in program.functions().filter(|function| function.is_public) {
         items.insert(function.name.clone());
+    }
+    for event in program.events().filter(|event| event.is_public) {
+        items.insert(event.name.clone());
     }
     items
 }

@@ -16,6 +16,7 @@ struct Writer {
     options: FormatOptions,
     depth: usize,
     parens: usize,
+    saved_parens: Vec<usize>,
     braces: Vec<Brace>,
     in_attribute: bool,
     previous: Option<Piece>,
@@ -85,6 +86,7 @@ pub(crate) fn layout(pieces: &[Piece], options: FormatOptions) -> String {
         options,
         depth: 0,
         parens: 0,
+        saved_parens: Vec::new(),
         braces: Vec::new(),
         in_attribute: false,
         previous: None,
@@ -159,14 +161,17 @@ pub(crate) fn layout(pieces: &[Piece], options: FormatOptions) -> String {
                     Brace::Block
                 };
                 writer.braces.push(brace);
+                writer.saved_parens.push(writer.parens);
+                writer.parens = 0;
                 writer.depth += 1;
                 break_after = true;
             }
             Kind::Punct(Punct::RightBrace) => {
+                writer.parens = writer.saved_parens.pop().unwrap_or(0);
                 let joins_else = pieces
                     .get(index + 1)
                     .is_some_and(|next| next.is_keyword(Keyword::Else));
-                break_after = !joins_else;
+                break_after = !joins_else && writer.parens == 0;
             }
             Kind::Punct(Punct::Semicolon) => break_after = writer.parens == 0,
             Kind::Punct(Punct::Comma) => {
