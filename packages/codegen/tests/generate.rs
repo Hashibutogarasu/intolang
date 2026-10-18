@@ -196,6 +196,35 @@ fn handlers_reach_captured_values_through_globals() {
 }
 
 #[test]
+fn starts_and_joins_threads_running_a_function() {
+    let message = [
+        handler(
+            "worker",
+            "",
+            &[],
+            &[record(MessageTag::PrintConst, &["Int32", "n:1", "1"])],
+        ),
+        record(MessageTag::ThreadRun, &["task", "worker"]),
+        record(MessageTag::Await, &["task"]),
+        record(MessageTag::ThreadRun, &["", "worker"]),
+    ]
+    .concat();
+    let ir = generate(&message).unwrap();
+    assert!(ir.contains("define ptr @worker.thread(ptr"), "{ir}");
+    assert!(ir.contains("call i32 @pthread_create"), "{ir}");
+    assert!(ir.contains("call i32 @pthread_join"), "{ir}");
+}
+
+#[test]
+fn rejects_threads_running_unknown_functions() {
+    let error = generate(&record(MessageTag::ThreadRun, &["task", "missing"])).unwrap_err();
+    assert!(
+        error.to_string().contains("Unknown thread function"),
+        "{error}"
+    );
+}
+
+#[test]
 fn rejects_handler_ends_without_a_start_and_unknown_handlers() {
     let error = generate(&record(MessageTag::HandlerEnd, &[])).unwrap_err();
     assert!(error.to_string().contains("no matching handler"), "{error}");

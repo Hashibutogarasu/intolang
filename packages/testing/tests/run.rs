@@ -90,6 +90,40 @@ fn a_listener_leaving_its_scope_unregisters_the_handler() {
 }
 
 #[test]
+fn await_waits_for_the_thread_before_the_next_line() {
+    let stdout = run_events(
+        "now into worker = thread { println(\"in thread\"); };\nawait worker.run();\nprintln(\"after\");\n",
+    );
+    assert_eq!(stdout, "in thread\nafter\n");
+}
+
+#[test]
+fn a_task_can_be_awaited_later() {
+    let stdout = run_events(
+        "now into worker = thread { println(\"in thread\"); };\nnow into task = worker.run();\nawait task;\nprintln(\"done\");\n",
+    );
+    assert_eq!(stdout, "in thread\ndone\n");
+}
+
+#[test]
+fn threads_share_captured_values_with_the_main_flow() {
+    let stdout = run_events(
+        "now into total = 0;\nnow into worker = thread { total = 5; };\nawait worker.run();\nprintln(total);\n",
+    );
+    assert_eq!(stdout, "5\n");
+}
+
+#[test]
+fn several_threads_run_and_join() {
+    let stdout = run_events(
+        "now into first = thread { println(\"one\"); };\nnow into second = thread { println(\"two\"); };\nnow into a = first.run();\nnow into b = second.run();\nawait a;\nawait b;\nprintln(\"joined\");\n",
+    );
+    assert!(stdout.contains("one\n"), "{stdout}");
+    assert!(stdout.contains("two\n"), "{stdout}");
+    assert!(stdout.ends_with("joined\n"), "{stdout}");
+}
+
+#[test]
 fn reports_lowering_errors_before_compiling() {
     let error = eval_run("init {\n    into value: Int32 = \"x\";\n}\n").unwrap_err();
     assert!(error.to_string().contains("Type mismatch"), "{error}");

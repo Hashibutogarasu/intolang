@@ -2,6 +2,7 @@ mod calls;
 mod events;
 mod slots;
 mod text;
+mod threads;
 mod types;
 mod verify;
 

@@ -168,10 +168,10 @@ pub(crate) fn layout(pieces: &[Piece], options: FormatOptions) -> String {
             }
             Kind::Punct(Punct::RightBrace) => {
                 writer.parens = writer.saved_parens.pop().unwrap_or(0);
-                let joins_else = pieces
-                    .get(index + 1)
-                    .is_some_and(|next| next.is_keyword(Keyword::Else));
-                break_after = !joins_else && writer.parens == 0;
+                let joins_next = pieces.get(index + 1).is_some_and(|next| {
+                    next.is_keyword(Keyword::Else) || next.is(Punct::Semicolon)
+                });
+                break_after = !joins_next && writer.parens == 0;
             }
             Kind::Punct(Punct::Semicolon) => break_after = writer.parens == 0,
             Kind::Punct(Punct::Comma) => {

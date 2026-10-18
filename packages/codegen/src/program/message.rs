@@ -3,11 +3,11 @@ use parser::Record;
 use types::MessageTag;
 
 use crate::native::{
-    Class, NativeAlias, NativeArith, NativeAssign, NativeBreak, NativeCall, NativeConstruct,
-    NativeCopy, NativeEmit, NativeEventDestroy, NativeEventOff, NativeEventOn, NativeFieldPrint,
-    NativeHandlerBegin, NativeHandlerEnd, NativeIfBegin, NativeIfCall, NativeIfConst, NativeIfElse,
-    NativeIfEnd, NativeLinkAssign, NativeLoopBegin, NativeLoopEnd, NativeModule, NativePrint,
-    NativePrintConst, NativeWhileBegin,
+    Class, NativeAlias, NativeArith, NativeAssign, NativeAwait, NativeBreak, NativeCall,
+    NativeConstruct, NativeCopy, NativeEmit, NativeEventDestroy, NativeEventOff, NativeEventOn,
+    NativeFieldPrint, NativeHandlerBegin, NativeHandlerEnd, NativeIfBegin, NativeIfCall,
+    NativeIfConst, NativeIfElse, NativeIfEnd, NativeLinkAssign, NativeLoopBegin, NativeLoopEnd,
+    NativeModule, NativePrint, NativePrintConst, NativeThreadRun, NativeWhileBegin,
 };
 use crate::{Codegen, Text};
 
@@ -59,6 +59,8 @@ pub(crate) fn parse(message: &str) -> Result<Program> {
             MessageTag::Emit => Box::new(NativeEmit::try_from(&record)?),
             MessageTag::EventOff => Box::new(NativeEventOff::try_from(&record)?),
             MessageTag::EventDestroy => Box::new(NativeEventDestroy::try_from(&record)?),
+            MessageTag::ThreadRun => Box::new(NativeThreadRun::try_from(&record)?),
+            MessageTag::Await => Box::new(NativeAwait::try_from(&record)?),
         };
         statements.push(node);
     }

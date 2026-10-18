@@ -1,6 +1,7 @@
 mod alias;
 mod arith;
 mod assign;
+mod await_task;
 mod break_stmt;
 mod call;
 mod class;
@@ -24,11 +25,13 @@ mod loop_end;
 mod module;
 mod print;
 mod print_const;
+mod thread_run;
 mod while_begin;
 
 pub(crate) use alias::NativeAlias;
 pub(crate) use arith::NativeArith;
 pub(crate) use assign::NativeAssign;
+pub(crate) use await_task::NativeAwait;
 pub(crate) use break_stmt::NativeBreak;
 pub(crate) use call::NativeCall;
 pub(crate) use class::Class;
@@ -52,4 +55,5 @@ pub(crate) use loop_end::NativeLoopEnd;
 pub(crate) use module::NativeModule;
 pub(crate) use print::NativePrint;
 pub(crate) use print_const::NativePrintConst;
+pub(crate) use thread_run::NativeThreadRun;
 pub(crate) use while_begin::NativeWhileBegin;

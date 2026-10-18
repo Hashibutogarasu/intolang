@@ -11,12 +11,12 @@ use crate::emit;
 const ON: &str = "on";
 const EMIT: &str = "emit";
 
-/// What a method call on an event or listener turned out to be.
-pub enum EventCall {
-    NotEvent,
+/// What a method call on an event, listener or thread turned out to be.
+pub enum RuntimeCall {
+    NotRuntime,
     Done,
-    /// `event.on(handler)`: the registration, named after its event.
     Listener(String),
+    Task,
 }
 
 impl Lowerer<'_> {
@@ -28,30 +28,30 @@ impl Lowerer<'_> {
         callee: &Path,
         args: &[Expr],
         assigned_to: &str,
-    ) -> Result<EventCall, String> {
+    ) -> Result<RuntimeCall, String> {
         let [receiver, method] = callee.segments() else {
-            return Ok(EventCall::NotEvent);
+            return Ok(RuntimeCall::NotRuntime);
         };
         if let Some(event) = self.listener_event(receiver) {
             if method != DESTROY {
-                return Ok(EventCall::NotEvent);
+                return Ok(RuntimeCall::NotRuntime);
             }
             self.destroy_listener(receiver, &event)?;
-            return Ok(EventCall::Done);
+            return Ok(RuntimeCall::Done);
         }
         let Some(event) = self.event_of(receiver) else {
-            return Ok(EventCall::NotEvent);
+            return self.lower_thread_call(callee, assigned_to);
         };
         match method.as_str() {
             ON => {
                 self.ensure_event_alive(receiver, &event)?;
                 self.register_handler(&event, args, assigned_to)?;
-                Ok(EventCall::Listener(event))
+                Ok(RuntimeCall::Listener(event))
             }
             EMIT => {
                 self.ensure_event_alive(receiver, &event)?;
                 self.emit_event(&event, args)?;
-                Ok(EventCall::Done)
+                Ok(RuntimeCall::Done)
             }
             DESTROY => {
                 self.ensure_event_alive(receiver, &event)?;
@@ -60,9 +60,9 @@ impl Lowerer<'_> {
                 if self.state.values.contains_key(receiver) {
                     self.apply_receiver_call(receiver, DESTROY);
                 }
-                Ok(EventCall::Done)
+                Ok(RuntimeCall::Done)
             }
-            _ => Ok(EventCall::NotEvent),
+            _ => Ok(RuntimeCall::NotRuntime),
         }
     }
 
@@ -143,7 +143,7 @@ impl Lowerer<'_> {
 
     /// Lower `body` as the function `name`. `declared` gives the types of the
     /// parameters, which the body calls `locals`.
-    fn lower_handler(
+    pub fn lower_handler(
         &mut self,
         name: &str,
         declared: &[Param],

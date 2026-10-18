@@ -2,7 +2,7 @@ use anyhow::Result;
 use parser::{ArithmeticLexeme, ComparisonLexeme};
 use std::fmt;
 use std::str::FromStr;
-use types::{ArithmeticOperator, ComparisonOperator, Literal, Punct, TokenKind};
+use types::{ArithmeticOperator, ComparisonOperator, Keyword, Literal, Punct, TokenKind};
 
 use super::path::Path;
 use crate::stmt::{Scope, parse_block};
@@ -10,11 +10,14 @@ use crate::{Cursor, Param, Stmt};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
-    /// `(params) => { body }`: an anonymous function.
     Lambda {
         params: Vec<Param>,
         body: Vec<Stmt>,
     },
+    Thread {
+        body: Vec<Stmt>,
+    },
+    Await(Box<Expr>),
     Literal(Literal),
     Path(Path),
     Call {
@@ -71,6 +74,10 @@ impl Expr {
                     body: body.iter().map(|stmt| stmt.substitute(&visible)).collect(),
                 }
             }
+            Expr::Thread { body } => Expr::Thread {
+                body: body.iter().map(|stmt| stmt.substitute(bindings)).collect(),
+            },
+            Expr::Await(inner) => Expr::Await(Box::new(inner.substitute(bindings))),
             Expr::Path(path) => substitute_path(path, bindings).map_or_else(
                 || self.clone(),
                 |replacement| match replacement {
@@ -151,6 +158,8 @@ impl fmt::Display for Expr {
                 }
                 f.write_str(") => { .. }")
             }
+            Expr::Thread { .. } => f.write_str("thread { .. }"),
+            Expr::Await(inner) => write!(f, "await {inner}"),
             Expr::Path(path) => write!(f, "{path}"),
             Expr::Call { callee, args } => {
                 write!(f, "{callee}(")?;
@@ -244,6 +253,9 @@ fn additive(cursor: &mut Cursor<'_>) -> Result<Expr> {
 }
 
 fn unary(cursor: &mut Cursor<'_>) -> Result<Expr> {
+    if cursor.eat_keyword(Keyword::Await) {
+        return Ok(Expr::Await(Box::new(unary(cursor)?)));
+    }
     if cursor.peek_symbol(0) == Some('!') {
         cursor.bump();
         return Ok(Expr::Not(Box::new(unary(cursor)?)));
@@ -299,6 +311,14 @@ fn primary(cursor: &mut Cursor<'_>) -> Result<Expr> {
             Ok(Expr::Literal(Literal::String(value.clone())))
         }
         TokenKind::Number(_) => Ok(Expr::Literal(number(cursor)?)),
+        TokenKind::Identifier(_)
+            if cursor.peek_keyword(0) == Some(Keyword::Thread)
+                && cursor.peek_punct(1) == Some(Punct::LeftBrace) =>
+        {
+            cursor.bump();
+            let body = parse_block(cursor, Scope::Function)?;
+            Ok(Expr::Thread { body })
+        }
         TokenKind::Identifier(word) if word == "true" || word == "false" => {
             let value = word == "true";
             cursor.bump();

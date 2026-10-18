@@ -2,7 +2,7 @@ use anyhow::Result;
 use ast::{EventDecl, FunctionDecl, Program};
 use std::collections::HashMap;
 
-use crate::context::{ClassInfo, Classes, EVENT, LISTENER, MemberInfo, OBJECT};
+use crate::context::{ClassInfo, Classes, EVENT, LISTENER, MemberInfo, OBJECT, TASK, THREAD};
 use crate::diagnostic::diagnostic;
 
 /// The return type that stands for "the class of the receiver".
@@ -63,6 +63,8 @@ pub fn builtin_classes() -> Classes {
         (OBJECT.to_owned(), object),
         (EVENT.to_owned(), plain(EVENT)),
         (LISTENER.to_owned(), plain(LISTENER)),
+        (THREAD.to_owned(), plain(THREAD)),
+        (TASK.to_owned(), plain(TASK)),
     ])
 }
 

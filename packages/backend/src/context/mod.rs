@@ -8,7 +8,7 @@ mod user_function;
 mod variable;
 
 pub use class_def::{ClassFields, EnumValues, FieldDef};
-pub use class_info::{ClassInfo, Classes, EVENT, LISTENER, MemberInfo, OBJECT};
+pub use class_info::{ClassInfo, Classes, EVENT, LISTENER, MemberInfo, OBJECT, TASK, THREAD};
 pub use env::Env;
 pub use event_info::EventInfo;
 pub use lowerer::Lowerer;

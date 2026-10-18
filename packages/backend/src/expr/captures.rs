@@ -53,7 +53,10 @@ fn collect_statement(stmt: &Stmt, names: &mut BTreeSet<String>) {
 
 fn collect_expression(expression: &Expr, names: &mut BTreeSet<String>) {
     match expression {
-        Expr::Lambda { body, .. } => body.iter().for_each(|stmt| collect_statement(stmt, names)),
+        Expr::Lambda { body, .. } | Expr::Thread { body } => {
+            body.iter().for_each(|stmt| collect_statement(stmt, names))
+        }
+        Expr::Await(inner) => collect_expression(inner, names),
         Expr::Literal(_) => {}
         Expr::Path(path) => {
             names.insert(path.first().to_owned());

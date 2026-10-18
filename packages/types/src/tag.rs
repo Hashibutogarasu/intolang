@@ -35,4 +35,6 @@ pub enum MessageTag {
     Emit,
     EventOff,
     EventDestroy,
+    ThreadRun,
+    Await,
 }

@@ -38,6 +38,8 @@ impl FromStr for TagLexeme {
             "NATIVE_EMIT" => MessageTag::Emit,
             "NATIVE_EVENT_OFF" => MessageTag::EventOff,
             "NATIVE_EVENT_DESTROY" => MessageTag::EventDestroy,
+            "NATIVE_THREAD_RUN" => MessageTag::ThreadRun,
+            "NATIVE_AWAIT" => MessageTag::Await,
             other => bail!("Unknown message tag `{other}`"),
         }))
     }
@@ -93,6 +95,8 @@ impl fmt::Display for TagLexeme {
             MessageTag::Emit => "NATIVE_EMIT",
             MessageTag::EventOff => "NATIVE_EVENT_OFF",
             MessageTag::EventDestroy => "NATIVE_EVENT_DESTROY",
+            MessageTag::ThreadRun => "NATIVE_THREAD_RUN",
+            MessageTag::Await => "NATIVE_AWAIT",
         })
     }
 }

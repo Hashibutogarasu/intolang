@@ -5,7 +5,7 @@ use types::{Literal, MessageTag};
 
 use crate::context::Lowerer;
 use crate::emit;
-use crate::expr::{EventCall, base_type_name};
+use crate::expr::{RuntimeCall, base_type_name};
 
 /// The builtin functions that write to the console.
 const PRINT: &str = "print";
@@ -14,6 +14,11 @@ const PRINTLN: &str = "println";
 impl Lowerer<'_> {
     /// Lower an expression used as a statement. Only calls have an effect.
     pub fn lower_expression_statement(&mut self, line: usize, expression: &Expr) -> Result<()> {
+        if let Expr::Await(awaited) = expression {
+            return self
+                .lower_await(awaited)
+                .map_err(|message| self.diagnostic(line, &message));
+        }
         let Expr::Call { callee, args } = expression else {
             return Ok(());
         };
@@ -51,7 +56,7 @@ impl Lowerer<'_> {
         let handled = self
             .lower_event_call(callee, args, "")
             .map_err(|message| fail(self, message))?;
-        if !matches!(handled, EventCall::NotEvent) {
+        if !matches!(handled, RuntimeCall::NotRuntime) {
             return Ok(());
         }
         if let Some((class, method)) = self.static_receiver(callee) {

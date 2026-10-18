@@ -204,6 +204,21 @@ pub fn event_destroy(output: &mut String, event: &str) {
     push(output, Record::new(MessageTag::EventDestroy).field(event));
 }
 
+/// Start the thread running the function `function`; its task goes to the
+/// slot `task`.
+pub fn thread_run(output: &mut String, task: &str, function: &str) {
+    push(
+        output,
+        Record::new(MessageTag::ThreadRun)
+            .field(task)
+            .field(function),
+    );
+}
+
+pub fn await_task(output: &mut String, task: &str) {
+    push(output, Record::new(MessageTag::Await).field(task));
+}
+
 /// A call to an imported function that is lowered to a plain `NATIVE` record.
 pub fn native_call(output: &mut String, symbol: &str, argument: &NativeArg) {
     let (kind, value) = match argument {

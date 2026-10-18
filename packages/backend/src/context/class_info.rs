@@ -9,6 +9,12 @@ pub const EVENT: &str = "Event";
 /// The built-in class of a registration made with `on`.
 pub const LISTENER: &str = "Listener";
 
+/// The built-in class of a `thread { .. }` expression.
+pub const THREAD: &str = "Thread";
+
+/// The built-in class of a started thread.
+pub const TASK: &str = "Task";
+
 /// A method or event member of a class, reduced to what inheritance checks
 /// and resolution need.
 #[derive(Debug, Clone, PartialEq, Eq)]

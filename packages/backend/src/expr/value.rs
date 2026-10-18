@@ -5,8 +5,9 @@ use std::collections::HashSet;
 use types::{Literal, MessageTag, Type};
 
 use super::annotation::resolve_annotation;
-use super::events::{EventCall, event_value, listener_value};
+use super::events::{RuntimeCall, event_value, listener_value};
 use super::ownership::{BORROW, DESTROY};
+use super::threads::{task_value, thread_value};
 use super::type_name::{base_type_name, parse_type};
 use crate::context::{Lowerer, Tracking, UserFunction};
 use crate::emit;
@@ -90,6 +91,15 @@ impl<'a> Lowerer<'a> {
             Expr::Lambda { .. } => {
                 return Err("Lambda expressions are not supported in this position".into());
             }
+            Expr::Thread { body } => {
+                let function = self.lower_thread_body(body)?;
+                let (value, ty, native) = thread_value(&function);
+                let ty = resolve_annotation(ty, annotation)?;
+                return Ok((value, ty, native));
+            }
+            Expr::Await(_) => {
+                return Err("`await` can only be used as a statement".into());
+            }
             Expr::Compare { .. } | Expr::Not(_) => {}
         }
         Ok((
@@ -110,13 +120,18 @@ impl<'a> Lowerer<'a> {
         let env = self.env;
         if callee.is_member() {
             match self.lower_event_call(callee, args, assigned_to)? {
-                EventCall::NotEvent => {}
-                EventCall::Listener(event) => {
+                RuntimeCall::NotRuntime => {}
+                RuntimeCall::Listener(event) => {
                     let (value, ty, native) = listener_value(&event);
                     let ty = resolve_annotation(ty, annotation)?;
                     return Ok(Some((value, ty, native)));
                 }
-                EventCall::Done => return Err(format!("`{callee}` does not return a value")),
+                RuntimeCall::Task => {
+                    let (value, ty, native) = task_value();
+                    let ty = resolve_annotation(ty, annotation)?;
+                    return Ok(Some((value, ty, native)));
+                }
+                RuntimeCall::Done => return Err(format!("`{callee}` does not return a value")),
             }
             if let Some((class, method)) = self.static_receiver(callee) {
                 let key = self.method_key(&class, &method);

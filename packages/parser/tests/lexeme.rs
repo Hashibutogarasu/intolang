@@ -52,6 +52,8 @@ fn parses_the_event_tags_both_ways() {
         ("NATIVE_EMIT", MessageTag::Emit),
         ("NATIVE_EVENT_OFF", MessageTag::EventOff),
         ("NATIVE_EVENT_DESTROY", MessageTag::EventDestroy),
+        ("NATIVE_THREAD_RUN", MessageTag::ThreadRun),
+        ("NATIVE_AWAIT", MessageTag::Await),
     ] {
         let parsed: MessageTag = text.parse::<TagLexeme>().unwrap().into();
         assert_eq!(parsed, tag);

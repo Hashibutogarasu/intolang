@@ -2,7 +2,7 @@ use ast::{Expr, Param, Path, Stmt, StmtKind};
 use std::collections::HashSet;
 use types::{Literal, MessageTag, Storage, Type};
 
-use super::events::EventCall;
+use super::events::RuntimeCall;
 use super::ownership::{BORROW, COPY, DESTROY, MOVE};
 use super::type_name::{base_type_name, parse_type};
 use crate::context::{InlineFrame, Lowerer, Tracking, UserFunction, Variable};
@@ -351,7 +351,7 @@ impl<'a> Lowerer<'a> {
         if callee.is_member() {
             if !matches!(
                 self.lower_event_call(callee, args, "")?,
-                EventCall::NotEvent
+                RuntimeCall::NotRuntime
             ) {
                 return Ok(());
             }
