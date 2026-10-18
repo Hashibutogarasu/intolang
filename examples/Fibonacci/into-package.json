@@ -7,8 +7,7 @@
   "name": "Fibonacci",
   "packages": {
     "builtin": "0.0.1",
-    "c": "0.1.0",
-    "intolang": "0.0.1"
+    "c": "0.1.0"
   },
   "runs": "src/main/fibonacci.into",
   "version": "0.1.0"

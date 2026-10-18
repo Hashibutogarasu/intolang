@@ -3,9 +3,7 @@ use ast::UseDecl;
 use std::fmt;
 use std::str::FromStr;
 
-/// The scheme that addresses the builtin package: `intolang://builtin/std`
-/// names alias `builtin`, module `std`.
-const BUILTIN_SCHEME: &str = "intolang";
+use crate::package::BUILTIN_SCHEME;
 
 /// A parsed `import "scheme://module";` URI.
 #[derive(Debug, Clone, PartialEq, Eq)]

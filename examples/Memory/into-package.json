@@ -6,8 +6,7 @@
   },
   "name": "MemoryExample",
   "packages": {
-    "builtin": "0.0.1",
-    "intolang": "0.0.1"
+    "builtin": "0.0.1"
   },
   "runs": "src/main/memory.into",
   "version": "0.0.1"

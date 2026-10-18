@@ -6,8 +6,7 @@
   },
   "name": "Explicit Types",
   "packages": {
-    "builtin": "0.0.1",
-    "intolang": "0.0.1"
+    "builtin": "0.0.1"
   },
   "runs": "src/main/types.into",
   "version": "0.1.0"

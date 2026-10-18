@@ -109,6 +109,11 @@ CLI notes:
   package replaces the embedded one only when the project manifest's `packages`
   map gives it an explicit, non-empty version (which must equal the installed
   package's version); without such an entry the compiler's version is used.
+- The compiler embeds the `intolang` (alias `builtin`) package, so projects
+  need not list it. `into install builtin` (or `intolang`, or the package's
+  directory) references the compiler's copy: nothing is linked, and the lock
+  entry has no `location` (nor `hash`). Restoring such an entry only checks
+  that the compiler's version equals the locked version.
 - `into install` without a directory restores the links of the packages in the
   lock file from their locations and fails if a package's hash differs from the
   lock.

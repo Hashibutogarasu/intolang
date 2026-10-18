@@ -3,9 +3,7 @@
   "alias": "hello-world",
   "version": "0.0.1",
   "LICENCE": "MIT",
-  "packages": {
-    "intolang": "0.0.1"
-  },
+  "packages": {},
   "builtConfig": {
     "dist": "./dist"
   },

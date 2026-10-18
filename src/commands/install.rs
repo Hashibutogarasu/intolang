@@ -1,6 +1,6 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{ArgMatches, Args as ClapArgs, Command as ClapCommand, FromArgMatches};
-use moduler::Project;
+use moduler::{Project, find_by_alias, is_builtin};
 use std::path::PathBuf;
 
 use crate::commands::command::Command;
@@ -8,7 +8,8 @@ use crate::commands::command::Command;
 #[derive(ClapArgs)]
 struct InstallArgs {
     /// Package directory to install into the current project; without it, the
-    /// packages recorded in into-package-lock.json are restored
+    /// packages recorded in into-package-lock.json are restored. `builtin` (or
+    /// `intolang`) references the package embedded in the compiler
     source: Option<PathBuf>,
 }
 
@@ -28,13 +29,21 @@ impl Command for Install {
     fn execute(&self, matches: &ArgMatches) -> Result<()> {
         let args = InstallArgs::from_arg_matches(matches)?;
         let project = Project::new(std::env::current_dir()?);
+        let embedded = compiler::builtin_packages_dir();
         match args.source {
             Some(source) => {
-                let package = project.install(&source)?;
+                let source = match source.to_str() {
+                    Some(name) if is_builtin(name) && !source.exists() => {
+                        find_by_alias(&embedded, moduler::BUILTIN_ALIAS)?
+                            .context("The compiler does not embed the builtin package")?
+                    }
+                    _ => source,
+                };
+                let package = project.install(&source, &embedded)?;
                 println!("Installed {} {}", package.alias, package.version);
             }
             None => {
-                for restoration in project.restore()? {
+                for restoration in project.restore(&embedded)? {
                     let status = if restoration.installed {
                         "Installed"
                     } else {

@@ -12,8 +12,8 @@ pub struct PackageInfo {
     pub licence: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hash: Option<PackageHash>,
-    #[serde(default)]
-    pub location: PathBuf,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location: Option<PathBuf>,
     #[serde(skip)]
     pub root: PathBuf,
 }
@@ -33,7 +33,7 @@ impl PackageInfo {
             version: text("version"),
             licence: text("LICENCE"),
             hash: None,
-            location: PathBuf::new(),
+            location: None,
             root,
         }
     }
@@ -44,7 +44,7 @@ impl PackageInfo {
     }
 
     pub fn with_location(mut self, location: PathBuf) -> Self {
-        self.location = location;
+        self.location = Some(location);
         self
     }
 }
