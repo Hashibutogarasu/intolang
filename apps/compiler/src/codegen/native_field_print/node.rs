@@ -1,4 +1,5 @@
-use anyhow::{Result, anyhow};
+use anyhow::{Error, Result, anyhow};
+use parser::Record;
 
 use crate::llvm;
 use llvm::core::*;
@@ -13,17 +14,15 @@ pub struct NativeFieldPrint {
     newline: bool,
 }
 
-impl NativeFieldPrint {
-    pub(crate) const TAG: &'static str = "\u{1e}NATIVE_FIELD_PRINT\t";
+impl TryFrom<&Record> for NativeFieldPrint {
+    type Error = Error;
 
-    pub(crate) fn parse(line: &str) -> Option<Self> {
-        let payload = line.strip_prefix(Self::TAG)?.trim_end_matches('\n');
-        let mut parts = payload.split('\t');
-        Some(Self {
-            variable: parts.next().unwrap_or_default().to_owned(),
-            class_name: parts.next().unwrap_or_default().to_owned(),
-            field_index: parts.next().unwrap_or_default().parse().ok()?,
-            newline: parts.nth(1).unwrap_or_default() == "1",
+    fn try_from(record: &Record) -> Result<Self> {
+        Ok(Self {
+            variable: record.get(0).to_owned(),
+            class_name: record.get(1).to_owned(),
+            field_index: record.get(2).parse()?,
+            newline: record.get(4) == "1",
         })
     }
 }

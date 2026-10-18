@@ -1,3 +1,7 @@
+use anyhow::Result;
+use parser::Record;
+use types::MessageTag;
+
 use crate::codegen::{
     Class, Codegen, NativeArith, NativeAssign, NativeBreak, NativeCall, NativeConstruct,
     NativeFieldPrint, NativeIfBegin, NativeIfCall, NativeIfConst, NativeIfElse, NativeIfEnd,
@@ -12,56 +16,44 @@ pub struct Program {
     pub statements: Vec<Box<dyn Codegen>>,
 }
 
-/// Parse the lowered message into an ordered AST, falling back to literal text
-/// for any line that is not a compiler directive.
-pub(crate) fn parse(message: &str) -> Program {
+/// Build the ordered AST of a lowered message: every compiler directive line
+/// becomes the node its tag names, and any other line is literal text.
+pub(crate) fn parse(message: &str) -> Result<Program> {
     let mut classes = Vec::new();
     let mut statements: Vec<Box<dyn Codegen>> = Vec::new();
     for line in message.split_inclusive('\n') {
-        if let Some(node) = Class::parse(line) {
-            classes.push(node);
-        } else if let Some(node) = NativeIfCall::parse(line) {
-            statements.push(Box::new(node));
-        } else if let Some(node) = NativeIfConst::parse(line) {
-            statements.push(Box::new(node));
-        } else if let Some(node) = NativeIfBegin::parse(line) {
-            statements.push(Box::new(node));
-        } else if let Some(node) = NativeIfElse::parse(line) {
-            statements.push(Box::new(node));
-        } else if let Some(node) = NativeIfEnd::parse(line) {
-            statements.push(Box::new(node));
-        } else if let Some(node) = NativeBreak::parse(line) {
-            statements.push(Box::new(node));
-        } else if let Some(node) = NativeFieldPrint::parse(line) {
-            statements.push(Box::new(node));
-        } else if let Some(node) = NativePrint::parse(line) {
-            statements.push(Box::new(node));
-        } else if let Some(node) = NativePrintConst::parse(line) {
-            statements.push(Box::new(node));
-        } else if let Some(node) = NativeLoopBegin::parse(line) {
-            statements.push(Box::new(node));
-        } else if let Some(node) = NativeWhileBegin::parse(line) {
-            statements.push(Box::new(node));
-        } else if let Some(node) = NativeLoopEnd::parse(line) {
-            statements.push(Box::new(node));
-        } else if let Some(node) = NativeArith::parse(line) {
-            statements.push(Box::new(node));
-        } else if let Some(node) = NativeAssign::parse(line) {
-            statements.push(Box::new(node));
-        } else if let Some(node) = NativeLinkAssign::parse(line) {
-            statements.push(Box::new(node));
-        } else if let Some(node) = NativeConstruct::parse(line) {
-            statements.push(Box::new(node));
-        } else if let Some(node) = NativeModule::parse(line) {
-            statements.push(Box::new(node));
-        } else if let Some(node) = NativeCall::parse(line) {
-            statements.push(Box::new(node));
-        } else {
+        let Ok(record) = line.parse::<Record>() else {
             statements.push(Box::new(Text::new(line)));
-        }
+            continue;
+        };
+        let node: Box<dyn Codegen> = match record.tag() {
+            MessageTag::Class => {
+                classes.push(Class::try_from(&record)?);
+                continue;
+            }
+            MessageTag::Native => Box::new(NativeCall::try_from(&record)?),
+            MessageTag::Assign => Box::new(NativeAssign::try_from(&record)?),
+            MessageTag::Arith => Box::new(NativeArith::try_from(&record)?),
+            MessageTag::Print => Box::new(NativePrint::try_from(&record)?),
+            MessageTag::PrintConst => Box::new(NativePrintConst::try_from(&record)?),
+            MessageTag::FieldPrint => Box::new(NativeFieldPrint::try_from(&record)?),
+            MessageTag::LinkAssign => Box::new(NativeLinkAssign::try_from(&record)?),
+            MessageTag::Construct => Box::new(NativeConstruct::try_from(&record)?),
+            MessageTag::Module => Box::new(NativeModule::try_from(&record)?),
+            MessageTag::IfBegin => Box::new(NativeIfBegin::try_from(&record)?),
+            MessageTag::IfCall => Box::new(NativeIfCall::try_from(&record)?),
+            MessageTag::IfConst => Box::new(NativeIfConst::try_from(&record)?),
+            MessageTag::IfElse => Box::new(NativeIfElse::from(&record)),
+            MessageTag::IfEnd => Box::new(NativeIfEnd::from(&record)),
+            MessageTag::WhileBegin => Box::new(NativeWhileBegin::try_from(&record)?),
+            MessageTag::LoopBegin => Box::new(NativeLoopBegin::try_from(&record)?),
+            MessageTag::LoopEnd => Box::new(NativeLoopEnd::from(&record)),
+            MessageTag::Break => Box::new(NativeBreak::from(&record)),
+        };
+        statements.push(node);
     }
-    Program {
+    Ok(Program {
         classes,
         statements,
-    }
+    })
 }

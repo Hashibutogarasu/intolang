@@ -1,24 +1,24 @@
-use anyhow::Result;
+use anyhow::{Error, Result, bail};
+use native::Operand;
+use parser::Record;
 
 use crate::codegen::{Codegen, CodegenContext, CodegenResult};
 
 /// Print a constant: `NATIVE_PRINT_CONST`.
 pub struct NativePrintConst {
     return_type: String,
-    operand: String,
+    operand: Operand,
     newline: bool,
 }
 
-impl NativePrintConst {
-    pub(crate) const TAG: &'static str = "\u{1e}NATIVE_PRINT_CONST\t";
+impl TryFrom<&Record> for NativePrintConst {
+    type Error = Error;
 
-    pub(crate) fn parse(line: &str) -> Option<Self> {
-        let payload = line.strip_prefix(Self::TAG)?.trim_end_matches('\n');
-        let mut parts = payload.split('\t');
-        Some(Self {
-            return_type: parts.next().unwrap_or_default().to_owned(),
-            operand: parts.next().unwrap_or_default().to_owned(),
-            newline: parts.next().unwrap_or_default() == "1",
+    fn try_from(record: &Record) -> Result<Self> {
+        Ok(Self {
+            return_type: record.get(0).to_owned(),
+            operand: record.get(1).parse()?,
+            newline: record.get(2) == "1",
         })
     }
 }
@@ -28,10 +28,9 @@ impl Codegen for NativePrintConst {
         unsafe {
             ctx.flush_text()?;
             let ty = ctx.into_type(&self.return_type);
-            let (_, value) = self
-                .operand
-                .split_once(':')
-                .unwrap_or(("", self.operand.as_str()));
+            let Operand::Number(value) = &self.operand else {
+                bail!("A printed constant must be a number");
+            };
             let constant = ctx.const_for_type(ty, value)?;
             ctx.print_scalar(ty, constant, self.newline)?;
             Ok(CodegenResult::unit())

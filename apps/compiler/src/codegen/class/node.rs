@@ -1,4 +1,5 @@
-use anyhow::{Result, anyhow};
+use anyhow::{Error, Result, anyhow};
+use parser::Record;
 use std::ffi::CString;
 
 use crate::llvm;
@@ -13,37 +14,42 @@ struct FieldSpec {
     default: Option<(char, String)>,
 }
 
+impl From<&str> for FieldSpec {
+    fn from(spec: &str) -> Self {
+        let mut segments = spec.splitn(4, ':');
+        let name = segments.next().unwrap_or_default().to_owned();
+        let ty = segments.next().unwrap_or("String").to_owned();
+        let kind = segments.next().unwrap_or("-");
+        let value = segments.next().unwrap_or_default().to_owned();
+        let default = match kind {
+            "-" | "" => None,
+            _ => Some((kind.chars().next().unwrap_or('-'), value)),
+        };
+        Self { name, ty, default }
+    }
+}
+
 /// `NATIVE_CLASS`: a struct type with named, typed fields.
 pub struct Class {
     name: String,
     fields: Vec<FieldSpec>,
 }
 
-impl Class {
-    pub(crate) const TAG: &'static str = "\u{1e}NATIVE_CLASS\t";
+impl TryFrom<&Record> for Class {
+    type Error = Error;
 
-    pub(crate) fn parse(line: &str) -> Option<Self> {
-        let spec = line.strip_prefix(Self::TAG)?.trim_end_matches('\n');
-        let mut parts = spec.split('\t');
-        Some(Self {
-            name: parts.next().unwrap_or_default().to_owned(),
-            fields: parts
-                .map(|part| {
-                    let mut segments = part.splitn(4, ':');
-                    let name = segments.next().unwrap_or_default().to_owned();
-                    let ty = segments.next().unwrap_or("String").to_owned();
-                    let kind = segments.next().unwrap_or("-").to_owned();
-                    let value = segments.next().unwrap_or_default().to_owned();
-                    let default = match kind.as_str() {
-                        "-" | "" => None,
-                        _ => Some((kind.chars().next().unwrap_or('-'), value)),
-                    };
-                    FieldSpec { name, ty, default }
-                })
-                .collect(),
+    fn try_from(record: &Record) -> Result<Self> {
+        let Some((name, fields)) = record.fields().split_first() else {
+            return Err(anyhow!("Malformed NATIVE_CLASS record"));
+        };
+        Ok(Self {
+            name: name.clone(),
+            fields: fields.iter().map(|field| FieldSpec::from(field.as_str())).collect(),
         })
     }
+}
 
+impl Class {
     /// Create the opaque named struct before any field types are resolved, so
     /// that classes may reference one another.
     pub(crate) unsafe fn declare(&self, ctx: &mut CodegenContext) -> Result<()> {

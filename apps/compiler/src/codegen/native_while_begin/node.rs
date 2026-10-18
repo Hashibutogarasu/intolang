@@ -1,4 +1,6 @@
-use anyhow::Result;
+use anyhow::{Error, Result};
+use native::Comparison;
+use parser::Record;
 
 use crate::llvm;
 use llvm::core::*;
@@ -7,16 +9,15 @@ use crate::codegen::{Codegen, CodegenContext, CodegenResult};
 
 /// `NATIVE_WHILE_BEGIN`: open a loop whose condition is a native comparison.
 pub struct NativeWhileBegin {
-    comparison: String,
+    comparison: Comparison,
 }
 
-impl NativeWhileBegin {
-    pub(crate) const TAG: &'static str = "\u{1e}NATIVE_WHILE_BEGIN\t";
+impl TryFrom<&Record> for NativeWhileBegin {
+    type Error = Error;
 
-    pub(crate) fn parse(line: &str) -> Option<Self> {
-        let payload = line.strip_prefix(Self::TAG)?.trim_end_matches('\n');
-        Some(Self {
-            comparison: payload.to_owned(),
+    fn try_from(record: &Record) -> Result<Self> {
+        Ok(Self {
+            comparison: Comparison::try_from(record)?,
         })
     }
 }

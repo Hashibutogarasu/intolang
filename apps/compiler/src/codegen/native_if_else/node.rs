@@ -1,4 +1,5 @@
 use anyhow::{Result, anyhow};
+use parser::Record;
 
 use crate::llvm;
 use llvm::core::*;
@@ -8,11 +9,9 @@ use crate::codegen::{Codegen, CodegenContext, CodegenResult};
 /// `NATIVE_IF_ELSE`: switch emission to the `else` branch of the current `if`.
 pub struct NativeIfElse;
 
-impl NativeIfElse {
-    pub(crate) const TAG: &'static str = "\u{1e}NATIVE_IF_ELSE";
-
-    pub(crate) fn parse(line: &str) -> Option<Self> {
-        line.starts_with(Self::TAG).then_some(Self)
+impl From<&Record> for NativeIfElse {
+    fn from(_: &Record) -> Self {
+        Self
     }
 }
 

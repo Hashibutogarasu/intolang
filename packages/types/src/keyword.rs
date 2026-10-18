@@ -1,0 +1,22 @@
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Keyword {
+    Init,
+    Fun,
+    Pub,
+    Static,
+    Macro,
+    Into,
+    Now,
+    Late,
+    Const,
+    Unload,
+    Enum,
+    If,
+    Else,
+    While,
+    Break,
+    Return,
+    Throw,
+    Import,
+    Export,
+}

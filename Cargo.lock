@@ -74,6 +74,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
+name = "ast"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "parser",
+ "tokenizer",
+ "types",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -84,8 +94,12 @@ name = "backend"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "ast",
  "moduler",
- "serde_json",
+ "native",
+ "parser",
+ "testing",
+ "types",
 ]
 
 [[package]]
@@ -200,7 +214,10 @@ dependencies = [
  "backend",
  "lld",
  "llvm-sys",
+ "native",
+ "parser",
  "serde_json",
+ "types",
 ]
 
 [[package]]
@@ -219,6 +236,16 @@ name = "find-msvc-tools"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aedcfb3409746eddb02b9e19ebda1c3394f759a152e48ee875a0844d1b955484"
+
+[[package]]
+name = "formatter"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "parser",
+ "tokenizer",
+ "types",
+]
 
 [[package]]
 name = "gimli"
@@ -247,8 +274,10 @@ dependencies = [
  "clap",
  "color-eyre",
  "compiler",
+ "formatter",
  "serde",
  "serde_json",
+ "testing",
 ]
 
 [[package]]
@@ -316,7 +345,21 @@ name = "moduler"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "ast",
+ "native",
  "serde_json",
+ "types",
+]
+
+[[package]]
+name = "native"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "ast",
+ "parser",
+ "serde_json",
+ "types",
 ]
 
 [[package]]
@@ -345,6 +388,14 @@ name = "owo-colors"
 version = "4.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13c45bb4a6ae1280ec0803b1ef9d3455eb50f01efbbe1447ab020f1d54fba9d8"
+
+[[package]]
+name = "parser"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "types",
+]
 
 [[package]]
 name = "pin-project-lite"
@@ -464,12 +515,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "testing"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "ast",
+ "backend",
+ "moduler",
+ "parser",
+ "types",
+]
+
+[[package]]
 name = "thread_local"
 version = "1.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ad99c4c6d32803332c548b1af0540b357b3f5fc0be8f6c6bfe8b2e6ae784070"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "tokenizer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "parser",
+ "types",
 ]
 
 [[package]]
@@ -512,6 +584,10 @@ dependencies = [
  "thread_local",
  "tracing-core",
 ]
+
+[[package]]
+name = "types"
+version = "0.1.0"
 
 [[package]]
 name = "unicode-ident"

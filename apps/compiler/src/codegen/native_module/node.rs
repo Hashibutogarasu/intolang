@@ -1,4 +1,5 @@
-use anyhow::{Result, anyhow};
+use anyhow::{Error, Result, anyhow};
+use parser::Record;
 use std::ffi::CString;
 
 use crate::llvm;
@@ -9,24 +10,25 @@ use crate::codegen::{Codegen, CodegenContext, CodegenResult};
 
 /// `NATIVE_MODULE`: a resolved module instance.
 ///
-/// The record carries the module name followed by the fields of the package it
-/// belongs to (`alias`, `name`, `version`, `licence`, `root`) and the module
-/// source path, all hex encoded. Code generation builds a `PackageInfo` value
-/// and stores a `Module` value that references it.
+/// The record carries the module index, the module name followed by the fields
+/// of the package it belongs to (`alias`, `name`, `version`, `licence`,
+/// `root`) and the module source path, all hex encoded. Code generation builds
+/// a `PackageInfo` value and stores a `Module` value that references it.
 pub struct NativeModule {
     index: String,
     fields: Vec<String>,
 }
 
-impl NativeModule {
-    pub(crate) const TAG: &'static str = "\u{1e}NATIVE_MODULE\t";
+impl TryFrom<&Record> for NativeModule {
+    type Error = Error;
 
-    pub(crate) fn parse(line: &str) -> Option<Self> {
-        let payload = line.strip_prefix(Self::TAG)?.trim_end_matches('\n');
-        let mut parts = payload.split('\t');
-        Some(Self {
-            index: parts.next().unwrap_or_default().to_owned(),
-            fields: parts.map(str::to_owned).collect(),
+    fn try_from(record: &Record) -> Result<Self> {
+        let Some((index, fields)) = record.fields().split_first() else {
+            return Err(anyhow!("Malformed NATIVE_MODULE record"));
+        };
+        Ok(Self {
+            index: index.clone(),
+            fields: fields.to_vec(),
         })
     }
 }

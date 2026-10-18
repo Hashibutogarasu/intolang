@@ -50,7 +50,7 @@ pub(super) fn run(path: PathBuf, max_depth: Option<usize>) -> Result<()> {
     for file in files {
         let source = std::fs::read_to_string(&file)
             .with_context(|| format!("Could not read Into source: {}", file.display()))?;
-        let formatted = backend::format_source(&source);
+        let formatted = formatter::format_source(&source);
         std::fs::write(&file, formatted).with_context(|| {
             format!("Could not write formatted Into source: {}", file.display())
         })?;

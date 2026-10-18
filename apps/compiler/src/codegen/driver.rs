@@ -17,7 +17,7 @@ pub(crate) unsafe fn generate(
 ) -> Result<()> {
     unsafe {
         let mut ctx = CodegenContext::create(context, module, builder)?;
-        let program = ast::parse(message);
+        let program = ast::parse(message)?;
         for class in &program.classes {
             class.declare(&mut ctx)?;
         }

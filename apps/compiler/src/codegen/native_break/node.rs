@@ -1,4 +1,5 @@
 use anyhow::{Result, anyhow};
+use parser::Record;
 
 use crate::llvm;
 use llvm::core::*;
@@ -8,11 +9,9 @@ use crate::codegen::{Codegen, CodegenContext, CodegenResult};
 /// `NATIVE_BREAK`: jump out of the innermost loop.
 pub struct NativeBreak;
 
-impl NativeBreak {
-    pub(crate) const TAG: &'static str = "\u{1e}NATIVE_BREAK";
-
-    pub(crate) fn parse(line: &str) -> Option<Self> {
-        line.starts_with(Self::TAG).then_some(Self)
+impl From<&Record> for NativeBreak {
+    fn from(_: &Record) -> Self {
+        Self
     }
 }
 

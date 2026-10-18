@@ -1,4 +1,5 @@
-use anyhow::Result;
+use anyhow::{Error, Result};
+use parser::Record;
 
 use crate::codegen::{Codegen, CodegenContext, CodegenResult};
 
@@ -9,16 +10,14 @@ pub struct NativePrint {
     newline: bool,
 }
 
-impl NativePrint {
-    pub(crate) const TAG: &'static str = "\u{1e}NATIVE_PRINT\t";
+impl TryFrom<&Record> for NativePrint {
+    type Error = Error;
 
-    pub(crate) fn parse(line: &str) -> Option<Self> {
-        let payload = line.strip_prefix(Self::TAG)?.trim_end_matches('\n');
-        let mut parts = payload.split('\t');
-        Some(Self {
-            variable: parts.next().unwrap_or_default().to_owned(),
-            return_type: parts.next().unwrap_or_default().to_owned(),
-            newline: parts.next().unwrap_or_default() == "1",
+    fn try_from(record: &Record) -> Result<Self> {
+        Ok(Self {
+            variable: record.get(0).to_owned(),
+            return_type: record.get(1).to_owned(),
+            newline: record.get(2) == "1",
         })
     }
 }

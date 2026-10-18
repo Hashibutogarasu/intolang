@@ -285,7 +285,7 @@ fn run_tests(package_dir: &Path, embedded_packages: &Path) -> Result<()> {
     let mut failed = 0;
     for file in test_files {
         let source = std::fs::read_to_string(&file)?;
-        let result = backend::run_tests(&source, &file, embedded_packages)
+        let result = testing::run_tests(&source, &file, embedded_packages)
             .with_context(|| format!("Failed running tests in {}", file.display()))?;
         passed += result.passed;
         failed += result.failed;

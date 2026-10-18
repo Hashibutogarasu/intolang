@@ -1,4 +1,6 @@
-use anyhow::Result;
+use anyhow::{Error, Result};
+use native::Operand;
+use parser::Record;
 
 use crate::llvm;
 use llvm::LLVMTypeKind;
@@ -11,22 +13,20 @@ pub struct NativeArith {
     assigned: String,
     left: String,
     operation: String,
-    operand: String,
+    operand: Operand,
     return_type: String,
 }
 
-impl NativeArith {
-    pub(crate) const TAG: &'static str = "\u{1e}NATIVE_ARITH\t";
+impl TryFrom<&Record> for NativeArith {
+    type Error = Error;
 
-    pub(crate) fn parse(line: &str) -> Option<Self> {
-        let payload = line.strip_prefix(Self::TAG)?.trim_end_matches('\n');
-        let mut parts = payload.split('\t');
-        Some(Self {
-            assigned: parts.next().unwrap_or_default().to_owned(),
-            left: parts.next().unwrap_or_default().to_owned(),
-            operation: parts.next().unwrap_or_default().to_owned(),
-            operand: parts.next().unwrap_or_default().to_owned(),
-            return_type: parts.next().unwrap_or_default().to_owned(),
+    fn try_from(record: &Record) -> Result<Self> {
+        Ok(Self {
+            assigned: record.get(0).to_owned(),
+            left: record.get(1).to_owned(),
+            operation: record.get(2).to_owned(),
+            operand: record.get(3).parse()?,
+            return_type: record.get(4).to_owned(),
         })
     }
 }
@@ -36,14 +36,10 @@ impl Codegen for NativeArith {
         unsafe {
             let ty = ctx.into_type(&self.return_type);
             let left = ctx.load_slot(&self.left)?;
-            let (kind, value) = self
-                .operand
-                .split_once(':')
-                .unwrap_or(("", self.operand.as_str()));
-            let right = if kind == "p" {
-                ctx.load_slot(value)?
-            } else {
-                ctx.const_for_type(ty, value)?
+            let right = match &self.operand {
+                Operand::Slot(name) => ctx.load_slot(name)?,
+                Operand::Number(value) => ctx.const_for_type(ty, value)?,
+                Operand::Str(_) => anyhow::bail!("Arithmetic cannot use a string operand"),
             };
             let is_float = matches!(
                 LLVMGetTypeKind(ty),

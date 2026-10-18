@@ -1,4 +1,5 @@
-use anyhow::Result;
+use anyhow::{Error, Result};
+use parser::Record;
 
 use crate::llvm;
 use llvm::core::*;
@@ -10,13 +11,12 @@ pub struct NativeIfConst {
     flag: bool,
 }
 
-impl NativeIfConst {
-    pub(crate) const TAG: &'static str = "\u{1e}NATIVE_IF_CONST\t";
+impl TryFrom<&Record> for NativeIfConst {
+    type Error = Error;
 
-    pub(crate) fn parse(line: &str) -> Option<Self> {
-        let payload = line.strip_prefix(Self::TAG)?.trim();
-        Some(Self {
-            flag: payload == "1",
+    fn try_from(record: &Record) -> Result<Self> {
+        Ok(Self {
+            flag: record.get(0).trim() == "1",
         })
     }
 }

@@ -11,6 +11,8 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 compiler = { path = "apps/compiler" }
 backend = { path = "packages/backend" }
+formatter = { version = "0.1.0", path = "packages/formatter" }
+testing = { version = "0.1.0", path = "packages/testing" }
 
 [workspace]
-members = ["apps/compiler", "packages/backend", "packages/lld", "packages/moduler"]
+members = ["apps/compiler", "packages/ast", "packages/backend", "packages/formatter", "packages/lld", "packages/moduler", "packages/native", "packages/parser", "packages/testing", "packages/tokenizer", "packages/types"]

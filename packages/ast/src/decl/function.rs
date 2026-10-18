@@ -1,0 +1,129 @@
+use anyhow::Result;
+use parser::{KeywordLexeme, LanguageLexeme};
+use types::{Keyword, Language, Punct};
+
+use super::attribute::Attribute;
+use super::param::Param;
+use crate::stmt::{Scope, parse_block};
+use crate::{Cursor, Stmt, TypeRef};
+
+/// `[pub] [static] [c|cpp] fun name<T>(params): Type { body }`, or the same
+/// header ending in `;` for a declaration implemented elsewhere.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FunctionDecl {
+    pub line: usize,
+    pub name: String,
+    pub is_public: bool,
+    pub is_static: bool,
+    pub language: Option<Language>,
+    pub attributes: Vec<Attribute>,
+    pub type_params: Vec<String>,
+    pub params: Vec<Param>,
+    pub return_type: Option<TypeRef>,
+    pub body: Option<Vec<Stmt>>,
+}
+
+impl FunctionDecl {
+    /// Whether a function declaration (with optional attributes) starts here.
+    pub(crate) fn ahead(cursor: &Cursor<'_>) -> bool {
+        let mut probe = cursor.clone();
+        if Attribute::parse_all(&mut probe).is_err() {
+            return false;
+        }
+        Self::header_ahead(&probe)
+    }
+
+    /// Whether modifiers followed by `fun` start at the cursor.
+    pub(crate) fn header_ahead(cursor: &Cursor<'_>) -> bool {
+        let mut offset = 0;
+        while let Some(word) = cursor.peek_word(offset) {
+            match word.parse::<KeywordLexeme>().ok().map(Keyword::from) {
+                Some(Keyword::Fun) => return true,
+                Some(Keyword::Pub | Keyword::Static) => {}
+                _ if word.parse::<LanguageLexeme>().is_ok() => {}
+                _ => return false,
+            }
+            offset += 1;
+        }
+        false
+    }
+}
+
+impl TryFrom<&mut Cursor<'_>> for FunctionDecl {
+    type Error = anyhow::Error;
+
+    fn try_from(cursor: &mut Cursor<'_>) -> Result<Self> {
+        let attributes = Attribute::parse_all(cursor)?;
+        let line = cursor.line();
+        let (mut is_public, mut is_static, mut language) = (false, false, None);
+        loop {
+            if cursor.eat_keyword(Keyword::Pub) {
+                is_public = true;
+            } else if cursor.eat_keyword(Keyword::Static) {
+                is_static = true;
+            } else if let Some(parsed) = cursor
+                .peek_word(0)
+                .and_then(|word| word.parse::<LanguageLexeme>().ok())
+            {
+                language = Some(Language::from(parsed));
+                cursor.bump();
+            } else {
+                break;
+            }
+        }
+        if !cursor.eat_keyword(Keyword::Fun) {
+            return Err(cursor.error("Expected `fun`"));
+        }
+        let (name, _) = cursor.expect_ident("a function name")?;
+        let mut type_params = Vec::new();
+        if cursor.peek_symbol(0) == Some('<') {
+            cursor.bump();
+            loop {
+                let (param, _) = cursor.expect_ident("a type parameter name")?;
+                type_params.push(param);
+                if !cursor.eat_punct(Punct::Comma) {
+                    break;
+                }
+            }
+            if cursor.peek_symbol(0) != Some('>') {
+                return Err(cursor.error("Expected `>` after the type parameters"));
+            }
+            cursor.bump();
+        }
+        cursor.expect_punct(Punct::LeftParen, "`(` after the function name")?;
+        let mut params = Vec::new();
+        if !cursor.eat_punct(Punct::RightParen) {
+            loop {
+                params.push(Param::try_from(&mut *cursor)?);
+                if cursor.eat_punct(Punct::Comma) {
+                    continue;
+                }
+                cursor.expect_punct(Punct::RightParen, "`)` to close the parameters")?;
+                break;
+            }
+        }
+        let return_type = if cursor.eat_punct(Punct::Colon) {
+            Some(TypeRef::try_from(&mut *cursor)?)
+        } else {
+            None
+        };
+        let body = if cursor.is_punct(Punct::LeftBrace) {
+            Some(parse_block(cursor, Scope::Function)?)
+        } else {
+            cursor.end_statement()?;
+            None
+        };
+        Ok(Self {
+            line,
+            name,
+            is_public,
+            is_static,
+            language,
+            attributes,
+            type_params,
+            params,
+            return_type,
+            body,
+        })
+    }
+}

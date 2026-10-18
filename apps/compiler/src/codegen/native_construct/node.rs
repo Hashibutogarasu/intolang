@@ -1,4 +1,5 @@
-use anyhow::{Result, anyhow};
+use anyhow::{Error, Result, anyhow};
+use parser::Record;
 use std::ffi::CString;
 
 use crate::llvm;
@@ -13,15 +14,13 @@ pub struct NativeConstruct {
     class: String,
 }
 
-impl NativeConstruct {
-    pub(crate) const TAG: &'static str = "\u{1e}NATIVE_CONSTRUCT\t";
+impl TryFrom<&Record> for NativeConstruct {
+    type Error = Error;
 
-    pub(crate) fn parse(line: &str) -> Option<Self> {
-        let payload = line.strip_prefix(Self::TAG)?.trim_end_matches('\n');
-        let mut parts = payload.split('\t');
-        Some(Self {
-            assigned_to: parts.next().unwrap_or_default().to_owned(),
-            class: parts.next().unwrap_or_default().to_owned(),
+    fn try_from(record: &Record) -> Result<Self> {
+        Ok(Self {
+            assigned_to: record.get(0).to_owned(),
+            class: record.get(1).to_owned(),
         })
     }
 }
