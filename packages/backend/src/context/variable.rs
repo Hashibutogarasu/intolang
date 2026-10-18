@@ -7,6 +7,7 @@ pub enum Ownership {
     Live,
     Moved,
     Destroyed,
+    Detached,
 }
 
 /// How a binding relates to the instance it holds.

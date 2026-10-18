@@ -1,9 +1,10 @@
-use ast::{Expr, Path, Stmt, StmtKind};
+use ast::{Expr, Param, Path, Stmt, StmtKind};
 use std::collections::HashSet;
 use types::{Literal, MessageTag, Storage, Type};
 
+use super::ownership::{BORROW, COPY, DESTROY, MOVE};
 use super::type_name::{base_type_name, parse_type};
-use crate::context::{Lowerer, UserFunction, Variable};
+use crate::context::{InlineFrame, Lowerer, Tracking, UserFunction, Variable};
 use crate::emit;
 
 /// How deep inlined calls may nest before the call is rejected as recursive.
@@ -56,17 +57,125 @@ impl<'a> Lowerer<'a> {
             }
             (None, None) => {}
         }
+        let scope_base = self.state.scopes.len();
+        self.state.scopes.push(Vec::new());
+        self.state.frames.push(InlineFrame {
+            scope_base,
+            returns_reference: function.returns_reference(),
+        });
+        let mut views = Vec::new();
+        let mut returned = None;
+        let lowered = self.inline_body(
+            function,
+            arguments,
+            substitutions,
+            depth,
+            &mut views,
+            &mut returned,
+        );
+        self.state.frames.pop();
+        for (name, tracking) in views {
+            if let Some(variable) = self.state.values.get_mut(&name) {
+                variable.tracking = tracking;
+            }
+        }
+        let names = self.state.scopes.pop().unwrap_or_default();
+        lowered?;
+        let keep = returned.as_ref().map(|(name, _)| name.clone());
+        self.release_scope(&names, keep.as_deref())?;
+        Ok(returned)
+    }
+
+    /// Lower the body of `function` with its arguments substituted. A binding
+    /// passed to a reference parameter is a reference until the call ends; its
+    /// earlier tracking is pushed to `views` to be restored then.
+    fn inline_body(
+        &mut self,
+        function: &UserFunction,
+        arguments: Vec<Expr>,
+        mut substitutions: Vec<(String, Expr)>,
+        depth: usize,
+        views: &mut Vec<(String, Tracking)>,
+        returned: &mut Returned,
+    ) -> Result<(), String> {
         for (param, argument) in function.params.iter().zip(arguments) {
+            let argument = self.prepare_argument(param, argument, views)?;
             substitutions.push((param.name.clone(), argument));
         }
-        let mut returned = None;
-        let body: Vec<Stmt> = function
+        function
             .body
             .iter()
             .map(|stmt| stmt.substitute(&substitutions))
-            .collect();
-        self.inline_block(&body, depth, &mut returned)?;
-        Ok(returned)
+            .try_for_each(|stmt| self.lower_inline_statement(&stmt, depth, returned))
+    }
+
+    /// Turn `x.copy()`, `x.move()` and `x.borrow()` arguments into bindings of
+    /// the call, and apply the reference rules to a binding argument.
+    fn prepare_argument(
+        &mut self,
+        param: &Param,
+        argument: Expr,
+        views: &mut Vec<(String, Tracking)>,
+    ) -> Result<Expr, String> {
+        let argument = self.materialize_argument(argument)?;
+        let reference_param = param
+            .ty
+            .as_ref()
+            .is_some_and(|ty| ty.as_str().ends_with('&'));
+        let value_param = param.ty.is_some() && !reference_param;
+        let Some(name) = argument.as_ident().map(str::to_owned) else {
+            return Ok(argument);
+        };
+        let Some(variable) = self.state.values.get(&name) else {
+            return Ok(argument);
+        };
+        if !variable.native
+            || !self.is_ownership_method(base_type_name(&variable.ty.name()), DESTROY)
+        {
+            return Ok(argument);
+        }
+        self.ensure_usable(&name)?;
+        let variable = &self.state.values[&name];
+        if value_param && variable.ty.is_reference() {
+            return Err(format!(
+                "`{name}` is a reference; pass `{name}.copy()` where `{}` expects an owned value",
+                param.name
+            ));
+        }
+        if reference_param && !variable.tracking.reference {
+            views.push((name.clone(), variable.tracking.clone()));
+            if let Some(variable) = self.state.values.get_mut(&name) {
+                variable.tracking.reference = true;
+            }
+        }
+        Ok(argument)
+    }
+
+    /// Lower an ownership call used as an argument into a temporary binding
+    /// that the call's scope owns.
+    fn materialize_argument(&mut self, argument: Expr) -> Result<Expr, String> {
+        let Expr::Call { callee, args } = &argument else {
+            return Ok(argument);
+        };
+        let [receiver, method] = callee.segments() else {
+            return Ok(argument);
+        };
+        if !args.is_empty() || !matches!(method.as_str(), COPY | MOVE | BORROW) {
+            return Ok(argument);
+        }
+        let Some(source) = self.state.values.get(receiver) else {
+            return Ok(argument);
+        };
+        let receiver_type = source.ty.clone();
+        let temporary = format!("__arg{}", self.state.temp_counter);
+        self.state.temp_counter += 1;
+        let ty = self.lower_ownership_value(receiver, &receiver_type, method, &temporary)?;
+        let tracking = self.state.pending_tracking.take().unwrap_or_default();
+        let mut binding = Variable::temporary(ty);
+        binding.tracking = tracking;
+        self.state.values.insert(temporary.clone(), binding);
+        self.declare_in_scope(&temporary);
+        Ok(Expr::ident(temporary))
     }
 
     /// Lower the statements of an inlined body as one scope. What the scope
@@ -102,7 +211,16 @@ impl<'a> Lowerer<'a> {
                     .values
                     .get(&name)
                     .ok_or_else(|| format!("Unsupported return value `{name}`"))?;
-                *returned = Some((name, variable.ty.clone()));
+                let ty = variable.ty.clone();
+                if let Some(frame) = self.state.frames.last()
+                    && frame.returns_reference
+                    && self.state.scopes[frame.scope_base..]
+                        .iter()
+                        .any(|names| names.contains(&name))
+                {
+                    return Err(format!("returns a reference to a local (`{name}`)"));
+                }
+                *returned = Some((name, ty));
                 Ok(())
             }
             StmtKind::Declaration(declaration) => self.inline_declaration(declaration),
@@ -144,7 +262,8 @@ impl<'a> Lowerer<'a> {
         self.state.pending_tracking = None;
         let (text, ty, native) =
             self.declaration_value(value, annotation, &none, &declaration.name)?;
-        let tracking = self.state.pending_tracking.take().unwrap_or_default();
+        let mut tracking = self.state.pending_tracking.take().unwrap_or_default();
+        tracking.reference |= ty.is_reference();
         self.state.values.insert(
             declaration.name.clone(),
             Variable {
@@ -246,6 +365,9 @@ impl<'a> Lowerer<'a> {
             let class = base_type_name(&receiver_type.name()).to_owned();
             let method = callee.last();
             self.check_receiver_call(&receiver, method)?;
+            if self.give_back_reference(&receiver, method) {
+                return Ok(());
+            }
             let key = self.method_key(&class, method);
             if let Some(inner) = env.user_functions.get(&key) {
                 self.inline_user_function(inner, Some(receiver.clone()), args, depth + 1)?;

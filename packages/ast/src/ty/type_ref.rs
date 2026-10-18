@@ -59,6 +59,10 @@ impl TryFrom<&mut Cursor<'_>> for TypeRef {
             cursor.bump();
             text.push('*');
         }
+        if cursor.peek_symbol(0) == Some('&') {
+            cursor.bump();
+            text.push('&');
+        }
         Ok(Self(text))
     }
 }

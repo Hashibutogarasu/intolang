@@ -15,6 +15,14 @@ impl TypeLexeme {
         if text.is_empty() {
             bail!("Expected a type name");
         }
+        if let Some(inner) = text.strip_suffix('&') {
+            let inner = inner.trim();
+            if inner.is_empty() {
+                bail!("Reference type `&` needs a referent type");
+            }
+            let inner = Self::with_generics(inner, params)?;
+            return Ok(Self(Type::Reference(Box::new(inner.0))));
+        }
         if let Some(inner) = text.strip_suffix('*') {
             let inner = inner.trim();
             if inner.is_empty() {

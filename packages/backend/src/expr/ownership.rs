@@ -21,6 +21,7 @@ impl Lowerer<'_> {
             Ownership::Live => Ok(()),
             Ownership::Moved => Err(format!("`{name}` was moved")),
             Ownership::Destroyed => Err(format!("`{name}` was destroyed")),
+            Ownership::Detached => Err(format!("`{name}` was detached")),
         }
     }
 
@@ -43,13 +44,71 @@ impl Lowerer<'_> {
                 .is_ok_and(|chain| chain.iter().any(|ancestor| ancestor.name == OBJECT))
     }
 
+    /// The tracking of a reference to the instance `owner` holds; the owner,
+    /// when it is a binding, counts the borrow.
+    pub fn borrow_of(&mut self, owner: &str) -> Tracking {
+        let mut tracking = Tracking {
+            reference: true,
+            ..Tracking::default()
+        };
+        if let Some(variable) = self.state.values.get_mut(owner) {
+            variable.tracking.borrowed_by += 1;
+            tracking.borrows = Some(owner.to_owned());
+        }
+        tracking
+    }
+
+    /// Whether `name` refers to an instance another binding owns.
+    pub fn is_reference_binding(&self, name: &str) -> bool {
+        self.state
+            .values
+            .get(name)
+            .is_some_and(|variable| variable.tracking.reference)
+    }
+
+    /// What calling `method` on `receiver` makes of the binding when the call
+    /// takes the ownership of its instance.
+    fn consumed_state(&self, receiver: &str, method: &str) -> Option<Ownership> {
+        if method == MOVE {
+            return Some(Ownership::Moved);
+        }
+        let variable = self.state.values.get(receiver)?;
+        let class = base_type_name(&variable.ty.name()).to_owned();
+        self.env
+            .consuming
+            .get(&self.method_key(&class, method))
+            .copied()
+    }
+
+    fn consumes(&self, receiver: &str, method: &str) -> bool {
+        self.consumed_state(receiver, method).is_some()
+    }
+
     /// Check a method call on the binding `receiver` before it is lowered.
     pub fn check_receiver_call(&self, receiver: &str, method: &str) -> Result<(), String> {
         self.ensure_usable(receiver)?;
-        if matches!(method, MOVE | DESTROY) {
+        if self.is_reference_binding(receiver) {
+            if self.consumes(receiver, method) {
+                return Err(format!(
+                    "`{receiver}` does not own its instance (`{method}` requires ownership)"
+                ));
+            }
+            return Ok(());
+        }
+        if method == DESTROY || self.consumes(receiver, method) {
             self.ensure_not_borrowed(receiver)?;
         }
         Ok(())
+    }
+
+    /// `destroy()` on a reference only gives the reference back and leaves the
+    /// instance to its owner. Returns whether the call was handled that way.
+    pub fn give_back_reference(&mut self, receiver: &str, method: &str) -> bool {
+        if method != DESTROY || !self.is_reference_binding(receiver) {
+            return false;
+        }
+        self.apply_receiver_call(receiver, method);
+        true
     }
 
     /// Record what a lowered method call did to the binding `receiver`.
@@ -60,7 +119,11 @@ impl Lowerer<'_> {
                 self.set_state(receiver, Ownership::Destroyed);
                 self.release_borrow(receiver);
             }
-            _ => {}
+            _ => {
+                if let Some(state) = self.consumed_state(receiver, method) {
+                    self.set_state(receiver, state);
+                }
+            }
         }
     }
 
@@ -104,6 +167,7 @@ impl Lowerer<'_> {
     ) -> Result<Type, String> {
         self.check_receiver_call(receiver, method)?;
         let class = base_type_name(&receiver_type.name()).to_owned();
+        let referent = receiver_type.referent().clone();
         let mut tracking = Tracking::default();
         match method {
             COPY => {
@@ -124,6 +188,10 @@ impl Lowerer<'_> {
             other => return Err(format!("`{other}` does not produce a value")),
         }
         self.state.pending_tracking = Some(tracking);
-        Ok(receiver_type.clone())
+        Ok(if method == BORROW {
+            Type::Reference(Box::new(referent))
+        } else {
+            referent
+        })
     }
 }

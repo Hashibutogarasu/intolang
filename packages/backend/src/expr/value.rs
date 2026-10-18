@@ -5,9 +5,9 @@ use std::collections::HashSet;
 use types::{Literal, MessageTag, Type};
 
 use super::annotation::resolve_annotation;
-use super::ownership::DESTROY;
+use super::ownership::{BORROW, DESTROY};
 use super::type_name::{base_type_name, parse_type};
-use crate::context::{Lowerer, Tracking};
+use crate::context::{Lowerer, Tracking, UserFunction};
 use crate::emit;
 
 /// The value a declaration binds: the text kept for it, its type, and whether
@@ -45,6 +45,17 @@ impl<'a> Lowerer<'a> {
                 }
                 if let Some(name) = path.as_ident() {
                     self.ensure_usable(name)?;
+                    if matches!(annotation, Some(Type::Reference(_)))
+                        && let Some(source) = self.state.values.get(name)
+                        && source.native
+                        && self.is_ownership_method(base_type_name(&source.ty.name()), DESTROY)
+                    {
+                        let source_type = source.ty.clone();
+                        let ty =
+                            self.lower_ownership_value(name, &source_type, BORROW, assigned_to)?;
+                        let ty = resolve_annotation(ty, annotation)?;
+                        return Ok((ty.name(), ty, true));
+                    }
                 }
                 if let Some(source) = path.as_ident().and_then(|name| self.state.values.get(name)) {
                     let ty = resolve_annotation(source.ty.clone(), annotation)?;
@@ -158,6 +169,12 @@ impl<'a> Lowerer<'a> {
             emit::construct(&mut self.state.output, assigned_to, class);
             return Ok(Some((ty.name(), ty, true)));
         }
+        if let Some(inner) = env.user_functions.get(function) {
+            let returned = self.inline_user_function(inner, None, args, 0)?;
+            return self
+                .inlined_value(returned, function, annotation, assigned_to)
+                .map(Some);
+        }
         if env.imported_functions.contains(function) {
             let link = env.native_links.get(function).ok_or_else(|| {
                 format!("Imported function `{function}` has no #[link] attribute")
@@ -181,7 +198,18 @@ impl<'a> Lowerer<'a> {
         annotation: Option<Type>,
         assigned_to: &str,
     ) -> Result<Bound, String> {
-        let inferred = returned.as_ref().map(|(_, ty)| ty.clone());
+        let reference = self
+            .env
+            .user_functions
+            .get(key)
+            .is_some_and(UserFunction::returns_reference);
+        let inferred = returned.as_ref().map(|(_, ty)| {
+            if reference {
+                Type::Reference(Box::new(ty.referent().clone()))
+            } else {
+                ty.clone()
+            }
+        });
         let ty = match inferred {
             Some(inferred) => resolve_annotation(inferred, annotation)?,
             None => {
@@ -190,6 +218,9 @@ impl<'a> Lowerer<'a> {
         };
         if let Some((value, _)) = returned {
             emit::assign(&mut self.state.output, assigned_to, &ty, "p", &value);
+            if reference {
+                self.state.pending_tracking = Some(self.borrow_of(&value));
+            }
         }
         Ok((ty.name(), ty, true))
     }

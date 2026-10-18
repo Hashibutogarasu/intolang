@@ -71,6 +71,9 @@ impl Lowerer<'_> {
         let method = callee.last();
         self.check_receiver_call(&receiver, method)
             .map_err(|message| fail(self, message))?;
+        if self.give_back_reference(&receiver, method) {
+            return Ok(());
+        }
         let key = self.method_key(&class, method);
         if let Some(inner) = env.user_functions.get(&key) {
             self.inline_user_function(inner, Some(receiver.clone()), args, 0)

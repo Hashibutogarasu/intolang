@@ -1,6 +1,10 @@
 use ast::{FunctionDecl, Program};
+use std::collections::HashMap;
 
-use crate::context::UserFunction;
+use crate::context::{Ownership, UserFunction};
+
+const CONSUMES: &str = "consumes";
+const DETACHED: &str = "detached";
 
 /// Collect the Into-bodied, non-generic functions of `program`.
 ///
@@ -32,6 +36,26 @@ fn user_function(function: &FunctionDecl, class: Option<&str>) -> Option<UserFun
         receiver: class.map(str::to_owned),
         is_static: function.is_static,
         params: function.params.clone(),
+        return_type: function.return_type.as_ref().map(ToString::to_string),
         body,
     })
+}
+
+pub fn collect_consuming(program: &Program) -> HashMap<String, Ownership> {
+    program
+        .classes()
+        .flat_map(|class| {
+            class.methods.iter().filter_map(|method| {
+                let attribute = method
+                    .attributes
+                    .iter()
+                    .find(|attribute| attribute.name == CONSUMES)?;
+                let state = match attribute.string_args().as_deref() {
+                    Some([DETACHED]) => Ownership::Detached,
+                    _ => Ownership::Moved,
+                };
+                Some((format!("{}.{}", class.name, method.name), state))
+            })
+        })
+        .collect()
 }

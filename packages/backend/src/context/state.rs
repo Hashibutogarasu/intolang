@@ -2,6 +2,14 @@ use std::collections::HashMap;
 
 use super::variable::{Tracking, Variable};
 
+/// An inlined function call being lowered.
+#[derive(Debug, Clone, Copy)]
+pub struct InlineFrame {
+    /// The index in `State::scopes` of the scope the call opened.
+    pub scope_base: usize,
+    pub returns_reference: bool,
+}
+
 /// What lowering changes as it walks statements.
 #[derive(Default)]
 pub struct State {
@@ -18,6 +26,8 @@ pub struct State {
     pub scopes: Vec<Vec<String>>,
     /// The index in `scopes` of the body scope of each open loop.
     pub loop_scopes: Vec<usize>,
+    /// The inlined function calls being lowered, innermost last.
+    pub frames: Vec<InlineFrame>,
 }
 
 impl State {

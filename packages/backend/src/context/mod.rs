@@ -10,5 +10,6 @@ pub use class_def::{ClassFields, EnumValues, FieldDef};
 pub use class_info::{ClassInfo, Classes, MemberInfo, OBJECT};
 pub use env::Env;
 pub use lowerer::Lowerer;
+pub use state::InlineFrame;
 pub use user_function::UserFunction;
 pub use variable::{Ownership, Tracking, Variable};

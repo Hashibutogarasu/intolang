@@ -9,7 +9,12 @@ pub fn parse_type(text: &str, params: &HashSet<String>) -> Result<Type> {
 }
 
 /// The class name underlying a (possibly generic) type spelling, e.g.
-/// `List<Int32>` becomes `List`. Non-generic names are returned unchanged.
+/// `List<Int32>` becomes `List`, and a reference `Process&` becomes `Process`.
+/// Non-generic names are returned unchanged.
 pub fn base_type_name(name: &str) -> &str {
-    name.split('<').next().unwrap_or(name).trim()
+    name.split('<')
+        .next()
+        .unwrap_or(name)
+        .trim()
+        .trim_end_matches('&')
 }

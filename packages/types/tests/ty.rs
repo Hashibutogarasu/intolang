@@ -30,6 +30,20 @@ fn pointers_and_lists_convert_to_the_opaque_pointer() {
 }
 
 #[test]
+fn references_accept_values_but_never_become_values() {
+    let process = Type::Named("Process".into());
+    let reference = Type::Reference(Box::new(process.clone()));
+    assert!(process.is_assignable_to(&reference));
+    assert!(reference.is_assignable_to(&reference));
+    assert!(!reference.is_assignable_to(&process));
+    assert!(!reference.is_assignable_to(&Type::Pointer));
+    assert!(Type::Int32.is_assignable_to(&Type::Reference(Box::new(Type::Int64))));
+    assert_eq!(reference.to_string(), "Process&");
+    assert_eq!(reference.referent(), &process);
+    assert_eq!(process.referent(), &process);
+}
+
+#[test]
 fn substitutes_generics() {
     let bindings = HashMap::from([("T".to_owned(), Type::Int64)]);
     let ty = Type::Generic("T".into());

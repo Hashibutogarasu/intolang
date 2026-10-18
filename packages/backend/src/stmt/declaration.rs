@@ -47,7 +47,8 @@ impl Lowerer<'_> {
         let (value, ty, native) = self
             .declaration_value(rhs, annotation, &env.type_params, &declaration.name)
             .map_err(|message| self.diagnostic(line, &message))?;
-        let tracking = self.state.pending_tracking.take().unwrap_or_default();
+        let mut tracking = self.state.pending_tracking.take().unwrap_or_default();
+        tracking.reference |= ty.is_reference();
         self.state.values.insert(
             declaration.name.clone(),
             Variable {

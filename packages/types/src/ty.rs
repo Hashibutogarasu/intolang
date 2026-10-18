@@ -19,6 +19,8 @@ pub enum Type {
     PointerTo(Box<Type>),
     /// A growable list of another type, written `List<T>`.
     List(Box<Type>),
+    /// A reference that owns nothing, written `T&`.
+    Reference(Box<Type>),
     /// A generic type parameter such as `T`.
     Generic(String),
     /// A user-defined or otherwise named type, e.g. `JsonObject` or `Vec<T>`.
@@ -42,6 +44,19 @@ impl Type {
         matches!(self, Type::Void)
     }
 
+    /// Whether this type is a reference (`T&`) rather than an owning value.
+    pub fn is_reference(&self) -> bool {
+        matches!(self, Type::Reference(_))
+    }
+
+    /// The type a reference refers to, or the type itself for a value.
+    pub fn referent(&self) -> &Type {
+        match self {
+            Type::Reference(inner) => inner,
+            other => other,
+        }
+    }
+
     /// Whether this type denotes a pointer (opaque or typed).
     pub fn is_pointer(&self) -> bool {
         matches!(self, Type::Pointer | Type::PointerTo(_))
@@ -57,6 +72,9 @@ impl Type {
             return true;
         }
         match (self, target) {
+            (Type::Reference(inner), Type::Reference(target)) => inner.is_assignable_to(target),
+            (value, Type::Reference(target)) => value.is_assignable_to(target),
+            (Type::Reference(_), _) => false,
             (Type::Int8 | Type::Int16 | Type::Int32 | Type::Int64, target)
                 if target.is_integer() || target.is_float() =>
             {
@@ -114,6 +132,7 @@ impl fmt::Display for Type {
             Type::Pointer => f.write_str("Pointer"),
             Type::PointerTo(inner) => write!(f, "{inner}*"),
             Type::List(inner) => write!(f, "List<{inner}>"),
+            Type::Reference(inner) => write!(f, "{inner}&"),
             Type::Generic(name) | Type::Named(name) => f.write_str(name),
         }
     }

@@ -5,6 +5,7 @@ use std::collections::{HashMap, HashSet};
 use super::class_def::{ClassFields, EnumValues};
 use super::class_info::Classes;
 use super::user_function::UserFunction;
+use super::variable::Ownership;
 
 /// Everything lowering reads but never changes: the declarations collected
 /// from the entry file and the modules it imports.
@@ -17,6 +18,7 @@ pub struct Env {
     pub class_fields: ClassFields,
     pub classes: Classes,
     pub user_functions: HashMap<String, UserFunction>,
+    pub consuming: HashMap<String, Ownership>,
     pub type_params: HashSet<String>,
     pub imported_functions: HashSet<String>,
 }

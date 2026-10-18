@@ -10,6 +10,9 @@ impl CodegenContext {
     /// Resolve an Into type name to its LLVM representation.
     pub(crate) unsafe fn into_type(&self, name: &str) -> *mut LLVMType {
         unsafe {
+            if let Some(referent) = name.strip_suffix('&') {
+                return self.into_type(referent);
+            }
             if name.ends_with('*') || name.starts_with("List<") {
                 return LLVMPointerType(LLVMInt8TypeInContext(self.context), 0);
             }

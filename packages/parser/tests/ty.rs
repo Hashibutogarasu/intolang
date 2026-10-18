@@ -25,6 +25,22 @@ fn parses_pointer_types() {
 }
 
 #[test]
+fn parses_reference_types() {
+    let process = Type::Named("Process".into());
+    assert_eq!(
+        parse("Process&"),
+        Type::Reference(Box::new(process.clone()))
+    );
+    assert_eq!(parse("Process&").name(), "Process&");
+    assert_eq!(
+        parse("Int32*&"),
+        Type::Reference(Box::new(Type::PointerTo(Box::new(Type::Int32))))
+    );
+    assert!(parse("Process&").is_reference());
+    assert_eq!(parse("Process&").referent(), &process);
+}
+
+#[test]
 fn parses_primitives_and_aliases() {
     assert_eq!(parse("String"), Type::String);
     assert_eq!(parse("str"), Type::String);
@@ -55,5 +71,6 @@ fn normalizes_named_generic_spelling() {
 fn rejects_empty_types() {
     assert!("".parse::<TypeLexeme>().is_err());
     assert!("*".parse::<TypeLexeme>().is_err());
+    assert!("&".parse::<TypeLexeme>().is_err());
     assert!("List<>".parse::<TypeLexeme>().is_err());
 }

@@ -5,6 +5,7 @@ use types::Literal;
 use crate::context::Lowerer;
 use crate::diagnostic::diagnostic;
 use crate::emit;
+use crate::expr::base_type_name;
 
 impl Lowerer<'_> {
     /// Lower `print(value)` / `println(value)`: a static field constant, an
@@ -38,10 +39,11 @@ impl Lowerer<'_> {
                 self.ensure_usable(path.first())
                     .map_err(|message| self.diagnostic(line, &message))?;
                 let member = path.segments()[1..].join(".");
-                let fields = env.class_fields.get(&variable.value).ok_or_else(|| {
+                let class = base_type_name(&variable.value).to_owned();
+                let fields = env.class_fields.get(&class).ok_or_else(|| {
                     self.diagnostic(
                         line,
-                        &format!("Type `{}` has no declared member fields", variable.value),
+                        &format!("Type `{class}` has no declared member fields"),
                     )
                 })?;
                 let (index, field) = fields
@@ -58,7 +60,7 @@ impl Lowerer<'_> {
                 emit::field_print(
                     &mut self.state.output,
                     path.first(),
-                    &variable.value,
+                    &class,
                     index,
                     &field.ty,
                     newline,
