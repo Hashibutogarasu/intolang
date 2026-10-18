@@ -22,7 +22,9 @@ impl Lowerer<'_> {
             .and_then(|name| self.state.values.get(name).map(|value| (name, value)))
             .filter(|(_, value)| value.native && value.ty.is_numeric());
         let Some((name, variable)) = variable else {
-            return Err(format!("{label} condition requires an integer or float value"));
+            return Err(format!(
+                "{label} condition requires an integer or float value"
+            ));
         };
         let condition = Comparison {
             left: name.to_owned(),

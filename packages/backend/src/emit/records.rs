@@ -92,16 +92,15 @@ pub fn comparison(output: &mut String, tag: MessageTag, comparison: &Comparison)
 }
 
 pub fn if_const(output: &mut String, value: bool) {
-    push(
-        output,
-        Record::new(MessageTag::IfConst).field(flag(value)),
-    );
+    push(output, Record::new(MessageTag::IfConst).field(flag(value)));
 }
 
 pub fn construct(output: &mut String, target: &str, class: &str) {
     push(
         output,
-        Record::new(MessageTag::Construct).field(target).field(class),
+        Record::new(MessageTag::Construct)
+            .field(target)
+            .field(class),
     );
 }
 

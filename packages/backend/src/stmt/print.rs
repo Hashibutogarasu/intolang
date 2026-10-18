@@ -20,58 +20,58 @@ impl Lowerer<'_> {
             return Err(self.diagnostic(line, &format!("Undefined variable `{}`", text.join(", "))));
         };
         if let Expr::Path(path) = argument {
-            if !self.state.values.contains_key(path.first()) {
-                if let Some(field) = self.static_field(path) {
-                    let Some(literal) = field.default_literal() else {
-                        return Err(self.diagnostic(
-                            line,
-                            &format!("Static field `{argument}` has no constant default"),
-                        ));
-                    };
-                    self.print_literal(literal, newline);
-                    return Ok(());
-                }
+            if !self.state.values.contains_key(path.first())
+                && let Some(field) = self.static_field(path)
+            {
+                let Some(literal) = field.default_literal() else {
+                    return Err(self.diagnostic(
+                        line,
+                        &format!("Static field `{argument}` has no constant default"),
+                    ));
+                };
+                self.print_literal(literal, newline);
+                return Ok(());
             }
-            if path.is_member() {
-                if let Some(variable) = self.state.values.get(path.first()).cloned() {
-                    let member = path.segments()[1..].join(".");
-                    let fields = env.class_fields.get(&variable.value).ok_or_else(|| {
+            if path.is_member()
+                && let Some(variable) = self.state.values.get(path.first()).cloned()
+            {
+                let member = path.segments()[1..].join(".");
+                let fields = env.class_fields.get(&variable.value).ok_or_else(|| {
+                    self.diagnostic(
+                        line,
+                        &format!("Type `{}` has no declared member fields", variable.value),
+                    )
+                })?;
+                let (index, field) = fields
+                    .iter()
+                    .filter(|field| !field.is_static)
+                    .enumerate()
+                    .find(|(_, field)| field.name == member)
+                    .ok_or_else(|| {
                         self.diagnostic(
                             line,
-                            &format!("Type `{}` has no declared member fields", variable.value),
+                            &format!("Undefined member `{member}` on `{}`", variable.value),
                         )
                     })?;
-                    let (index, field) = fields
-                        .iter()
-                        .filter(|field| !field.is_static)
-                        .enumerate()
-                        .find(|(_, field)| field.name == member)
-                        .ok_or_else(|| {
-                            self.diagnostic(
-                                line,
-                                &format!("Undefined member `{member}` on `{}`", variable.value),
-                            )
-                        })?;
-                    emit::field_print(
-                        &mut self.state.output,
-                        path.first(),
-                        &variable.value,
-                        index,
-                        &field.ty,
-                        newline,
-                    );
-                    return Ok(());
-                }
+                emit::field_print(
+                    &mut self.state.output,
+                    path.first(),
+                    &variable.value,
+                    index,
+                    &field.ty,
+                    newline,
+                );
+                return Ok(());
             }
         }
         if let Expr::Literal(Literal::String(text)) = argument {
             emit::text(&mut self.state.output, text, newline);
             return Ok(());
         }
-        if let Some(name) = argument.as_ident() {
-            if let Some(variable) = self.state.values.get(name).cloned() {
-                return self.print_variable(line, name, &variable, newline);
-            }
+        if let Some(name) = argument.as_ident()
+            && let Some(variable) = self.state.values.get(name).cloned()
+        {
+            return self.print_variable(line, name, &variable, newline);
         }
         if let Expr::Literal(literal) = argument {
             self.print_literal(literal, newline);
@@ -101,18 +101,17 @@ impl Lowerer<'_> {
                 &format!("Variable `{name}` is out of scope here"),
             ));
         }
-        let allocated = (variable.memory_backed
-            && !variable.allocated
-            && variable.lazy
-            && !variable.unloaded)
-            || variable.allocated;
+        let allocated =
+            (variable.memory_backed && !variable.allocated && variable.lazy && !variable.unloaded)
+                || variable.allocated;
         if variable.memory_backed && !allocated {
             return Err(self.diagnostic(line, &format!("Variable `{name}` was unloaded")));
         }
-        if allocated && !variable.allocated {
-            if let Some(stored) = self.state.values.get_mut(name) {
-                stored.allocated = true;
-            }
+        if allocated
+            && !variable.allocated
+            && let Some(stored) = self.state.values.get_mut(name)
+        {
+            stored.allocated = true;
         }
         if variable.native {
             emit::print(&mut self.state.output, name, &variable.ty, newline);

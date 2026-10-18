@@ -45,7 +45,9 @@ impl<'a> Lowerer<'a> {
         let mut substitutions: Vec<(String, Expr)> = Vec::new();
         match (function.receiver.as_ref(), receiver) {
             _ if function.is_static => {}
-            (Some(_), Some(receiver)) => substitutions.push(("this".to_owned(), Expr::ident(receiver))),
+            (Some(_), Some(receiver)) => {
+                substitutions.push(("this".to_owned(), Expr::ident(receiver)))
+            }
             (Some(_), None) => {
                 return Err(format!("Method `{}` requires a receiver", function.name));
             }
@@ -119,7 +121,8 @@ impl<'a> Lowerer<'a> {
             (true, None) => Some(Type::Pointer),
             (_, annotation) => annotation,
         };
-        let (text, ty, native) = self.declaration_value(value, annotation, &none, &declaration.name)?;
+        let (text, ty, native) =
+            self.declaration_value(value, annotation, &none, &declaration.name)?;
         self.state.values.insert(
             declaration.name.clone(),
             Variable {
@@ -212,16 +215,14 @@ impl<'a> Lowerer<'a> {
                     .native_links
                     .get(&key)
                     .ok_or_else(|| format!("Undefined static method `{key}`"))?;
-                return self.emit_link_call(
-                    MessageTag::LinkAssign,
-                    link,
-                    args.to_vec(),
-                    "",
-                    false,
-                );
+                return self.emit_link_call(MessageTag::LinkAssign, link, args.to_vec(), "", false);
             }
             let (receiver, receiver_type) = self.resolve_receiver(callee)?;
-            let key = format!("{}.{}", base_type_name(&receiver_type.name()), callee.last());
+            let key = format!(
+                "{}.{}",
+                base_type_name(&receiver_type.name()),
+                callee.last()
+            );
             if let Some(inner) = env.user_functions.get(&key) {
                 return self
                     .inline_user_function(inner, Some(receiver), args, depth + 1)

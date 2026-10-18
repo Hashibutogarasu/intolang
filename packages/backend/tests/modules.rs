@@ -6,8 +6,7 @@ fn greet(module: &str) -> Package {
         .file("src/main/hello.into", module)
 }
 
-const LINKED_MODULE: &str =
-    "#[link(\"c\", \"src/main/native/hello.c\", \"greet_hello\")]\npub fun hello(): Void;\nfun secret(): Void;\n";
+const LINKED_MODULE: &str = "#[link(\"c\", \"src/main/native/hello.c\", \"greet_hello\")]\npub fun hello(): Void;\nfun secret(): Void;\n";
 
 #[test]
 fn resolves_module_exports() {
@@ -16,7 +15,12 @@ fn resolves_module_exports() {
         &[greet(LINKED_MODULE)],
     )
     .unwrap();
-    assert!(output.contains("NATIVE_LINK_ASSIGN\tgreet\tc\tsrc/main/native/hello.c\tgreet_hello\tVoid\t\n"), "{output}");
+    assert!(
+        output.contains(
+            "NATIVE_LINK_ASSIGN\tgreet\tc\tsrc/main/native/hello.c\tgreet_hello\tVoid\t\n"
+        ),
+        "{output}"
+    );
 }
 
 #[test]
@@ -32,11 +36,7 @@ fn hides_private_items() {
 
 #[test]
 fn emits_a_module_record_for_resolved_imports() {
-    let output = eval_with(
-        "import \"greet://hello\";\n",
-        &[greet(LINKED_MODULE)],
-    )
-    .unwrap();
+    let output = eval_with("import \"greet://hello\";\n", &[greet(LINKED_MODULE)]).unwrap();
     assert!(output.contains("NATIVE_MODULE\t0\t"), "{output}");
 }
 
@@ -62,7 +62,12 @@ fn rejects_too_many_native_arguments() {
         &[greet(module)],
     )
     .unwrap_err();
-    assert!(error.to_string().contains("expects 1 argument(s) but received 2"), "{error}");
+    assert!(
+        error
+            .to_string()
+            .contains("expects 1 argument(s) but received 2"),
+        "{error}"
+    );
 }
 
 #[test]
@@ -84,7 +89,10 @@ fn inlines_methods_with_the_receiver_as_this() {
         &[greet(module)],
     )
     .unwrap();
-    assert!(output.contains("\tgreeter_new\tGreeter\tgreeter\n"), "{output}");
+    assert!(
+        output.contains("\tgreeter_new\tGreeter\tgreeter\n"),
+        "{output}"
+    );
     assert!(
         output.contains("\tgreeter_attach\tVoid\t\tp:greeter\n"),
         "{output}"

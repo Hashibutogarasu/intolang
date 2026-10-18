@@ -35,7 +35,11 @@ fn exported_modules(program: &Program) -> Result<Vec<String>> {
         let Ok(spec) = ExportSpec::try_from(decl) else {
             bail!("Invalid library export URI: {}", decl.uri);
         };
-        if spec.path.split('/').any(|part| part == ".." || part.is_empty()) {
+        if spec
+            .path
+            .split('/')
+            .any(|part| part == ".." || part.is_empty())
+        {
             bail!("Invalid library export module: {}", decl.uri);
         }
         modules.push(spec.path);

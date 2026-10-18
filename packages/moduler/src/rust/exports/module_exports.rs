@@ -21,7 +21,11 @@ pub fn module_exports(info: &Program, loaded: &LoadedModule) -> Result<HashSet<S
         if spec.alias != module.alias {
             continue;
         }
-        if spec.path.split('/').any(|part| part.is_empty() || part == "..") {
+        if spec
+            .path
+            .split('/')
+            .any(|part| part.is_empty() || part == "..")
+        {
             bail!("Invalid export path in into-info.into: {}", spec.path);
         }
         let module_source = module
@@ -33,10 +37,10 @@ pub fn module_exports(info: &Program, loaded: &LoadedModule) -> Result<HashSet<S
             if spec.path == module.name {
                 names.extend(public_items(&loaded.program));
             }
-        } else if let Some((export_module, item)) = spec.path.rsplit_once('/') {
-            if export_module == module.name {
-                names.insert(item.to_owned());
-            }
+        } else if let Some((export_module, item)) = spec.path.rsplit_once('/')
+            && export_module == module.name
+        {
+            names.insert(item.to_owned());
         }
     }
     Ok(names)

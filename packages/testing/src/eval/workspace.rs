@@ -24,6 +24,8 @@ impl Workspace {
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
         let workspace = Self { root };
+        std::fs::create_dir_all(&workspace.root)
+            .with_context(|| format!("Could not create {}", workspace.root.display()))?;
         for package in packages {
             let directory = workspace.root.join(&package.alias);
             std::fs::create_dir_all(&directory)

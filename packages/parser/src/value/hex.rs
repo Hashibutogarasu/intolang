@@ -32,7 +32,7 @@ impl FromStr for Hex {
     type Err = Error;
 
     fn from_str(text: &str) -> Result<Self> {
-        if text.len() % 2 != 0 || !text.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        if !text.len().is_multiple_of(2) || !text.bytes().all(|byte| byte.is_ascii_hexdigit()) {
             bail!("Invalid native string argument encoding");
         }
         Ok(Hex(text.to_owned()))

@@ -28,7 +28,9 @@ pub fn collect_enums(program: &Program, source_path: &str) -> Result<EnumValues>
                 .next()
                 .is_some_and(|c| c.is_ascii_uppercase() || c == '_')
             {
-                return Err(fail("Enum variant names must start with an uppercase letter"));
+                return Err(fail(
+                    "Enum variant names must start with an uppercase letter",
+                ));
             }
             if variants.insert(variant.name.clone(), value).is_some() {
                 return Err(fail(&format!("Duplicate enum variant `{}`", variant.name)));

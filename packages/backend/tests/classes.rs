@@ -25,7 +25,9 @@ fn encodes_string_and_boolean_field_defaults() {
     let source = "pub Info() {\n    pub into: String name = \"ab\";\n    pub into: Boolean ready = true;\n    pub into: Int32 plain;\n}\n";
     let output = eval(source).unwrap();
     assert!(
-        output.contains("NATIVE_CLASS\tInfo\tname:String:s:6162\tready:Boolean:b:1\tplain:Int32:-:\n"),
+        output.contains(
+            "NATIVE_CLASS\tInfo\tname:String:s:6162\tready:Boolean:b:1\tplain:Int32:-:\n"
+        ),
         "{output}"
     );
 }
@@ -34,7 +36,10 @@ fn encodes_string_and_boolean_field_defaults() {
 fn constructs_declared_classes_in_declarations() {
     let source = "pub Config() {\n    pub into: Int32 instance = 1;\n}\ninit {\n    into config = Config();\n}\n";
     let output = eval(source).unwrap();
-    assert!(output.contains("NATIVE_CONSTRUCT\tconfig\tConfig"), "{output}");
+    assert!(
+        output.contains("NATIVE_CONSTRUCT\tconfig\tConfig"),
+        "{output}"
+    );
 }
 
 #[test]
@@ -50,5 +55,8 @@ fn prints_instance_fields() {
 #[test]
 fn rejects_the_legacy_field_syntax() {
     let error = eval("pub Old() {\n    name: String;\n}\n").unwrap_err();
-    assert!(error.to_string().contains("pub into: <Type> <name>"), "{error}");
+    assert!(
+        error.to_string().contains("pub into: <Type> <name>"),
+        "{error}"
+    );
 }

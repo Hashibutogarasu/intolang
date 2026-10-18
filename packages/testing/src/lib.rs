@@ -1,5 +1,7 @@
 mod eval;
 mod runner;
 
-pub use eval::{Evaluation, Package, Workspace, eval, eval_with};
+#[cfg(feature = "run")]
+pub use eval::eval_run;
+pub use eval::{Evaluation, Execution, Package, Workspace, eval, eval_with};
 pub use runner::{TestSummary, run_tests};

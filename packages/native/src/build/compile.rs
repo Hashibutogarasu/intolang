@@ -47,10 +47,10 @@ pub fn compile_sources(message: &str, output: &Path, packages_dir: &Path) -> Res
                 if !name.is_empty() && !build.libraries.iter().any(|library| library == name) {
                     build.libraries.push(name.to_owned());
                 }
-            } else if let Some(path) = flag.strip_prefix("-L") {
-                if !build.library_paths.iter().any(|existing| existing == path) {
-                    build.library_paths.push(path.to_owned());
-                }
+            } else if let Some(path) = flag.strip_prefix("-L")
+                && !build.library_paths.iter().any(|existing| existing == path)
+            {
+                build.library_paths.push(path.to_owned());
             }
         }
         let object =

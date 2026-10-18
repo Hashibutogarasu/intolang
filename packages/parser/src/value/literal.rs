@@ -83,10 +83,10 @@ impl FromStr for LiteralLexeme {
         if text == "false" {
             return Ok(Self(Literal::Bool(false)));
         }
-        if text.contains('.') {
-            if let Ok(value) = text.parse::<f64>() {
-                return Ok(Self(Literal::Float(value)));
-            }
+        if text.contains('.')
+            && let Ok(value) = text.parse::<f64>()
+        {
+            return Ok(Self(Literal::Float(value)));
         }
         if let Ok(value) = text.parse::<i64>() {
             return Ok(Self(Literal::Int(value)));

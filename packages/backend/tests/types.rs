@@ -3,7 +3,10 @@ use testing::eval;
 #[test]
 fn lowers_explicit_integer_type() {
     let output = eval("init {\n    into value: Int32 = 42;\n}\n").unwrap();
-    assert!(output.contains("NATIVE_ASSIGN\tvalue\tInt32\tn:42"), "{output}");
+    assert!(
+        output.contains("NATIVE_ASSIGN\tvalue\tInt32\tn:42"),
+        "{output}"
+    );
 }
 
 #[test]

@@ -521,6 +521,7 @@ dependencies = [
  "anyhow",
  "ast",
  "backend",
+ "compiler",
  "moduler",
  "parser",
  "types",

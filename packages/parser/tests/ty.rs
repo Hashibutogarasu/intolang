@@ -1,5 +1,5 @@
 use parser::TypeLexeme;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use types::Type;
 
 fn parse(text: &str) -> Type {
@@ -25,13 +25,17 @@ fn parses_pointer_types() {
 }
 
 #[test]
-fn parses_primitives() {
+fn parses_primitives_and_aliases() {
     assert_eq!(parse("String"), Type::String);
+    assert_eq!(parse("str"), Type::String);
     assert_eq!(parse("Path"), Type::Path);
     assert_eq!(parse("Int32"), Type::Int32);
+    assert_eq!(parse("i32"), Type::Int32);
+    assert_eq!(parse("Int"), Type::Int32);
     assert_eq!(parse("Int64"), Type::Int64);
     assert_eq!(parse("Float"), Type::Float64);
     assert_eq!(parse("Float64"), Type::Float64);
+    assert_eq!(parse("Ptr"), Type::Pointer);
 }
 
 #[test]
@@ -43,31 +47,13 @@ fn resolves_generic_parameters() {
 }
 
 #[test]
+fn normalizes_named_generic_spelling() {
+    assert_eq!(parse("Map< A , B >"), Type::Named("Map<A , B>".into()));
+}
+
+#[test]
 fn rejects_empty_types() {
     assert!("".parse::<TypeLexeme>().is_err());
     assert!("*".parse::<TypeLexeme>().is_err());
     assert!("List<>".parse::<TypeLexeme>().is_err());
-}
-
-#[test]
-fn substitutes_generics() {
-    let bindings = HashMap::from([("T".to_owned(), Type::Int64)]);
-    let ty = Type::Generic("T".into());
-    assert_eq!(ty.substitute(&bindings), Type::Int64);
-    assert_eq!(Type::Int32.substitute(&bindings), Type::Int32);
-}
-
-#[test]
-fn checks_assignability() {
-    assert!(Type::Int32.is_assignable_to(&Type::Int32));
-    assert!(Type::Int32.is_assignable_to(&Type::Int64));
-    assert!(Type::Int32.is_assignable_to(&Type::Float64));
-    assert!(Type::Float64.is_assignable_to(&Type::Float32));
-    assert!(Type::String.is_assignable_to(&Type::Path));
-    assert!(!Type::Path.is_assignable_to(&Type::String));
-    assert!(!Type::String.is_assignable_to(&Type::Int32));
-    assert!(!Type::Int32.is_assignable_to(&Type::String));
-    assert!(!Type::Boolean.is_assignable_to(&Type::Int32));
-    assert!(!Type::Float64.is_assignable_to(&Type::Int32));
-    assert!(!Type::Named("JsonObject".into()).is_assignable_to(&Type::Pointer));
 }

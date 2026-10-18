@@ -12,12 +12,13 @@ use super::summary::TestSummary;
 /// Run all `#[test]` functions in one Into source file.
 pub fn run_tests(source: &str, path: &Path, packages_dir: &Path) -> Result<TestSummary> {
     let path_text = PathLexeme::from(path).to_string();
-    let program = source.parse::<Program>().map_err(|error| {
-        match error.downcast_ref::<SyntaxError>() {
-            Some(syntax) => anyhow!("{}", syntax.backtrace(&path_text)),
-            None => error,
-        }
-    })?;
+    let program =
+        source
+            .parse::<Program>()
+            .map_err(|error| match error.downcast_ref::<SyntaxError>() {
+                Some(syntax) => anyhow!("{}", syntax.backtrace(&path_text)),
+                None => error,
+            })?;
     let imported = moduler::resolve(&program, packages_dir)?;
     let package = moduler::find_by_alias(packages_dir, BUILTIN_ALIAS)?
         .ok_or_else(|| anyhow!("Builtin package is not bundled"))?;

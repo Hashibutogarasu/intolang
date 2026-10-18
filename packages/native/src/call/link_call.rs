@@ -38,8 +38,15 @@ impl TryFrom<&Record> for LinkCall {
     type Error = Error;
 
     fn try_from(record: &Record) -> Result<Self> {
-        let [alias, language, source, target, return_type, assigned_to, args @ ..] =
-            record.fields()
+        let [
+            alias,
+            language,
+            source,
+            target,
+            return_type,
+            assigned_to,
+            args @ ..,
+        ] = record.fields()
         else {
             return Err(anyhow!("Malformed native call record"));
         };

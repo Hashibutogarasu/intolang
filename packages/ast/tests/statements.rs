@@ -57,10 +57,7 @@ fn parses_expressions() {
         declaration("into r: Float = 1.5;").value,
         Some(Expr::Literal(Literal::Float(1.5)))
     );
-    assert_eq!(
-        declaration("into n = -7;").value,
-        Some(Expr::int(-7))
-    );
+    assert_eq!(declaration("into n = -7;").value, Some(Expr::int(-7)));
     assert_eq!(
         declaration("into s = \"a\\nb\";").value,
         Some(Expr::Literal(Literal::String("a\nb".into())))

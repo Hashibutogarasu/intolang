@@ -50,7 +50,9 @@ fn counts_failed_assertions() {
 fn requires_the_test_helpers_to_be_imported() {
     let error = run("#[test]\npub fun nothing() {}\n").unwrap_err();
     assert!(
-        error.to_string().contains("test module must import `assert`"),
+        error
+            .to_string()
+            .contains("test module must import `assert`"),
         "{error}"
     );
     let imports = "import \"intolang://builtin/tests/assert\";\nimport \"intolang://builtin/tests/memory-check\";\n";
@@ -64,7 +66,10 @@ fn requires_the_test_helpers_to_be_imported() {
 #[test]
 fn rejects_files_without_tests() {
     let error = run(&format!("{IMPORTS}pub fun helper() {{}}\n")).unwrap_err();
-    assert!(error.to_string().contains("no #[test] functions found"), "{error}");
+    assert!(
+        error.to_string().contains("no #[test] functions found"),
+        "{error}"
+    );
 }
 
 #[test]

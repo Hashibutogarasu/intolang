@@ -184,12 +184,11 @@ impl TryFrom<&mut Cursor<'_>> for Expr {
 
 fn comparison_operator(cursor: &Cursor<'_>) -> Option<(ComparisonOperator, usize)> {
     let first = cursor.peek_symbol(0)?;
-    if cursor.adjacent(1) {
-        if let Some(second) = cursor.peek_symbol(1) {
-            if let Ok(lexeme) = format!("{first}{second}").parse::<ComparisonLexeme>() {
-                return Some((lexeme.into(), 2));
-            }
-        }
+    if cursor.adjacent(1)
+        && let Some(second) = cursor.peek_symbol(1)
+        && let Ok(lexeme) = format!("{first}{second}").parse::<ComparisonLexeme>()
+    {
+        return Some((lexeme.into(), 2));
     }
     first
         .to_string()
@@ -222,15 +221,15 @@ fn unary(cursor: &mut Cursor<'_>) -> Result<Expr> {
         cursor.bump();
         return Ok(Expr::Not(Box::new(unary(cursor)?)));
     }
-    if cursor.peek_symbol(0) == Some('-') {
-        if let Some(TokenKind::Number(_)) = cursor.peek_nth(1).map(|token| &token.kind) {
-            cursor.bump();
-            return match number(cursor)? {
-                Literal::Int(value) => Ok(Expr::Literal(Literal::Int(-value))),
-                Literal::Float(value) => Ok(Expr::Literal(Literal::Float(-value))),
-                _ => unreachable!("numbers are ints or floats"),
-            };
-        }
+    if cursor.peek_symbol(0) == Some('-')
+        && let Some(TokenKind::Number(_)) = cursor.peek_nth(1).map(|token| &token.kind)
+    {
+        cursor.bump();
+        return match number(cursor)? {
+            Literal::Int(value) => Ok(Expr::Literal(Literal::Int(-value))),
+            Literal::Float(value) => Ok(Expr::Literal(Literal::Float(-value))),
+            _ => unreachable!("numbers are ints or floats"),
+        };
     }
     primary(cursor)
 }
@@ -253,10 +252,9 @@ fn number(cursor: &mut Cursor<'_>) -> Result<Literal> {
             cursor.bump();
             cursor.bump();
             let text = format!("{whole}.{fraction}");
-            Ok(Literal::Float(
-                text.parse::<f64>()
-                    .map_err(|_| cursor.error(format!("Invalid number `{text}`")))?,
-            ))
+            Ok(Literal::Float(text.parse::<f64>().map_err(|_| {
+                cursor.error(format!("Invalid number `{text}`"))
+            })?))
         }
         None => Ok(Literal::Int(whole.parse::<i64>().map_err(|_| {
             cursor.error(format!("Integer literal `{whole}` is out of range"))

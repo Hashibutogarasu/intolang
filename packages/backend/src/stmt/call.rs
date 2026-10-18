@@ -29,12 +29,12 @@ impl Lowerer<'_> {
                 .map(|_| ())
                 .map_err(|message| self.diagnostic(line, &message));
         }
-        if env.imported_functions.contains(name) {
-            if let Some(link) = env.native_links.get(name) {
-                return self
-                    .emit_link_call(MessageTag::LinkAssign, link, args.to_vec(), "", false)
-                    .map_err(|message| self.diagnostic(line, &message));
-            }
+        if env.imported_functions.contains(name)
+            && let Some(link) = env.native_links.get(name)
+        {
+            return self
+                .emit_link_call(MessageTag::LinkAssign, link, args.to_vec(), "", false)
+                .map_err(|message| self.diagnostic(line, &message));
         }
         if !console && env.imported_functions.contains(name) && args.len() <= 1 {
             return self.lower_native_call(line, name, args.first());
@@ -67,7 +67,11 @@ impl Lowerer<'_> {
         let (receiver, receiver_type) = self
             .resolve_receiver(callee)
             .map_err(|message| fail(self, message))?;
-        let key = format!("{}.{}", base_type_name(&receiver_type.name()), callee.last());
+        let key = format!(
+            "{}.{}",
+            base_type_name(&receiver_type.name()),
+            callee.last()
+        );
         if let Some(inner) = env.user_functions.get(&key) {
             return self
                 .inline_user_function(inner, Some(receiver), args, 0)
@@ -86,11 +90,18 @@ impl Lowerer<'_> {
 
     /// A call to an imported function without a `#[link]` binding, lowered to
     /// a plain `NATIVE` record that takes one string or 32-bit integer.
-    fn lower_native_call(&mut self, line: usize, symbol: &str, argument: Option<&Expr>) -> Result<()> {
+    fn lower_native_call(
+        &mut self,
+        line: usize,
+        symbol: &str,
+        argument: Option<&Expr>,
+    ) -> Result<()> {
         let env = self.env;
         let value = match argument {
             Some(Expr::Literal(Literal::String(text))) => Some(NativeArg::from(text.as_str())),
-            Some(Expr::Literal(Literal::Int(number))) => i32::try_from(*number).ok().map(NativeArg::Int),
+            Some(Expr::Literal(Literal::Int(number))) => {
+                i32::try_from(*number).ok().map(NativeArg::Int)
+            }
             Some(Expr::Path(path)) if path.is_member() => {
                 let variant = path.segments()[1..].join(".");
                 let found = env
@@ -100,10 +111,9 @@ impl Lowerer<'_> {
                 match found {
                     Some(value) => Some(NativeArg::Int(*value)),
                     None => {
-                        return Err(self.diagnostic(
-                            line,
-                            &format!("Undefined enum variant `{path}`"),
-                        ));
+                        return Err(
+                            self.diagnostic(line, &format!("Undefined enum variant `{path}`"))
+                        );
                     }
                 }
             }

@@ -18,7 +18,8 @@ fn evaluates_source_to_a_message() {
 
 #[test]
 fn provides_the_builtin_console_functions() {
-    let result = eval("import \"intolang://builtin/std\";\ninit {\n    println(\"hi\");\n}\n").unwrap();
+    let result =
+        eval("import \"intolang://builtin/std\";\ninit {\n    println(\"hi\");\n}\n").unwrap();
     assert_eq!(result.text(), "hi\n");
 }
 

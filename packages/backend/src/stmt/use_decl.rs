@@ -9,7 +9,9 @@ impl Lowerer<'_> {
     /// `Module` instance describing it is created in the lowered message.
     pub fn lower_import(&mut self, decl: &UseDecl) {
         if let Ok(spec) = ImportSpec::try_from(decl) {
-            self.emit_module_where(|module| module.alias == spec.alias && module.name == spec.module);
+            self.emit_module_where(|module| {
+                module.alias == spec.alias && module.name == spec.module
+            });
         }
     }
 

@@ -1,5 +1,6 @@
 use anyhow::{Context, Result, bail};
 use std::path::Path;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// Link an LLVM-generated object with LLD selected at build time.
 pub fn link(object: &Path, output: &Path) -> Result<()> {
@@ -40,7 +41,12 @@ fn link_with_args(
     library_paths: &[String],
     shared: bool,
 ) -> Result<()> {
-    let lld_dir = std::env::temp_dir().join(format!("intolang-lld-{}", std::process::id()));
+    static NEXT_LINK: AtomicUsize = AtomicUsize::new(0);
+    let lld_dir = std::env::temp_dir().join(format!(
+        "intolang-lld-{}-{}",
+        std::process::id(),
+        NEXT_LINK.fetch_add(1, Ordering::Relaxed)
+    ));
     std::fs::create_dir_all(&lld_dir)?;
     let lld_path = lld_dir.join("ld.lld");
     if let Some(binary) = option_env!("LLD_EXTERNAL_BINARY") {

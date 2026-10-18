@@ -11,11 +11,9 @@ impl Interpreter<'_> {
         match expression {
             Expr::Not(inner) => match self.eval(inner, env, line)? {
                 Value::Bool(value) => Ok(Value::Bool(!value)),
-                Value::Object(_) => bail!(
-                    "{}:{line}: `!` expects Boolean in {}",
-                    self.path,
-                    self.test
-                ),
+                Value::Object(_) => {
+                    bail!("{}:{line}: `!` expects Boolean in {}", self.path, self.test)
+                }
             },
             Expr::Literal(Literal::Bool(value)) => Ok(Value::Bool(*value)),
             Expr::Call { callee, args } => {

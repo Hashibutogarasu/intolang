@@ -1,6 +1,6 @@
 use parser::{
-    CommentLexeme, ComparisonLexeme, IdentLexeme, LanguageLexeme, NumberLexeme, PathLexeme, StringLexeme,
-    SymbolLexeme, TagLexeme,
+    CommentLexeme, ComparisonLexeme, IdentLexeme, LanguageLexeme, NumberLexeme, PathLexeme,
+    StringLexeme, SymbolLexeme, TagLexeme,
 };
 use std::path::Path;
 use types::{ComparisonOperator, Language, MessageTag, Token, TokenKind};

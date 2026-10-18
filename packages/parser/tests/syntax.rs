@@ -20,10 +20,11 @@ fn converts_punctuation_through_char() {
 
 #[test]
 fn builds_compound_operators_from_symbol_pairs() {
-    let operator: CompoundOperator = CompoundLexeme::try_from(('!', '='))
-        .unwrap()
-        .into();
+    let operator: CompoundOperator = CompoundLexeme::try_from(('!', '=')).unwrap().into();
     assert_eq!(operator, CompoundOperator::NotEqual);
-    assert_eq!(CompoundLexeme::from(CompoundOperator::And).to_string(), "&&");
+    assert_eq!(
+        CompoundLexeme::from(CompoundOperator::And).to_string(),
+        "&&"
+    );
     assert!(CompoundLexeme::try_from(('=', '>')).is_err());
 }

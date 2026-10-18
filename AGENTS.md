@@ -21,7 +21,15 @@ It is a Cargo workspace (Rust edition 2024).
 | `src/` | `intolang` (root) | CLI entrypoint (`main.rs`) and `src/commands/*` (`new`, `build`, `install`, `format`) |
 | `apps/compiler/` | `compiler` | LLVM codegen, target machine, object emission, native source compilation, links via `lld`; embeds resources in `build.rs` |
 | `apps/compiler/res/` | — | `packages/intolang` runtime and `templates/hello_world` used by `into new` |
-| `packages/backend/` | `backend` | Lexer, parser/lowering, import resolution, formatter, validation, test runner, library lowering |
+| `packages/types/` | `types` | Language type structures only (tokens, keywords, `Type`, message tags); no tokenizing or formatting behaviour |
+| `packages/parser/` | `parser` | `FromStr`/`TryFrom`/`From` conversions from text to the `types` structures (lexemes, types, literals, hex, message `Record`s) |
+| `packages/tokenizer/` | `tokenizer` | Source text to `Tokens` (with spans; comments only on request), built on `parser` |
+| `packages/ast/` | `ast` | AST nodes and their token-based construction (`Program`, items, statements, expressions); independent of lines and whitespace |
+| `packages/formatter/` | `formatter` | Token-based source formatter with `FormatOptions` |
+| `packages/moduler/` | `moduler` | Import/export resolution, public items, link metadata and library lowering, on top of `ast` |
+| `packages/native/` | `native` | C/C++ native integration: `#[link]` model, native call arguments/operands, native source compilation |
+| `packages/backend/` | `backend` | Lowering: walks `ast` nodes and emits the message (`Lowerer`, `stmt/`, `expr/`, `emit/`) |
+| `packages/testing/` | `testing` | Into `#[test]` runner and the `eval` utilities that run Into from Rust tests (`eval_run` behind the `run` feature) |
 | `packages/lld/` | `lld` | Thin wrapper that links objects with an embedded/`LLD_EXTERNAL_BINARY` LLD |
 | `packages/intolang/` | package, alias `builtin` | Builtin `std` (`print`/`println`) and test macros/helpers |
 | `packages/system/modules/{c,cpp,json}/` | native packages | Language system modules (C stdio, C++ http/filesystem/time/string, JSON) |
@@ -62,7 +70,7 @@ language-facing parts are embedded.
 nix develop                    # recommended shell; also builds `into` symlink
 cargo build                    # debug build of the workspace
 cargo build --bin intolang     # just the CLI
-cargo test                     # Rust unit tests (e.g. packages/backend/src/tests.rs)
+cargo test                     # Rust tests (each crate's tests/ directory)
 cargo fmt
 cargo clippy
 ```
@@ -118,17 +126,23 @@ CLI notes:
 `into build <pkg>`:
 `src/commands/build.rs` reads `into-package.json` → assembles a package
 environment in a temp dir (embedded builtins + project `.into/packages` deps) →
-`backend::lower_file` produces the lowered message → `compiler::compile_with_packages`
-runs LLVM codegen, compiles any imported C/C++ native sources, and links a
-binary/shared library with embedded LLD.
+`backend::lower_file` tokenizes (`tokenizer`), builds the AST (`ast`) and
+walks it to produce the lowered message → `compiler::compile_with_packages`
+runs LLVM codegen, `native::compile_sources` compiles any imported C/C++
+sources, and `lld` links a binary/shared library.
 
+- The language is whitespace and newline independent: tokenizing, AST
+  construction and formatting work on tokens only, never on source lines. A
+  missing `;` is accepted before a `}` or a line break.
 - The lowered "message" is a line-based text format. Compiler directives are
-  prefixed with the record separator `\u{1e}` followed by tags such as
-  `NATIVE_CLASS`, `NATIVE_LINK_ASSIGN`, `NATIVE_IF_BEGIN`, `NATIVE_IF_ELSE`,
-  `NATIVE_LOOP_BEGIN`, `NATIVE_ARITH`, `NATIVE_FIELD_PRINT`, `NATIVE`, etc.
-  `apps/compiler/src/codegen.rs` consumes these; keep producer (`backend`) and
-  consumer (`compiler`) in sync when adding a tag.
-- `backend` must not depend on LLVM. `compiler` depends on `backend` + `lld`.
+  `parser::Record`s: the record separator `\u{1e}`, a tag from
+  `types::MessageTag` (`NATIVE_CLASS`, `NATIVE_LINK_ASSIGN`, `NATIVE_IF_BEGIN`,
+  ...) and tab separated fields. `backend` writes them (`backend/src/emit`) and
+  `apps/compiler/src/codegen/ast/program.rs` reads them; keep both in sync
+  through `MessageTag`, `Record` and the shared `native` types (`LinkCall`,
+  `Comparison`, `Operand`, `NativeArg`) when adding a tag.
+- `backend` must not depend on LLVM. `compiler` depends on `backend`, `native`
+  and `lld`.
 - `apps/compiler/build.rs` copies resources and embedded packages into `OUT_DIR`
   and exports `COMPILER_BUNDLED_RES`. It re-runs when `res/`,
   `packages/intolang`, `packages/system/modules`, or workspace packages change —
@@ -140,6 +154,22 @@ binary/shared library with embedded LLD.
 
 - Edition 2024; use `anyhow` for errors in the tool, `serde`/`serde_json` for
   manifests. No comments unless necessary.
+- `mod.rs` (and `lib.rs` of the library crates under `packages/`) only declare
+  modules and decide what is re-exported; they hold no logic. Group files into
+  directories by responsibility rather than keeping them flat.
+- Conversions between text and language structures use `From`, `TryFrom` and
+  `FromStr` (see `packages/parser`); do not add ad-hoc string helpers. Other
+  crates cannot implement foreign traits for `types`, so `parser` wraps them in
+  `*Lexeme` newtypes.
+- Do not hardcode layout choices such as indentation; formatter settings live
+  in `formatter::FormatOptions`. Keyword, punctuation and operator spellings
+  live in `parser`, not in string comparisons elsewhere.
+- Rust tests live in each crate's `tests/` directory (integration tests, one
+  file per concern), not in `src/`. Tests must not read the repository's own
+  projects or other external files; embed the Into source in the test, and use
+  `testing::eval`, `testing::eval_with` (lower to a message) or
+  `testing::eval_run` (compile and run; needs the `run` feature and LLVM, so run
+  it inside `nix develop`).
 - Manifests: a package must specify exactly one of `runs` (executable) or
   `library`. Library entry must be `src/main/lib.into`. Aliases must be
   non-empty, not `.`/`..`, and `[A-Za-z0-9._-]` only.

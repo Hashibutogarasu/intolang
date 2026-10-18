@@ -50,7 +50,10 @@ impl CodegenContext {
     }
 
     /// Build the comparison described by an `if`/`while` condition record.
-    pub(crate) unsafe fn build_comparison(&self, comparison: &Comparison) -> Result<*mut LLVMValue> {
+    pub(crate) unsafe fn build_comparison(
+        &self,
+        comparison: &Comparison,
+    ) -> Result<*mut LLVMValue> {
         unsafe {
             let ty = self.into_type(&comparison.type_name);
             let left = self.load_slot(&comparison.left)?;

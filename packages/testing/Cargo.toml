@@ -7,6 +7,10 @@ edition = "2024"
 anyhow = "1.0.104"
 ast = { version = "0.1.0", path = "../ast" }
 backend = { version = "0.1.0", path = "../backend" }
+compiler = { version = "0.1.0", path = "../../apps/compiler", optional = true }
 moduler = { version = "0.1.0", path = "../moduler" }
 parser = { version = "0.1.0", path = "../parser" }
 types = { version = "0.1.0", path = "../types" }
+
+[features]
+run = ["dep:compiler"]

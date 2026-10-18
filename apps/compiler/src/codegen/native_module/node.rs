@@ -68,8 +68,7 @@ impl Codegen for NativeModule {
                     ctx.empty.as_ptr(),
                 );
             }
-            let package_slot =
-                ctx.slot_ptr(&format!("__package{}", self.index), package_type);
+            let package_slot = ctx.slot_ptr(&format!("__package{}", self.index), package_type);
             LLVMBuildStore(ctx.builder, package, package_slot);
 
             let mut module = LLVMConstNull(module_type);
@@ -77,8 +76,7 @@ impl Codegen for NativeModule {
             let source = CString::new(decode_hex(&self.fields[6])?)?;
             let source_value =
                 LLVMBuildGlobalString(ctx.builder, source.as_ptr(), ctx.empty.as_ptr());
-            module =
-                LLVMBuildInsertValue(ctx.builder, module, source_value, 1, ctx.empty.as_ptr());
+            module = LLVMBuildInsertValue(ctx.builder, module, source_value, 1, ctx.empty.as_ptr());
             let module_slot = ctx.slot_ptr(&format!("__module{}", self.index), module_type);
             LLVMBuildStore(ctx.builder, module, module_slot);
             Ok(CodegenResult::unit())

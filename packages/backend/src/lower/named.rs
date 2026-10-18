@@ -3,9 +3,7 @@ use ast::{Item, Program};
 use parser::PathLexeme;
 use std::path::Path;
 
-use crate::collect::{
-    collect_classes, collect_enums, collect_type_params, collect_user_functions,
-};
+use crate::collect::{collect_classes, collect_enums, collect_type_params, collect_user_functions};
 use crate::context::{Env, Lowerer};
 use crate::diagnostic::syntax_diagnostic;
 use crate::emit;
@@ -23,12 +21,12 @@ pub fn lower_with_packages(source: &str, packages_dir: Option<&Path>) -> Result<
 }
 
 /// Resolve and lower a source file while retaining its path for diagnostics.
-pub fn lower_file(
-    source: &str,
-    source_path: &Path,
-    packages_dir: Option<&Path>,
-) -> Result<String> {
-    lower_named(source, packages_dir, &PathLexeme::from(source_path).to_string())
+pub fn lower_file(source: &str, source_path: &Path, packages_dir: Option<&Path>) -> Result<String> {
+    lower_named(
+        source,
+        packages_dir,
+        &PathLexeme::from(source_path).to_string(),
+    )
 }
 
 fn lower_named(source: &str, packages_dir: Option<&Path>, source_path: &str) -> Result<String> {
@@ -85,8 +83,7 @@ fn prepare(program: &Program, packages_dir: Option<&Path>, source_path: &str) ->
             }
         }
     }
-    env.enum_values
-        .extend(collect_enums(program, source_path)?);
+    env.enum_values.extend(collect_enums(program, source_path)?);
     for (name, fields) in collect_classes(program) {
         env.class_fields.entry(name).or_insert(fields);
     }

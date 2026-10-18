@@ -44,7 +44,10 @@ impl TryFrom<&Record> for Class {
         };
         Ok(Self {
             name: name.clone(),
-            fields: fields.iter().map(|field| FieldSpec::from(field.as_str())).collect(),
+            fields: fields
+                .iter()
+                .map(|field| FieldSpec::from(field.as_str()))
+                .collect(),
         })
     }
 }

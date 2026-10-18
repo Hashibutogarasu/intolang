@@ -10,7 +10,10 @@ fn parses_imports_exports_and_enums() {
     let program = program(
         "import \"intolang://builtin/std\";\nexport \"json://value\";\nenum Format { Text, JSON = 2, }\n",
     );
-    assert_eq!(program.imports().next().unwrap().uri, "intolang://builtin/std");
+    assert_eq!(
+        program.imports().next().unwrap().uri,
+        "intolang://builtin/std"
+    );
     assert_eq!(program.exports().next().unwrap().uri, "json://value");
     let format = program.enums().next().unwrap();
     assert_eq!(format.name, "Format");
@@ -68,7 +71,9 @@ fn parses_generic_and_variadic_functions() {
 
 #[test]
 fn rejects_legacy_class_fields() {
-    let error = "pub Old() {\n    name: String;\n}\n".parse::<Program>().unwrap_err();
+    let error = "pub Old() {\n    name: String;\n}\n"
+        .parse::<Program>()
+        .unwrap_err();
     let syntax = error.downcast_ref::<SyntaxError>().unwrap();
     assert_eq!(syntax.line, 2);
     assert!(syntax.message.contains("pub into: <Type> <name>"));

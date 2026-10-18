@@ -74,7 +74,9 @@ impl<'a> Lowerer<'a> {
                 let key = format!("{class}.{method}");
                 if let Some(inner) = env.user_functions.get(&key) {
                     let returned = self.inline_user_function(inner, None, args, 0)?;
-                    return self.inlined_value(returned, &key, annotation, assigned_to).map(Some);
+                    return self
+                        .inlined_value(returned, &key, annotation, assigned_to)
+                        .map(Some);
                 }
                 let link = env
                     .native_links
@@ -90,10 +92,16 @@ impl<'a> Lowerer<'a> {
                 return linked_value(link, type_params, annotation).map(Some);
             }
             let (receiver, receiver_type) = self.resolve_receiver(callee)?;
-            let key = format!("{}.{}", base_type_name(&receiver_type.name()), callee.last());
+            let key = format!(
+                "{}.{}",
+                base_type_name(&receiver_type.name()),
+                callee.last()
+            );
             if let Some(inner) = env.user_functions.get(&key) {
                 let returned = self.inline_user_function(inner, Some(receiver), args, 0)?;
-                return self.inlined_value(returned, &key, annotation, assigned_to).map(Some);
+                return self
+                    .inlined_value(returned, &key, annotation, assigned_to)
+                    .map(Some);
             }
             let link = env
                 .native_links
@@ -149,8 +157,9 @@ impl<'a> Lowerer<'a> {
         let inferred = returned.as_ref().map(|(_, ty)| ty.clone());
         let ty = match inferred {
             Some(inferred) => resolve_annotation(inferred, annotation)?,
-            None => annotation
-                .ok_or_else(|| format!("Function `{key}` does not return a value"))?,
+            None => {
+                annotation.ok_or_else(|| format!("Function `{key}` does not return a value"))?
+            }
         };
         if let Some((value, _)) = returned {
             emit::assign(&mut self.state.output, assigned_to, &ty, "p", &value);
@@ -213,7 +222,10 @@ impl<'a> Lowerer<'a> {
             Literal::String(_) => (Type::String, None),
             Literal::Int(number) => (Type::Int32, Some(number.to_string())),
             Literal::Float(number) => (Type::Float64, Some(number.to_string())),
-            Literal::Bool(flag) => (Type::Boolean, Some(if *flag { "1" } else { "0" }.to_owned())),
+            Literal::Bool(flag) => (
+                Type::Boolean,
+                Some(if *flag { "1" } else { "0" }.to_owned()),
+            ),
         };
         let ty = resolve_annotation(inferred, annotation)?;
         match (literal, native) {

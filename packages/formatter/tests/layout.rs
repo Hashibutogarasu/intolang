@@ -34,7 +34,8 @@ fn expands_enums_one_variant_per_line() {
 
 #[test]
 fn keeps_attributes_on_their_own_line() {
-    let source = "#[link(\"c\", \"src/native/hello.c\", \"greet\")] pub c fun greet(name: String): Int32;";
+    let source =
+        "#[link(\"c\", \"src/native/hello.c\", \"greet\")] pub c fun greet(name: String): Int32;";
     assert_eq!(
         format_source(source),
         "#[link(\"c\", \"src/native/hello.c\", \"greet\")]\npub c fun greet(name: String): Int32;\n"

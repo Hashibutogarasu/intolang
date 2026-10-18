@@ -103,7 +103,9 @@ fn field(cursor: &mut Cursor<'_>, class: &str) -> Result<FieldDecl> {
         )
     };
     let ty = TypeRef::try_from(&mut *cursor).map_err(|_| malformed())?;
-    let (name, _) = cursor.expect_ident("a field name").map_err(|_| malformed())?;
+    let (name, _) = cursor
+        .expect_ident("a field name")
+        .map_err(|_| malformed())?;
     let default = if cursor.eat_punct(Punct::Assign) {
         Some(Expr::try_from(&mut *cursor).map_err(|_| malformed())?)
     } else {

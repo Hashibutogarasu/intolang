@@ -12,12 +12,11 @@ pub fn package_dir(packages_dir: &Path, alias: &str) -> PathBuf {
                 continue;
             }
             let manifest = path.join("into-package.json");
-            if let Ok(contents) = std::fs::read_to_string(&manifest) {
-                if let Ok(value) = serde_json::from_str::<serde_json::Value>(&contents) {
-                    if value.get("alias").and_then(serde_json::Value::as_str) == Some(alias) {
-                        return path;
-                    }
-                }
+            if let Ok(contents) = std::fs::read_to_string(&manifest)
+                && let Ok(value) = serde_json::from_str::<serde_json::Value>(&contents)
+                && value.get("alias").and_then(serde_json::Value::as_str) == Some(alias)
+            {
+                return path;
             }
         }
     }

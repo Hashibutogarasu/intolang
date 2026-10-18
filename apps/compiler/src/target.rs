@@ -1,4 +1,5 @@
 use anyhow::{Result, anyhow};
+use std::sync::Once;
 use std::{ffi::CStr, ptr};
 
 use crate::llvm;
@@ -6,10 +7,16 @@ use llvm::core::LLVMDisposeMessage;
 use llvm::target::{LLVM_InitializeNativeAsmPrinter, LLVM_InitializeNativeTarget};
 use llvm::target_machine::*;
 
+/// LLVM registers targets in global tables, so that must happen once even
+/// when several programs are compiled concurrently in one process.
+static INITIALIZE: Once = Once::new();
+
 pub(super) unsafe fn host_target_machine() -> Result<*mut LLVMOpaqueTargetMachine> {
     unsafe {
-        LLVM_InitializeNativeTarget();
-        LLVM_InitializeNativeAsmPrinter();
+        INITIALIZE.call_once(|| {
+            LLVM_InitializeNativeTarget();
+            LLVM_InitializeNativeAsmPrinter();
+        });
         let cpu = LLVMGetHostCPUName();
         let features = LLVMGetHostCPUFeatures();
         let triple = LLVMGetDefaultTargetTriple();

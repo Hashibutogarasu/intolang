@@ -43,10 +43,16 @@ impl Interpreter<'_> {
                         object.allocated = false;
                     }
                 }
-                StmtKind::Expr(Expr::Call { callee, args }) if callee.as_ident() == Some(ASSERT) => {
+                StmtKind::Expr(Expr::Call { callee, args })
+                    if callee.as_ident() == Some(ASSERT) =>
+                {
                     let value = match args.first() {
                         Some(argument) => self.eval(argument, env, line)?,
-                        None => bail!("{}:{line}: undefined variable `` in {}", self.path, self.test),
+                        None => bail!(
+                            "{}:{line}: undefined variable `` in {}",
+                            self.path,
+                            self.test
+                        ),
                     };
                     self.call(ASSERT, vec![value], line)?;
                 }
@@ -58,7 +64,10 @@ impl Interpreter<'_> {
 
     pub(super) fn call(&self, name: &str, args: Vec<Value>, line: usize) -> Result<Value> {
         let Some(function) = self.functions.get(name) else {
-            bail!("{}:{line}: function `{name}` has no Into definition", self.path);
+            bail!(
+                "{}:{line}: function `{name}` has no Into definition",
+                self.path
+            );
         };
         if function.params.len() != args.len() {
             bail!("{}:{line}: wrong argument count for {name}", self.path);
@@ -94,10 +103,10 @@ impl Interpreter<'_> {
                     } else {
                         else_body.as_deref()
                     };
-                    if let Some(branch) = branch {
-                        if let Some(value) = self.run_function(branch, env, name, line)? {
-                            return Ok(Some(value));
-                        }
+                    if let Some(branch) = branch
+                        && let Some(value) = self.run_function(branch, env, name, line)?
+                    {
+                        return Ok(Some(value));
                     }
                 }
                 StmtKind::Throw(message) => {

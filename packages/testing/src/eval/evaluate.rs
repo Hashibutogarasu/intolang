@@ -14,7 +14,10 @@ pub fn eval(source: &str) -> Result<Evaluation> {
 /// aliased `builtin` replaces the default builtin `std` package.
 pub fn eval_with(source: &str, packages: &[Package]) -> Result<Evaluation> {
     let mut all = packages.to_vec();
-    if !all.iter().any(|package| package.alias == Package::BUILTIN_ALIAS) {
+    if !all
+        .iter()
+        .any(|package| package.alias == Package::BUILTIN_ALIAS)
+    {
         all.push(Package::builtin_std());
     }
     let workspace = Workspace::with_packages(&all)?;

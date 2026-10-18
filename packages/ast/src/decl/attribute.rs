@@ -42,16 +42,14 @@ impl TryFrom<&mut Cursor<'_>> for Attribute {
         cursor.expect_punct(Punct::LeftBracket, "`[` after `#`")?;
         let (name, _) = cursor.expect_ident("an attribute name")?;
         let mut args = Vec::new();
-        if cursor.eat_punct(Punct::LeftParen) {
-            if !cursor.eat_punct(Punct::RightParen) {
-                loop {
-                    args.push(Expr::try_from(&mut *cursor)?);
-                    if cursor.eat_punct(Punct::Comma) {
-                        continue;
-                    }
-                    cursor.expect_punct(Punct::RightParen, "`)` to close the attribute")?;
-                    break;
+        if cursor.eat_punct(Punct::LeftParen) && !cursor.eat_punct(Punct::RightParen) {
+            loop {
+                args.push(Expr::try_from(&mut *cursor)?);
+                if cursor.eat_punct(Punct::Comma) {
+                    continue;
                 }
+                cursor.expect_punct(Punct::RightParen, "`)` to close the attribute")?;
+                break;
             }
         }
         cursor.expect_punct(Punct::RightBracket, "`]` to close the attribute")?;

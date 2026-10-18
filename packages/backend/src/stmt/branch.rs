@@ -13,7 +13,13 @@ impl Lowerer<'_> {
         then_body: &[Stmt],
         else_body: Option<&[Stmt]>,
     ) -> Result<()> {
-        self.begin_condition(line, "if", MessageTag::IfBegin, MessageTag::IfCall, condition)?;
+        self.begin_condition(
+            line,
+            "if",
+            MessageTag::IfBegin,
+            MessageTag::IfCall,
+            condition,
+        )?;
         self.lower_block(then_body)?;
         if let Some(else_body) = else_body {
             emit::bare(&mut self.state.output, MessageTag::IfElse);
@@ -84,7 +90,9 @@ impl Lowerer<'_> {
             }
             _ => Err(self.diagnostic(
                 line,
-                &format!("{label} condition must compare numeric values or call a Boolean function"),
+                &format!(
+                    "{label} condition must compare numeric values or call a Boolean function"
+                ),
             )),
         }
     }
