@@ -28,9 +28,9 @@ pub MemoryTest() {
     #[test]
     pub fun memoryWillCreateWithNowModifier() {
         now into mem1 = 0;
-        assert(memoryExists(mem1));
+        assertMemoryExists(mem1);
         init {
-            assert(memoryExists(mem1));
+            assertMemoryExists(mem1);
         }
     }
 }
@@ -70,12 +70,16 @@ pub fun assert(condition: Boolean) {
     }
 }
 
-pub fun memoryNotExists(value: Object): Boolean {
-    return !memoryExists(value);
+pub fun assertMemoryNotExists(value: Object) {
+    if value.isInMemory == true {
+        throw "memory exists";
+    }
 }
 
-pub fun memoryExists(value: Object): Boolean {
-    return value.isInMemory;
+pub fun assertMemoryExists(value: Object) {
+    if value.isInMemory == false {
+        throw "memory does not exist";
+    }
 }
 
 pub macro test {

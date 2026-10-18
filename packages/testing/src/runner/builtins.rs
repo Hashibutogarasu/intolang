@@ -13,19 +13,18 @@ pub struct Required {
     pub function: &'static str,
 }
 
-pub const ASSERTIONS: [Required; 3] = [
-    Required {
-        module: "tests/assert",
-        function: "assert",
-    },
-    Required {
-        module: "tests/memory-check",
-        function: "memoryExists",
-    },
-    Required {
-        module: "tests/memory-check",
-        function: "memoryNotExists",
-    },
+/// The assertion every test module must import.
+pub const ASSERTION: Required = Required {
+    module: "tests/assert",
+    function: "assert",
+};
+
+/// The modules defining the assertion helpers. A helper is available to a
+/// test once the test module imports it.
+pub const HELPER_MODULES: [&str; 3] = [
+    "tests/assert",
+    "tests/memory-check",
+    "tests/ownership-check",
 ];
 
 /// The macro that declares the attribute marking test functions.
@@ -34,8 +33,25 @@ pub const TEST_MACRO: Required = Required {
     function: "test",
 };
 
-/// The assertion function test bodies call.
-pub const ASSERT: &str = "assert";
-
-/// The property that reports whether a binding currently occupies memory.
+/// The properties of a binding the assertion helpers read.
 pub const IS_IN_MEMORY: &str = "isInMemory";
+pub const IS_OWNED: &str = "isOwned";
+pub const IS_REFERENCE: &str = "isReference";
+pub const IS_BORROWED: &str = "isBorrowed";
+pub const IS_MOVED: &str = "isMoved";
+pub const IS_DESTROYED: &str = "isDestroyed";
+
+pub const PROPERTIES: [&str; 6] = [
+    IS_IN_MEMORY,
+    IS_OWNED,
+    IS_REFERENCE,
+    IS_BORROWED,
+    IS_MOVED,
+    IS_DESTROYED,
+];
+
+/// The `Object` methods that change what a binding owns.
+pub const COPY: &str = "copy";
+pub const MOVE: &str = "move";
+pub const BORROW: &str = "borrow";
+pub const DESTROY: &str = "destroy";

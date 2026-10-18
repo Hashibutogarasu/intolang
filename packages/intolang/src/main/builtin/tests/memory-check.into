@@ -1,7 +1,11 @@
-pub fun memoryExists(value: Object): Boolean {
-    return value.isInMemory;
+pub fun assertMemoryExists(value: Object) {
+    if value.isInMemory == false {
+        throw "memory does not exist";
+    }
 }
 
-pub fun memoryNotExists(value: Object): Boolean {
-    return !memoryExists(value);
+pub fun assertMemoryNotExists(value: Object) {
+    if value.isInMemory == true {
+        throw "memory exists";
+    }
 }

@@ -7,22 +7,22 @@ pub MemoryTest() {
     #[test]
     pub fun memoryWillCreateWithNowModifier() {
         now into mem1 = 0; // variable memory will create in this line
-        assert(memoryExists(mem1));
+        assertMemoryExists(mem1);
     }
 
     #[test]
     pub fun memoryWillCreateWithLaterModifier() {
         late into mem1 = 0;
-        assert(memoryExists(mem1)); // variable memory will create in this line
+        assertMemoryExists(mem1); // variable memory will create in this line
     }
 
     #[test]
     pub fun memoryNotExistsIfNormalVaribale() {
         into mem1 = 0;
-        assert(memoryNotExists(mem1));
+        assertMemoryNotExists(mem1);
 
         init {
-            assert(memoryExists(mem1));
+            assertMemoryExists(mem1);
         }
     }
 }

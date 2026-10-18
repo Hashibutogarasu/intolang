@@ -3,3 +3,15 @@ pub fun assert(condition: Boolean) {
         throw "assertion failed";
     }
 }
+
+pub fun assertTrue(condition: Boolean) {
+    if condition == false {
+        throw "expected true";
+    }
+}
+
+pub fun assertEquals(expected: Int32, actual: Int32) {
+    if expected != actual {
+        throw "values are not equal";
+    }
+}

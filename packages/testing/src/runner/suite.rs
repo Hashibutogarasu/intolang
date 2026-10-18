@@ -4,7 +4,7 @@ use parser::PathLexeme;
 use std::collections::HashMap;
 use std::path::Path;
 
-use super::builtins::{ASSERTIONS, BUILTIN_ALIAS, TEST_MACRO};
+use super::builtins::{ASSERTION, BUILTIN_ALIAS, HELPER_MODULES, TEST_MACRO};
 use super::discover::{find_tests, load_definitions, test_attribute};
 use super::interpreter::Interpreter;
 use super::summary::TestSummary;
@@ -22,15 +22,19 @@ pub fn run_tests(source: &str, path: &Path, packages_dir: &Path) -> Result<TestS
     let imported = moduler::resolve(&program, packages_dir)?;
     let package = moduler::find_by_alias(packages_dir, BUILTIN_ALIAS)?
         .ok_or_else(|| anyhow!("Builtin package is not bundled"))?;
+    if !imported.contains(ASSERTION.function) {
+        bail!(
+            "{path_text}: test module must import `{}`",
+            ASSERTION.function
+        );
+    }
     let mut functions = HashMap::new();
-    for required in &ASSERTIONS {
-        if !imported.contains(required.function) {
-            bail!(
-                "{path_text}: test module must import `{}`",
-                required.function
-            );
-        }
-        functions.extend(load_definitions(&package, required.module)?);
+    for module in HELPER_MODULES {
+        functions.extend(
+            load_definitions(&package, module)?
+                .into_iter()
+                .filter(|(name, _)| imported.contains(name)),
+        );
     }
     if !imported.contains(TEST_MACRO.function) {
         bail!("{path_text}: test module must import the test macro");

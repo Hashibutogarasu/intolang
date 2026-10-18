@@ -1,0 +1,59 @@
+pub fun assertOwned(value: Object) {
+    if value.isOwned == false {
+        throw "value is not owned";
+    }
+}
+
+pub fun assertNotOwned(value: Object) {
+    if value.isOwned == true {
+        throw "value is owned";
+    }
+}
+
+pub fun assertReference(value: Object) {
+    if value.isReference == false {
+        throw "value is not a reference";
+    }
+}
+
+pub fun assertNotReference(value: Object) {
+    if value.isReference == true {
+        throw "value is a reference";
+    }
+}
+
+pub fun assertBorrowed(value: Object) {
+    if value.isBorrowed == false {
+        throw "value is not borrowed";
+    }
+}
+
+pub fun assertNotBorrowed(value: Object) {
+    if value.isBorrowed == true {
+        throw "value is borrowed";
+    }
+}
+
+pub fun assertMoved(value: Object) {
+    if value.isMoved == false {
+        throw "value was not moved";
+    }
+}
+
+pub fun assertNotMoved(value: Object) {
+    if value.isMoved == true {
+        throw "value was moved";
+    }
+}
+
+pub fun assertDestroyed(value: Object) {
+    if value.isDestroyed == false {
+        throw "value was not destroyed";
+    }
+}
+
+pub fun assertNotDestroyed(value: Object) {
+    if value.isDestroyed == true {
+        throw "value was destroyed";
+    }
+}
