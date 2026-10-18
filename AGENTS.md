@@ -48,10 +48,11 @@ Packages that combine Rust, FFI and Into split their sources by role:
 | Path | Contents |
 | --- | --- |
 | `src/rust/` | Rust crate source; the manifest sets `[lib] path = "src/rust/lib.rs"` |
-| `src/ffi/` | FFI sources (C ABI shims referenced from Into via `#[link]`) |
+| `src/ffi/` | FFI sources (C/C++ and their headers, referenced from Into via `#[link("c" \| "cpp", "src/ffi/...", "symbol")]` and keyed by that path in `nativeDependencies`) |
 | `src/main/` | Into language sources (the manifest `library`/`runs` entry lives here) |
 
-`packages/moduler` is the reference example. `apps/compiler/build.rs` copies
+Every Into package uses these three directories; native sources never live
+under `src/main/`. `packages/moduler` is the reference example. `apps/compiler/build.rs` copies
 third-party packages while skipping `src/rust`, `target` and `dist`, so only the
 language-facing parts are embedded.
 
