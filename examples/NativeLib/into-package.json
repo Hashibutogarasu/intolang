@@ -4,10 +4,11 @@
   "builtConfig": {
     "dist": "./dist"
   },
+  "library": "src/main/lib.into",
   "name": "Native Library Example",
   "packages": {
+    "builtin": "0.0.1",
     "intolang": "0.0.1"
   },
-  "library": "src/main/lib.into",
   "version": "0.1.0"
 }

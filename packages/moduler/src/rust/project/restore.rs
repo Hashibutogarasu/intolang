@@ -3,7 +3,7 @@ use anyhow::{Context, Result, anyhow, bail};
 use super::manifest::ProjectManifest;
 use super::project::{Project, Restoration, commit, write_pending};
 use crate::lock::LockFile;
-use crate::package::{PackageAlias, PackageHash};
+use crate::package::{PackageAlias, PackageHash, link_directory};
 
 impl Project {
     pub fn restore(&self) -> Result<Vec<Restoration>> {
@@ -23,31 +23,28 @@ impl Project {
                 .hash
                 .clone()
                 .ok_or_else(|| anyhow!("Lock entry for `{alias}` has no hash"))?;
+            let location = root.join(&locked.location);
+            let source = std::fs::canonicalize(&location).with_context(|| {
+                format!("Could not find package `{alias}` at {}", location.display())
+            })?;
+            let found = PackageHash::of_directory(&source)?;
+            if found != expected {
+                bail!(
+                    "Package `{alias}` at {} does not match the lock file (expected {expected}, found {found})",
+                    source.display()
+                );
+            }
             let destination = self.package_dir(&alias);
-            let current = destination.is_dir()
-                && PackageHash::of_directory(&destination).is_ok_and(|hash| hash == expected);
-            if !current {
-                let location = root.join(&locked.location);
-                let source = std::fs::canonicalize(&location).with_context(|| {
-                    format!("Could not find package `{alias}` at {}", location.display())
-                })?;
-                let staged = self.stage(&source)?;
-                if staged.hash != expected {
-                    let found = staged.hash.clone();
-                    staged.discard();
-                    bail!(
-                        "Package `{alias}` at {} does not match the lock file (expected {expected}, found {found})",
-                        source.display()
-                    );
-                }
-                self.replace(staged, &destination)?;
+            let linked = std::fs::canonicalize(&destination).is_ok_and(|target| target == source);
+            if !linked {
+                link_directory(&source, &destination)?;
             }
             manifest_changed |= manifest.set_dependency(&alias, &locked.version)?;
             let mut package = locked.clone();
             package.root = destination;
             restored.push(Restoration {
                 package,
-                installed: !current,
+                installed: !linked,
             });
         }
         if manifest_changed {

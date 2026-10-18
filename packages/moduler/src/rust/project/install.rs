@@ -3,7 +3,7 @@ use std::path::Path;
 
 use super::manifest::ProjectManifest;
 use super::project::{Project, commit, write_pending};
-use crate::package::{PackageAlias, PackageInfo, relative_path};
+use crate::package::{PackageAlias, PackageHash, PackageInfo, link_directory, relative_path};
 
 const PACKAGE_MANIFEST: &str = "into-package.json";
 
@@ -31,30 +31,20 @@ impl Project {
 
         let mut project_manifest = ProjectManifest::load(&self.manifest_path())?;
         let mut lock = self.load_lock()?.unwrap_or_default();
-        let staged = self.stage(&source)?;
         let destination = self.package_dir(&alias);
         let package = PackageInfo::new(alias.as_str(), destination.clone(), &package_manifest)
-            .with_hash(staged.hash.clone())
+            .with_hash(PackageHash::of_directory(&source)?)
             .with_location(relative_path(&self.canonical_root()?, &source));
         project_manifest.set_dependency(&alias, &version)?;
         lock.upsert(package.clone());
 
-        let pending = write_pending(&self.manifest_path(), &project_manifest.to_string()).and_then(
-            |manifest| {
-                Ok((
-                    manifest,
-                    write_pending(&self.lock_path(), &lock.to_string())?,
-                ))
-            },
-        );
-        let (pending_manifest, pending_lock) = match pending {
-            Ok(pending) => pending,
-            Err(error) => {
-                staged.discard();
-                return Err(error);
-            }
-        };
-        self.replace(staged, &destination)?;
+        let pending_manifest = write_pending(&self.manifest_path(), &project_manifest.to_string())?;
+        let pending_lock = write_pending(&self.lock_path(), &lock.to_string())?;
+        if let Err(error) = link_directory(&source, &destination) {
+            std::fs::remove_file(&pending_manifest).ok();
+            std::fs::remove_file(&pending_lock).ok();
+            return Err(error);
+        }
         commit(&pending_manifest, &self.manifest_path())?;
         commit(&pending_lock, &self.lock_path())?;
         Ok(package)

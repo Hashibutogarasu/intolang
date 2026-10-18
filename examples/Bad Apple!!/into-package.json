@@ -6,6 +6,7 @@
   },
   "name": "Bad Apple!!",
   "packages": {
+    "builtin": "0.0.1",
     "cpp": "0.1.0",
     "ffmpeg": "0.1.0",
     "intolang": "0.0.1",

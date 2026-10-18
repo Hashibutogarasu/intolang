@@ -1,13 +1,14 @@
 {
-  "name": "HelloWorld",
-  "alias": "hello-world",
-  "version": "0.0.1",
   "LICENCE": "MIT",
-  "packages": {
-    "intolang": "0.0.1"
-  },
+  "alias": "hello-world",
   "builtConfig": {
     "dist": "./dist"
   },
-  "runs": "src/main/hello-world.into"
+  "name": "HelloWorld",
+  "packages": {
+    "builtin": "0.0.1",
+    "intolang": "0.0.1"
+  },
+  "runs": "src/main/hello-world.into",
+  "version": "0.0.1"
 }

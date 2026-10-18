@@ -1,9 +1,15 @@
 {
-  "name": "networking",
-  "alias": "networking",
-  "version": "0.1.0",
   "LICENCE": "MIT",
-  "packages": { "intolang": "0.0.1", "cpp": "0.1.0" },
-  "builtConfig": { "dist": "./dist" },
-  "runs": "src/main/networking.into"
+  "alias": "networking",
+  "builtConfig": {
+    "dist": "./dist"
+  },
+  "name": "networking",
+  "packages": {
+    "builtin": "0.0.1",
+    "cpp": "0.1.0",
+    "intolang": "0.0.1"
+  },
+  "runs": "src/main/networking.into",
+  "version": "0.1.0"
 }

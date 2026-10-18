@@ -97,15 +97,18 @@ CLI notes:
   `-format`, `-depth`.
 - `into new` flags: `--licence` (default `MIT`), `--version` (default `0.1.0`),
   `--alias`.
-- `into install <dir>` copies the package into `.into/packages/`, records it in
-  the project manifest's `packages` map and in `into-package-lock.json`; it
-  skips `.git` and `dist`. The lock file lists each package as a
-  `moduler::PackageInfo` (alias, name, version, licence, content `hash`, and the
-  `location` it was installed from, relative to the project).
-- `into install` without a directory restores the packages in the lock file
-  from their locations and fails if a package's hash differs from the lock.
-- `into uninstall <alias>...` (alias `into rm`) removes the installed package,
-  its `packages` entry and its lock entry.
+- `into install <dir>` links `.into/packages/<alias>` to the package directory
+  (a symbolic link, no copy) and records it in the project manifest's
+  `packages` map and in `into-package-lock.json`. The lock file lists each
+  package as a `moduler::PackageInfo` (alias, name, version, licence, content
+  `hash` that ignores `.git` and `dist`, and the `location` of the package,
+  relative to the project). Builds reference the links: the temporary package
+  environment symlinks every installed package instead of copying it.
+- `into install` without a directory restores the links of the packages in the
+  lock file from their locations and fails if a package's hash differs from the
+  lock.
+- `into uninstall <alias>...` (alias `into rm`) removes the link (never the
+  package itself), its `packages` entry and its lock entry.
 
 ## The Into language (essentials)
 

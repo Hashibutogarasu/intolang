@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 pub fn find_by_alias(packages_dir: &Path, alias: &str) -> Result<Option<PathBuf>> {
     for entry in std::fs::read_dir(packages_dir)? {
         let entry = entry?;
-        if !entry.file_type()?.is_dir() {
+        if !entry.path().is_dir() {
             continue;
         }
         let Ok(contents) = std::fs::read_to_string(entry.path().join("into-package.json")) else {

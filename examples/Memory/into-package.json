@@ -1,13 +1,14 @@
 {
-  "name": "MemoryExample",
-  "alias": "mem-example",
-  "version": "0.0.1",
   "LICENCE": "MIT",
-  "packages": {
-    "intolang": "0.0.1"
-  },
+  "alias": "mem-example",
   "builtConfig": {
     "dist": "./dist"
   },
-  "runs": "src/main/memory.into"
+  "name": "MemoryExample",
+  "packages": {
+    "builtin": "0.0.1",
+    "intolang": "0.0.1"
+  },
+  "runs": "src/main/memory.into",
+  "version": "0.0.1"
 }

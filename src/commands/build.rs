@@ -220,7 +220,7 @@ fn prepare_package_environment(
     if installed.is_dir() {
         for entry in std::fs::read_dir(&installed)? {
             let entry = entry?;
-            if !entry.file_type()?.is_dir() {
+            if !entry.path().is_dir() {
                 continue;
             }
             let manifest_path = entry.path().join("into-package.json");
@@ -241,11 +241,8 @@ fn prepare_package_environment(
             if !valid_alias(alias) {
                 anyhow::bail!("Invalid installed package alias `{alias}`");
             }
-            let destination = root.join(alias);
-            if destination.exists() {
-                std::fs::remove_dir_all(&destination)?;
-            }
-            copy_dir(&entry.path(), &destination)?;
+            let target = std::fs::canonicalize(entry.path())?;
+            moduler::link_directory(&target, &root.join(alias))?;
         }
     }
     Ok(PackageEnvironment(root))

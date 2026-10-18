@@ -5,10 +5,13 @@ use std::fmt;
 use std::path::Path;
 use std::str::FromStr;
 
-use super::copy::is_excluded;
-
 const PREFIX: &str = "sha256-";
 const DIGEST_LENGTH: usize = 64;
+const EXCLUDED: [&str; 2] = [".git", "dist"];
+
+fn is_excluded(name: &std::ffi::OsStr) -> bool {
+    EXCLUDED.iter().any(|excluded| name == *excluded)
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageHash(String);

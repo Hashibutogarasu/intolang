@@ -1,8 +1,8 @@
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, bail};
 
 use super::manifest::ProjectManifest;
 use super::project::{Project, commit, write_pending};
-use crate::package::{PackageAlias, PackageInfo};
+use crate::package::{PackageAlias, PackageInfo, is_installed, remove_installed};
 
 impl Project {
     pub fn uninstall(&self, alias: &str) -> Result<PackageInfo> {
@@ -13,7 +13,7 @@ impl Project {
 
         let declared = manifest.remove_dependency(&alias)?;
         let locked = lock.remove(alias.as_str());
-        let installed = destination.exists();
+        let installed = is_installed(&destination);
         if declared.is_none() && locked.is_none() && !installed {
             bail!("Package `{alias}` is not installed");
         }
@@ -24,10 +24,7 @@ impl Project {
         } else {
             None
         };
-        if installed {
-            std::fs::remove_dir_all(&destination)
-                .with_context(|| format!("Could not remove {}", destination.display()))?;
-        }
+        remove_installed(&destination)?;
         commit(&pending_manifest, &self.manifest_path())?;
         if let Some(pending_lock) = pending_lock {
             commit(&pending_lock, &self.lock_path())?;

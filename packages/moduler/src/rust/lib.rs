@@ -21,6 +21,9 @@ pub use library::{NativeFunction, lower_library};
 pub use links::resolve_links;
 pub use lock::LockFile;
 pub use module::{LoadedModule, Module, collect_modules};
-pub use package::{PackageAlias, PackageHash, PackageInfo, find_by_alias};
+pub use package::{
+    PackageAlias, PackageHash, PackageInfo, find_by_alias, is_installed, link_directory,
+    remove_installed,
+};
 pub use project::{Project, Restoration};
 pub use spec::{ExportSpec, ImportSpec};

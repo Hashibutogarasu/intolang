@@ -79,6 +79,7 @@
             shellHook = ''
               projectRoot="$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null || pwd -P)"
               export CARGO_TARGET_DIR="$projectRoot/dist"
+              export CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1
               export PATH="$CARGO_TARGET_DIR/debug:$PATH"
               mkdir -p "$CARGO_TARGET_DIR/debug"
 
