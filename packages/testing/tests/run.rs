@@ -42,6 +42,53 @@ fn objects_have_a_default_text_and_hash() {
     );
 }
 
+fn run_events(body: &str) -> String {
+    let source = format!("import \"intolang://builtin/std\";\n{body}");
+    let execution = eval_run(&source).unwrap();
+    assert!(execution.success, "{}", execution.stderr);
+    execution.stdout
+}
+
+#[test]
+fn emit_calls_every_registered_handler_in_order() {
+    let stdout = run_events(
+        "pub event example(value: Int32) {}\nexample.on((value) => { println(value); });\nexample.emit(3);\nexample.emit(4);\nnow into listener = example.on((value) => { println(\"second\"); });\nexample.emit(5);\nlistener.destroy();\nexample.emit(6);\n",
+    );
+    assert_eq!(stdout, "3\n4\n5\nsecond\n6\n");
+}
+
+#[test]
+fn destroying_an_event_silences_its_handlers() {
+    let stdout = run_events(
+        "pub event example(value: Int32) {}\nexample.on((value) => { println(value); });\nexample.emit(1);\nexample.destroy();\n",
+    );
+    assert_eq!(stdout, "1\n");
+}
+
+#[test]
+fn the_default_handler_runs_before_the_registered_ones() {
+    let stdout = run_events(
+        "pub event tick(value: Int32) {\n    println(\"default\");\n}\nnow into total = 10;\ntick.on((value) => { println(total); });\ntick.emit(1);\n",
+    );
+    assert_eq!(stdout, "default\n10\n");
+}
+
+#[test]
+fn handlers_receive_string_arguments_and_see_later_changes_of_captures() {
+    let stdout = run_events(
+        "pub event greet(name: String) {}\nnow into count = 1;\ngreet.on((name) => { println(name); println(count); });\ncount = 2;\ngreet.emit(\"bob\");\n",
+    );
+    assert_eq!(stdout, "bob\n2\n");
+}
+
+#[test]
+fn a_listener_leaving_its_scope_unregisters_the_handler() {
+    let stdout = run_events(
+        "pub event example(value: Int32) {}\nnow into n = 1;\nif (n == 1) {\n    now into listener = example.on((value) => { println(value); });\n    example.emit(1);\n}\nexample.emit(2);\n",
+    );
+    assert_eq!(stdout, "1\n");
+}
+
 #[test]
 fn reports_lowering_errors_before_compiling() {
     let error = eval_run("init {\n    into value: Int32 = \"x\";\n}\n").unwrap_err();

@@ -5,6 +5,7 @@ use std::collections::HashSet;
 use types::{Literal, MessageTag, Type};
 
 use super::annotation::resolve_annotation;
+use super::events::{EventCall, event_value, listener_value};
 use super::ownership::{BORROW, DESTROY};
 use super::type_name::{base_type_name, parse_type};
 use crate::context::{Lowerer, Tracking, UserFunction};
@@ -42,6 +43,18 @@ impl<'a> Lowerer<'a> {
                         .default_literal()
                         .ok_or_else(|| format!("Static field `{rhs}` has no constant default"))?;
                     return self.literal_value(literal, annotation, assigned_to);
+                }
+                if let Some(event) = path
+                    .as_ident()
+                    .filter(|name| !self.state.values.contains_key(*name))
+                    .filter(|name| self.env.events.contains_key(*name))
+                {
+                    if self.state.destroyed_events.contains(event) {
+                        return Err(format!("`{event}` was destroyed"));
+                    }
+                    let (value, ty, native) = event_value(event);
+                    let ty = resolve_annotation(ty, annotation)?;
+                    return Ok((value, ty, native));
                 }
                 if let Some(name) = path.as_ident() {
                     self.ensure_usable(name)?;
@@ -96,6 +109,15 @@ impl<'a> Lowerer<'a> {
     ) -> Result<Option<Bound>, String> {
         let env = self.env;
         if callee.is_member() {
+            match self.lower_event_call(callee, args, assigned_to)? {
+                EventCall::NotEvent => {}
+                EventCall::Listener(event) => {
+                    let (value, ty, native) = listener_value(&event);
+                    let ty = resolve_annotation(ty, annotation)?;
+                    return Ok(Some((value, ty, native)));
+                }
+                EventCall::Done => return Err(format!("`{callee}` does not return a value")),
+            }
             if let Some((class, method)) = self.static_receiver(callee) {
                 let key = self.method_key(&class, &method);
                 if let Some(inner) = env.user_functions.get(&key) {

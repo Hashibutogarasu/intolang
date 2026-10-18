@@ -5,7 +5,7 @@ use std::path::Path;
 
 use crate::collect::{
     ancestors, builtin_classes, check_inheritance, collect_class_infos, collect_classes,
-    collect_consuming, collect_enums, collect_type_params, collect_user_functions,
+    collect_consuming, collect_enums, collect_events, collect_type_params, collect_user_functions,
 };
 use crate::context::{Env, FieldDef, Lowerer, OBJECT};
 use crate::diagnostic::syntax_diagnostic;
@@ -45,6 +45,9 @@ fn lower_named(source: &str, packages_dir: Option<&Path>, source_path: &str) -> 
     for (name, fields) in classes {
         emit::class(&mut lowerer.state.output, name, fields);
     }
+    lowerer
+        .register_default_handlers()
+        .map_err(|message| lowerer.diagnostic(0, &message))?;
     for item in &program.items {
         match item {
             Item::Import(decl) => lowerer.lower_import(decl),
@@ -91,6 +94,11 @@ fn prepare(program: &Program, packages_dir: Option<&Path>, source_path: &str) ->
             }
         }
         env.consuming.extend(collect_consuming(&module.program));
+        for (name, event) in collect_events(&module.program) {
+            if public.contains(&name) {
+                env.events.insert(name, event);
+            }
+        }
     }
     env.enum_values.extend(collect_enums(program, source_path)?);
     for (name, fields) in collect_classes(program) {
@@ -100,6 +108,7 @@ fn prepare(program: &Program, packages_dir: Option<&Path>, source_path: &str) ->
         env.user_functions.insert(function.name.clone(), function);
     }
     env.consuming.extend(collect_consuming(program));
+    env.events.extend(collect_events(program));
 
     env.classes = builtin_classes();
     let mut declared = Vec::new();

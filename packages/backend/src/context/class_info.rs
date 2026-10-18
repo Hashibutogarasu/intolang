@@ -3,6 +3,12 @@ use std::collections::HashMap;
 /// The name every class without an explicit parent inherits from.
 pub const OBJECT: &str = "Object";
 
+/// The built-in class of a declared event used as a value.
+pub const EVENT: &str = "Event";
+
+/// The built-in class of a registration made with `on`.
+pub const LISTENER: &str = "Listener";
+
 /// A method or event member of a class, reduced to what inheritance checks
 /// and resolution need.
 #[derive(Debug, Clone, PartialEq, Eq)]

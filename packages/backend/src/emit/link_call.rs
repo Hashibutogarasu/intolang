@@ -49,7 +49,7 @@ impl Lowerer<'_> {
         Ok(())
     }
 
-    fn native_arg(&self, arg: &Expr) -> Result<NativeArg, String> {
+    pub fn native_arg(&self, arg: &Expr) -> Result<NativeArg, String> {
         match arg {
             Expr::Literal(Literal::String(value)) => Ok(NativeArg::from(value.as_str())),
             Expr::Literal(Literal::Int(number)) => i32::try_from(*number)

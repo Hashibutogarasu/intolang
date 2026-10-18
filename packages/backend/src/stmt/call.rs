@@ -5,7 +5,7 @@ use types::{Literal, MessageTag};
 
 use crate::context::Lowerer;
 use crate::emit;
-use crate::expr::base_type_name;
+use crate::expr::{EventCall, base_type_name};
 
 /// The builtin functions that write to the console.
 const PRINT: &str = "print";
@@ -48,6 +48,12 @@ impl Lowerer<'_> {
     fn lower_method_call(&mut self, line: usize, callee: &Path, args: &[Expr]) -> Result<()> {
         let env = self.env;
         let fail = |this: &Self, message: String| this.diagnostic(line, &message);
+        let handled = self
+            .lower_event_call(callee, args, "")
+            .map_err(|message| fail(self, message))?;
+        if !matches!(handled, EventCall::NotEvent) {
+            return Ok(());
+        }
         if let Some((class, method)) = self.static_receiver(callee) {
             let key = self.method_key(&class, &method);
             if let Some(inner) = env.user_functions.get(&key) {

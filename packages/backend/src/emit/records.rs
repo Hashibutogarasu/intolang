@@ -151,6 +151,59 @@ pub fn drop_guard(output: &mut String, name: &str) {
     comparison(output, MessageTag::IfBegin, &condition);
 }
 
+/// Open the function a handler body is generated into.
+pub fn handler_begin(
+    output: &mut String,
+    name: &str,
+    captures: &[String],
+    params: &[(String, Type)],
+) {
+    let mut record = Record::new(MessageTag::HandlerBegin)
+        .field(name)
+        .field(captures.join(","));
+    for (param, ty) in params {
+        record = record.field(format!("{param}:{ty}"));
+    }
+    push(output, record);
+}
+
+pub fn handler_end(output: &mut String) {
+    bare(output, MessageTag::HandlerEnd);
+}
+
+/// Register the handler function `handler` with `event`; the registration
+/// number goes to the slot `listener` unless it is empty.
+pub fn event_on(output: &mut String, event: &str, listener: &str, handler: &str) {
+    push(
+        output,
+        Record::new(MessageTag::EventOn)
+            .field(event)
+            .field(listener)
+            .field(handler),
+    );
+}
+
+pub fn event_emit(output: &mut String, event: &str, args: &[NativeArg]) {
+    let mut record = Record::new(MessageTag::Emit).field(event);
+    for arg in args {
+        record = record.field(arg);
+    }
+    push(output, record);
+}
+
+pub fn event_off(output: &mut String, event: &str, listener: &str) {
+    push(
+        output,
+        Record::new(MessageTag::EventOff)
+            .field(event)
+            .field(listener),
+    );
+}
+
+pub fn event_destroy(output: &mut String, event: &str) {
+    push(output, Record::new(MessageTag::EventDestroy).field(event));
+}
+
 /// A call to an imported function that is lowered to a plain `NATIVE` record.
 pub fn native_call(output: &mut String, symbol: &str, argument: &NativeArg) {
     let (kind, value) = match argument {

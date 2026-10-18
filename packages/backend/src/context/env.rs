@@ -4,6 +4,7 @@ use std::collections::{HashMap, HashSet};
 
 use super::class_def::{ClassFields, EnumValues};
 use super::class_info::Classes;
+use super::event_info::EventInfo;
 use super::user_function::UserFunction;
 use super::variable::Ownership;
 
@@ -19,6 +20,7 @@ pub struct Env {
     pub classes: Classes,
     pub user_functions: HashMap<String, UserFunction>,
     pub consuming: HashMap<String, Ownership>,
+    pub events: HashMap<String, EventInfo>,
     pub type_params: HashSet<String>,
     pub imported_functions: HashSet<String>,
 }

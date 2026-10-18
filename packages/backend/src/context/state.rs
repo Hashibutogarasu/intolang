@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use super::variable::{Tracking, Variable};
 
@@ -28,6 +28,7 @@ pub struct State {
     pub loop_scopes: Vec<usize>,
     /// The inlined function calls being lowered, innermost last.
     pub frames: Vec<InlineFrame>,
+    pub destroyed_events: HashSet<String>,
 }
 
 impl State {

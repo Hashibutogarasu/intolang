@@ -2,6 +2,7 @@ use ast::{Expr, Param, Path, Stmt, StmtKind};
 use std::collections::HashSet;
 use types::{Literal, MessageTag, Storage, Type};
 
+use super::events::EventCall;
 use super::ownership::{BORROW, COPY, DESTROY, MOVE};
 use super::type_name::{base_type_name, parse_type};
 use crate::context::{InlineFrame, Lowerer, Tracking, UserFunction, Variable};
@@ -348,6 +349,12 @@ impl<'a> Lowerer<'a> {
     ) -> Result<(), String> {
         let env = self.env;
         if callee.is_member() {
+            if !matches!(
+                self.lower_event_call(callee, args, "")?,
+                EventCall::NotEvent
+            ) {
+                return Ok(());
+            }
             if let Some((class, method)) = self.static_receiver(callee) {
                 let key = self.method_key(&class, &method);
                 if let Some(inner) = env.user_functions.get(&key) {

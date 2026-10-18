@@ -2,7 +2,7 @@ use anyhow::Result;
 use ast::{EventDecl, FunctionDecl, Program};
 use std::collections::HashMap;
 
-use crate::context::{ClassInfo, Classes, MemberInfo, OBJECT};
+use crate::context::{ClassInfo, Classes, EVENT, LISTENER, MemberInfo, OBJECT};
 use crate::diagnostic::diagnostic;
 
 /// The return type that stands for "the class of the receiver".
@@ -51,7 +51,19 @@ pub fn builtin_classes() -> Classes {
         ],
         events: vec![on_cast],
     };
-    Classes::from([(OBJECT.to_owned(), object)])
+    let plain = |name: &str| ClassInfo {
+        name: name.to_owned(),
+        line: 0,
+        is_abstract: false,
+        parent: None,
+        methods: Vec::new(),
+        events: Vec::new(),
+    };
+    Classes::from([
+        (OBJECT.to_owned(), object),
+        (EVENT.to_owned(), plain(EVENT)),
+        (LISTENER.to_owned(), plain(LISTENER)),
+    ])
 }
 
 /// Collect the inheritance view of every class declared in `program`.
