@@ -3,7 +3,7 @@ use native::{LinkCall, NativeArg, NativeLink};
 use types::{Literal, MessageTag};
 
 use crate::context::{Lowerer, Ownership};
-use crate::expr::MOVE;
+use crate::expr::{MOVE, base_type_name};
 
 impl Lowerer<'_> {
     /// Emit a call to the native function `link` binds. `args` holds the
@@ -81,6 +81,26 @@ impl Lowerer<'_> {
                         Some(Literal::Bool(flag)) => Ok(NativeArg::Int(i32::from(*flag))),
                         _ => Err(format!("Static field `{arg}` has no constant default")),
                     };
+                }
+                if let [name, member] = path.segments()
+                    && let Some(variable) = self.state.values.get(name)
+                    && variable.native
+                {
+                    self.ensure_usable(name)?;
+                    let class = base_type_name(&variable.ty.name()).to_owned();
+                    let position = self.env.class_fields.get(&class).and_then(|fields| {
+                        fields
+                            .iter()
+                            .filter(|field| !field.is_static)
+                            .position(|field| field.name == *member)
+                    });
+                    if let Some(index) = position {
+                        return Ok(NativeArg::Field {
+                            slot: name.clone(),
+                            class,
+                            index,
+                        });
+                    }
                 }
                 let variant = path.segments()[1..].join(".");
                 self.env

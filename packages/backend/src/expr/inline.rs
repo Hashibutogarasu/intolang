@@ -325,6 +325,13 @@ impl<'a> Lowerer<'a> {
         if self.print_compile_time(argument, newline) {
             return Ok(());
         }
+        if matches!(argument, Expr::Path(path) if path.is_member())
+            || matches!(argument, Expr::Call { callee, .. } if callee.is_member())
+        {
+            return self
+                .lower_print(0, newline, args)
+                .map_err(|error| error.to_string());
+        }
         if let Some(variable) = argument
             .as_ident()
             .and_then(|name| self.state.values.get(name).map(|v| (name, v.clone())))

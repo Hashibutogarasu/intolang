@@ -225,6 +225,7 @@ pub fn native_call(output: &mut String, symbol: &str, argument: &NativeArg) {
         NativeArg::Int(number) => ("i", number.to_string()),
         NativeArg::Str(bytes) => ("s", Hex::from(bytes.as_slice()).to_string()),
         NativeArg::Slot(name) => ("p", name.clone()),
+        NativeArg::Field { slot, class, index } => ("f", format!("{slot}:{class}:{index}")),
     };
     push(
         output,

@@ -1,3 +1,4 @@
+import "intolang://builtin/std";
 import "wayland://window";
 import "vulkan://core";
 import "ffmpeg://decoder";
@@ -6,28 +7,71 @@ import "sdl2://audio";
 import "fs://file";
 import "path://std";
 import "cpp://standard/time";
+import "ps://process";
+import "ps://events";
 
-into wayland = Wayland();
-wayland.window.create(854, 480, "Bad Apple!!");
+pub event audioReady(sampleRate: Int32, channels: Int32) {}
+
+pub event frameShown(frame: Int32) {}
+
+pub event stopping(signal: Int32) {}
+
+pub Settings() {
+    pub into: Int32 width = 854;
+    pub into: Int32 height = 480;
+    pub into: String title = "Bad Apple!!";
+}
+
+now into settings = Settings();
+now into windowSettings = settings.copy();
+
+now into self = Process.current();
+println(self.toString());
+println(self.hash());
+
+now into stop = 0;
+now into audioStarted = 0;
+now into shownFrames = 0;
+
+now into onTerm = self.signal.on(Signal.SIGTERM, (signal) => {
+    stopping.emit(signal);
+});
+now into onInterrupt = self.signal.on(Signal.SIGINT, (signal) => {
+    stopping.emit(signal);
+});
+now into onStop = stopping.on((signal) => {
+    stop = 1;
+});
+now into onFrame = frameShown.on((frame) => {
+    shownFrames = shownFrames + 1;
+});
+now into onAudio = audioReady.on((sampleRate, channels) => {
+    audioStarted = 1;
+});
+now into onExit = exited.on((process, code) => {
+    println("Bad Apple!! stopped");
+});
+
+now into wayland = Wayland();
+wayland.window.create(windowSettings.width, windowSettings.height, windowSettings.title);
 now into titleBar = wayland.window.titlebar.create();
 
-into vulkan = Vulkan();
+now into vulkan = Vulkan();
 wayland.setRenderer(vulkan);
 
-into ffmpeg = FFmpeg();
-into video = ffmpeg.read("res/badapple.mp4");
+now into ffmpeg = FFmpeg();
+now into video = ffmpeg.read("res/badapple.mp4");
 
 now into soundFile = File();
 now into soundBytes = soundFile.read("res/badapple.mp4");
 now into audio = openAudioBuffer(soundBytes);
 
-into output = SDL2Audio();
+now into output = SDL2Audio();
+now into sampleRate = audio.sampleRate();
+now into channels = audio.channels();
+now into speaker = output.open(sampleRate, channels);
 
-init {
-    now into sampleRate = audio.sampleRate();
-    now into channels = audio.channels();
-    into speaker = output.open(sampleRate, channels);
-
+now into audioThread = thread {
     now into* format = audio.format();
     now into* codec = audio.decoder();
     now into* packet = audio.packet();
@@ -39,6 +83,9 @@ init {
     into received = 0;
 
     while (reading >= 0) {
+        if (stop == 1) {
+            break;
+        }
         reading = readAudioFrame(format, packet);
         if (reading >= 0) {
             now into packetStream = audioPacketStream(packet);
@@ -63,12 +110,35 @@ init {
         }
     }
     speaker.resume();
+    audioReady.emit(sampleRate, channels);
+};
+
+now into watcherThread = thread {
+    while (stop == 0) {
+        dispatch(self);
+        sleep(10);
+    }
+};
+
+now into watchTask = watcherThread.run();
+now into audioTask = audioThread.run();
+
+init {
+    while (audioStarted == 0) {
+        if (stop == 1) {
+            break;
+        }
+        sleep(5);
+    }
 
     into delay = video.delayMs();
     into start = monotonicMilliseconds();
     into frame = 0;
 
     while (wayland.window.isOpen()) {
+        if (stop == 1) {
+            break;
+        }
         if (video.next()) {
             into text = video.text();
             vulkan.beginFrame(0);
@@ -76,6 +146,7 @@ init {
             wayland.window.present();
 
             frame = frame + 1;
+            frameShown.emit(frame);
             into elapsed = frame * delay;
             into deadline = start + elapsed;
             into now = monotonicMilliseconds();
@@ -89,8 +160,8 @@ init {
     }
 }
 
-audio.destroy();
-output.destroy();
-video.destroy();
-vulkan.destroy();
-wayland.destroy();
+stopping.emit(0);
+await audioTask;
+await watchTask;
+println(shownFrames);
+exit(self, 0);

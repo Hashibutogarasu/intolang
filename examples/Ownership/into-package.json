@@ -1,0 +1,14 @@
+{
+  "LICENCE": "MIT",
+  "alias": "ownership",
+  "builtConfig": {
+    "dist": "./dist"
+  },
+  "name": "Ownership",
+  "packages": {
+    "builtin": "0.0.1",
+    "ps": "0.1.0"
+  },
+  "runs": "src/main/ownership.into",
+  "version": "0.1.0"
+}

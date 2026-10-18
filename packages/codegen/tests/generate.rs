@@ -264,6 +264,48 @@ fn calls_native_functions_with_encoded_arguments() {
 }
 
 #[test]
+fn passes_instance_fields_to_native_functions() {
+    let message = [
+        record(MessageTag::Class, &["Config", "size:Int32:n:7"]),
+        record(MessageTag::Construct, &["config", "Config"]),
+        record(
+            MessageTag::LinkAssign,
+            &[
+                "pkg",
+                "c",
+                "src/ffi/a.c",
+                "configure",
+                "Void",
+                "",
+                "f:config:Config:0",
+            ],
+        ),
+    ]
+    .concat();
+    let ir = generate(&message).unwrap();
+    assert!(ir.contains("getelementptr inbounds nuw %Config"), "{ir}");
+    assert!(ir.contains("call void @configure(i32"), "{ir}");
+}
+
+#[test]
+fn rejects_instance_fields_of_unknown_classes() {
+    let message = record(
+        MessageTag::LinkAssign,
+        &[
+            "pkg",
+            "c",
+            "src/ffi/a.c",
+            "configure",
+            "Void",
+            "",
+            "f:config:Missing:0",
+        ],
+    );
+    let error = generate(&message).unwrap_err();
+    assert!(error.to_string().contains("has no storage"), "{error}");
+}
+
+#[test]
 fn rejects_unbalanced_blocks() {
     let error = generate(&record(MessageTag::IfEnd, &[])).unwrap_err();
     assert!(error.to_string().contains("no matching if"), "{error}");

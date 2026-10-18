@@ -1,0 +1,14 @@
+{
+  "LICENCE": "MIT",
+  "alias": "process-example",
+  "builtConfig": {
+    "dist": "./dist"
+  },
+  "name": "Process",
+  "packages": {
+    "builtin": "0.0.1",
+    "ps": "0.1.0"
+  },
+  "runs": "src/main/process.into",
+  "version": "0.1.0"
+}

@@ -12,6 +12,12 @@ into run "examples/Bad Apple!!"
 
 `res/badapple.mp4` is required at runtime.
 
+Audio decoding and signal watching run on their own threads (`thread`,
+`await`), the threads and the window loop talk through events (`audioReady`,
+`frameShown`, `stopping`), and `SIGTERM` or `SIGINT` (Ctrl+C) fires `stopping`
+so the program leaves its loops, destroys everything it owns in reverse order
+and ends with exit code 0.
+
 ## License
 
 The FFmpeg decoding and character-mapping approach in this example is ported

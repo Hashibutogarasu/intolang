@@ -1,0 +1,34 @@
+import "intolang://builtin/std";
+import "ps://process";
+import "ps://events";
+
+now into self = Process.current();
+
+started.on((process) => {
+    println("started");
+});
+
+exited.on((process, code) => {
+    println("exited");
+    println(code);
+});
+
+self.signal.on(Signal.SIGUSR1, (signal) => {
+    println("received SIGUSR1");
+});
+
+started.emit(self);
+println(self.pid);
+
+self.signal.send(Signal.SIGUSR1);
+dispatch(self);
+
+now into child = Process.spawn("/usr/bin/env", "true");
+now into code = child.wait();
+println(code);
+
+now into sleeper = Process.spawn("/usr/bin/env", "sleep 60");
+sleeper.kill();
+println(sleeper.wait());
+
+exit(self, 0);

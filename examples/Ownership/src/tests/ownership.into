@@ -1,0 +1,60 @@
+import "intolang://builtin/tests/macros/test";
+import "intolang://builtin/tests/assert";
+import "intolang://builtin/tests/memory-check";
+import "intolang://builtin/tests/ownership-check";
+
+#[entrypoint]
+pub OwnershipTest() {
+    #[test]
+    pub fun aNewBindingOwnsItsInstance() {
+        now into dog = 1;
+        assertOwned(dog);
+        assertNotReference(dog);
+        assertNotBorrowed(dog);
+        assertMemoryExists(dog);
+    }
+
+    #[test]
+    pub fun copyCreatesAnIndependentOwner() {
+        now into dog = 1;
+        now into twin = dog.copy();
+        assertOwned(dog);
+        assertOwned(twin);
+
+        twin.destroy();
+        assertDestroyed(twin);
+        assertNotDestroyed(dog);
+    }
+
+    #[test]
+    pub fun moveHandsTheOwnershipOver() {
+        now into dog = 1;
+        now into moved = dog.move();
+        assertMoved(dog);
+        assertNotOwned(dog);
+        assertMemoryNotExists(dog);
+        assertOwned(moved);
+        assertMemoryExists(moved);
+    }
+
+    #[test]
+    pub fun borrowGivesAReferenceThatOwnsNothing() {
+        now into dog = 1;
+        now into view = dog.borrow();
+        assertBorrowed(dog);
+        assertReference(view);
+        assertNotOwned(view);
+
+        view.destroy();
+        assertNotBorrowed(dog);
+        assertOwned(dog);
+    }
+
+    #[test]
+    pub fun destroyRemovesTheMemory() {
+        now into dog = 1;
+        dog.destroy();
+        assertDestroyed(dog);
+        assertMemoryNotExists(dog);
+    }
+}

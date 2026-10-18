@@ -1,0 +1,30 @@
+import "intolang://builtin/std";
+import "ps://process";
+
+pub Counter() {
+    pub into: Int32 value = 0;
+}
+
+now into counter = Counter();
+now into copied = counter.copy();
+now into moved = counter.move();
+println(copied.value);
+println(moved.value);
+
+now into view = moved.borrow();
+println(view.value);
+view.destroy();
+
+now into zero = 0;
+if (zero == 0) {
+    now into scoped = copied.copy();
+    println(scoped.value);
+}
+
+pub fun adopt(owner: Process) {
+    println(owner.pid);
+}
+
+now into self = Process.current();
+adopt(self.move());
+println("still running");

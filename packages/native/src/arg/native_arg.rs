@@ -4,13 +4,19 @@ use std::fmt;
 use std::str::FromStr;
 
 /// An argument of a native call as carried in a lowered message: `s:<hex>`
-/// for a string, `i:<n>` for a 32-bit integer and `p:<slot>` for the value
-/// held in a named slot.
+/// for a string, `i:<n>` for a 32-bit integer, `p:<slot>` for the value
+/// held in a named slot and `f:<slot>:<class>:<index>` for a field of the
+/// instance a slot holds.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NativeArg {
     Str(Vec<u8>),
     Int(i32),
     Slot(String),
+    Field {
+        slot: String,
+        class: String,
+        index: usize,
+    },
 }
 
 impl From<&str> for NativeArg {
@@ -34,6 +40,17 @@ impl FromStr for NativeArg {
             "s" => Ok(NativeArg::Str(value.parse::<Hex>()?.try_into()?)),
             "i" => Ok(NativeArg::Int(value.parse()?)),
             "p" => Ok(NativeArg::Slot(value.to_owned())),
+            "f" => {
+                let mut parts = value.splitn(3, ':');
+                match (parts.next(), parts.next(), parts.next()) {
+                    (Some(slot), Some(class), Some(index)) => Ok(NativeArg::Field {
+                        slot: slot.to_owned(),
+                        class: class.to_owned(),
+                        index: index.parse()?,
+                    }),
+                    _ => bail!("Malformed native field argument `{text}`"),
+                }
+            }
             other => bail!("Unsupported native link argument type `{other}`"),
         }
     }
@@ -45,6 +62,7 @@ impl fmt::Display for NativeArg {
             NativeArg::Str(bytes) => write!(f, "s:{}", Hex::from(bytes.as_slice())),
             NativeArg::Int(value) => write!(f, "i:{value}"),
             NativeArg::Slot(name) => write!(f, "p:{name}"),
+            NativeArg::Field { slot, class, index } => write!(f, "f:{slot}:{class}:{index}"),
         }
     }
 }

@@ -113,6 +113,33 @@ impl CodegenContext {
                             1,
                         ));
                     }
+                    NativeArg::Field { slot, class, index } => {
+                        let instance = self.load_slot(slot)?;
+                        let layout = *self
+                            .named_types
+                            .get(class)
+                            .ok_or_else(|| anyhow!("Unknown native class `{class}`"))?;
+                        let field_type = self
+                            .class_fields
+                            .get(class)
+                            .and_then(|fields| fields.get(*index))
+                            .map(|(_, ty)| *ty)
+                            .ok_or_else(|| anyhow!("Class `{class}` has no field {index}"))?;
+                        let address = LLVMBuildStructGEP2(
+                            self.builder,
+                            layout,
+                            instance,
+                            *index as u32,
+                            self.empty.as_ptr(),
+                        );
+                        params.push(field_type);
+                        values.push(LLVMBuildLoad2(
+                            self.builder,
+                            field_type,
+                            address,
+                            self.empty.as_ptr(),
+                        ));
+                    }
                     NativeArg::Slot(name) => {
                         let slot = self.slots.get(name).ok_or_else(|| {
                             anyhow!("Native pointer argument `{name}` has no value")
