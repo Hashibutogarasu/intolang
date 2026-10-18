@@ -96,6 +96,48 @@ fn declares_classes_and_constructs_them() {
 }
 
 #[test]
+fn aliases_share_the_source_storage() {
+    let message = [
+        record(MessageTag::Class, &["Config", "size:Int32:n:7"]),
+        record(MessageTag::Construct, &["config", "Config"]),
+        record(MessageTag::Alias, &["moved", "config"]),
+        record(
+            MessageTag::FieldPrint,
+            &["moved", "Config", "0", "Int32", "1"],
+        ),
+    ]
+    .concat();
+    let ir = generate(&message).unwrap();
+    assert!(ir.contains("%Config = type { i32 }"), "{ir}");
+    assert_eq!(ir.matches("alloca %Config").count(), 1, "{ir}");
+}
+
+#[test]
+fn copies_instances_into_new_storage() {
+    let message = [
+        record(MessageTag::Class, &["Config", "size:Int32:n:7"]),
+        record(MessageTag::Construct, &["config", "Config"]),
+        record(MessageTag::Copy, &["copied", "config", "Config"]),
+        record(
+            MessageTag::FieldPrint,
+            &["copied", "Config", "0", "Int32", "1"],
+        ),
+    ]
+    .concat();
+    let ir = generate(&message).unwrap();
+    assert_eq!(ir.matches("alloca %Config").count(), 2, "{ir}");
+}
+
+#[test]
+fn rejects_copying_unknown_classes() {
+    let error = generate(&record(MessageTag::Copy, &["a", "b", "Missing"])).unwrap_err();
+    assert!(
+        error.to_string().contains("Unknown native class"),
+        "{error}"
+    );
+}
+
+#[test]
 fn calls_native_functions_with_encoded_arguments() {
     let message = record(
         MessageTag::LinkAssign,

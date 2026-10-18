@@ -2,7 +2,7 @@ use anyhow::Result;
 use ast::Declaration;
 use types::{Storage, Type};
 
-use crate::context::{Lowerer, Variable};
+use crate::context::{Lowerer, Tracking, Variable};
 use crate::emit;
 use crate::expr::parse_type;
 
@@ -27,6 +27,7 @@ impl Lowerer<'_> {
                         unloaded: false,
                         declared_in_init,
                         native: true,
+                        tracking: Tracking::default(),
                     },
                 );
             }
@@ -42,9 +43,11 @@ impl Lowerer<'_> {
             (true, None) => Some(Type::Pointer),
             (_, annotation) => annotation,
         };
+        self.state.pending_tracking = None;
         let (value, ty, native) = self
             .declaration_value(rhs, annotation, &env.type_params, &declaration.name)
             .map_err(|message| self.diagnostic(line, &message))?;
+        let tracking = self.state.pending_tracking.take().unwrap_or_default();
         self.state.values.insert(
             declaration.name.clone(),
             Variable {
@@ -56,6 +59,7 @@ impl Lowerer<'_> {
                 unloaded: false,
                 declared_in_init,
                 native,
+                tracking,
             },
         );
         Ok(())

@@ -67,6 +67,7 @@ impl Lowerer<'_> {
             }
             Expr::Path(path) => {
                 let name = path.first();
+                self.ensure_usable(name)?;
                 match self.state.values.get(name) {
                     Some(variable) if variable.native => Ok(NativeArg::Slot(name.to_owned())),
                     Some(variable) => Ok(NativeArg::from(variable.value.as_str())),

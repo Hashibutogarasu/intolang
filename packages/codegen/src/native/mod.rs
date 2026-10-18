@@ -1,9 +1,11 @@
+mod alias;
 mod arith;
 mod assign;
 mod break_stmt;
 mod call;
 mod class;
 mod construct;
+mod copy;
 mod field_print;
 mod if_begin;
 mod if_call;
@@ -18,12 +20,14 @@ mod print;
 mod print_const;
 mod while_begin;
 
+pub(crate) use alias::NativeAlias;
 pub(crate) use arith::NativeArith;
 pub(crate) use assign::NativeAssign;
 pub(crate) use break_stmt::NativeBreak;
 pub(crate) use call::NativeCall;
 pub(crate) use class::Class;
 pub(crate) use construct::NativeConstruct;
+pub(crate) use copy::NativeCopy;
 pub(crate) use field_print::NativeFieldPrint;
 pub(crate) use if_begin::NativeIfBegin;
 pub(crate) use if_call::NativeIfCall;

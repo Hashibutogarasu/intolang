@@ -11,4 +11,4 @@ pub use class_info::{ClassInfo, Classes, MemberInfo, OBJECT};
 pub use env::Env;
 pub use lowerer::Lowerer;
 pub use user_function::UserFunction;
-pub use variable::Variable;
+pub use variable::{Ownership, Tracking, Variable};

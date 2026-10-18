@@ -67,21 +67,30 @@ impl Lowerer<'_> {
         let (receiver, receiver_type) = self
             .resolve_receiver(callee)
             .map_err(|message| fail(self, message))?;
-        let key = self.method_key(base_type_name(&receiver_type.name()), callee.last());
+        let class = base_type_name(&receiver_type.name()).to_owned();
+        let method = callee.last();
+        self.check_receiver_call(&receiver, method)
+            .map_err(|message| fail(self, message))?;
+        let key = self.method_key(&class, method);
         if let Some(inner) = env.user_functions.get(&key) {
-            return self
-                .inline_user_function(inner, Some(receiver), args, 0)
-                .map(|_| ())
-                .map_err(|message| fail(self, message));
+            self.inline_user_function(inner, Some(receiver.clone()), args, 0)
+                .map_err(|message| fail(self, message))?;
+            self.apply_receiver_call(&receiver, method);
+            return Ok(());
         }
-        let link = env
-            .native_links
-            .get(&key)
-            .ok_or_else(|| fail(self, format!("Undefined method `{key}`")))?;
-        let mut combined = vec![Expr::ident(receiver)];
+        let Some(link) = env.native_links.get(&key) else {
+            if self.is_ownership_method(&class, method) {
+                self.apply_receiver_call(&receiver, method);
+                return Ok(());
+            }
+            return Err(fail(self, format!("Undefined method `{key}`")));
+        };
+        let mut combined = vec![Expr::ident(receiver.clone())];
         combined.extend_from_slice(args);
         self.emit_link_call(MessageTag::LinkAssign, link, combined, "", true)
-            .map_err(|message| fail(self, message))
+            .map_err(|message| fail(self, message))?;
+        self.apply_receiver_call(&receiver, method);
+        Ok(())
     }
 
     /// A call to an imported function without a `#[link]` binding, lowered to

@@ -27,4 +27,6 @@ pub enum MessageTag {
     LoopBegin,
     LoopEnd,
     Break,
+    Alias,
+    Copy,
 }

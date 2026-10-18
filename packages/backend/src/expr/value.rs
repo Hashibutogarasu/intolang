@@ -42,6 +42,9 @@ impl<'a> Lowerer<'a> {
                         .ok_or_else(|| format!("Static field `{rhs}` has no constant default"))?;
                     return self.literal_value(literal, annotation, assigned_to);
                 }
+                if let Some(name) = path.as_ident() {
+                    self.ensure_usable(name)?;
+                }
                 if let Some(source) = path.as_ident().and_then(|name| self.state.values.get(name)) {
                     let ty = resolve_annotation(source.ty.clone(), annotation)?;
                     if source.native {
@@ -95,9 +98,21 @@ impl<'a> Lowerer<'a> {
                 return linked_value(link, type_params, annotation).map(Some);
             }
             let (receiver, receiver_type) = self.resolve_receiver(callee)?;
-            let key = self.method_key(base_type_name(&receiver_type.name()), callee.last());
+            let class = base_type_name(&receiver_type.name()).to_owned();
+            let method = callee.last();
+            if self.is_ownership_method(&class, method)
+                && matches!(method, "copy" | "move" | "borrow")
+            {
+                let ty =
+                    self.lower_ownership_value(&receiver, &receiver_type, method, assigned_to)?;
+                let ty = resolve_annotation(ty, annotation)?;
+                return Ok(Some((ty.name(), ty, true)));
+            }
+            self.check_receiver_call(&receiver, method)?;
+            let key = self.method_key(&class, method);
             if let Some(inner) = env.user_functions.get(&key) {
-                let returned = self.inline_user_function(inner, Some(receiver), args, 0)?;
+                let returned = self.inline_user_function(inner, Some(receiver.clone()), args, 0)?;
+                self.apply_receiver_call(&receiver, method);
                 return self
                     .inlined_value(returned, &key, annotation, assigned_to)
                     .map(Some);
@@ -106,9 +121,10 @@ impl<'a> Lowerer<'a> {
                 .native_links
                 .get(&key)
                 .ok_or_else(|| format!("Undefined method `{key}`"))?;
-            let mut combined = vec![Expr::ident(receiver)];
+            let mut combined = vec![Expr::ident(receiver.clone())];
             combined.extend_from_slice(args);
             self.emit_link_call(MessageTag::LinkAssign, link, combined, assigned_to, true)?;
+            self.apply_receiver_call(&receiver, method);
             return linked_value(link, type_params, annotation).map(Some);
         }
         let function = callee.first();

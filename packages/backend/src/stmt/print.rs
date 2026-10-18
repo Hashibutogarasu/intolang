@@ -35,6 +35,8 @@ impl Lowerer<'_> {
             if path.is_member()
                 && let Some(variable) = self.state.values.get(path.first()).cloned()
             {
+                self.ensure_usable(path.first())
+                    .map_err(|message| self.diagnostic(line, &message))?;
                 let member = path.segments()[1..].join(".");
                 let fields = env.class_fields.get(&variable.value).ok_or_else(|| {
                     self.diagnostic(
@@ -71,6 +73,8 @@ impl Lowerer<'_> {
         if let Some(name) = argument.as_ident()
             && let Some(variable) = self.state.values.get(name).cloned()
         {
+            self.ensure_usable(name)
+                .map_err(|message| self.diagnostic(line, &message))?;
             return self.print_variable(line, name, &variable, newline);
         }
         if let Expr::Literal(literal) = argument {

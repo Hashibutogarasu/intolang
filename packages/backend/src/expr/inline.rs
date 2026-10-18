@@ -121,8 +121,10 @@ impl<'a> Lowerer<'a> {
             (true, None) => Some(Type::Pointer),
             (_, annotation) => annotation,
         };
+        self.state.pending_tracking = None;
         let (text, ty, native) =
             self.declaration_value(value, annotation, &none, &declaration.name)?;
+        let tracking = self.state.pending_tracking.take().unwrap_or_default();
         self.state.values.insert(
             declaration.name.clone(),
             Variable {
@@ -134,6 +136,7 @@ impl<'a> Lowerer<'a> {
                 unloaded: false,
                 declared_in_init: false,
                 native,
+                tracking,
             },
         );
         Ok(())
@@ -205,7 +208,7 @@ impl<'a> Lowerer<'a> {
         let env = self.env;
         if callee.is_member() {
             if let Some((class, method)) = self.static_receiver(callee) {
-                let key = format!("{class}.{method}");
+                let key = self.method_key(&class, &method);
                 if let Some(inner) = env.user_functions.get(&key) {
                     return self
                         .inline_user_function(inner, None, args, depth + 1)
@@ -218,23 +221,27 @@ impl<'a> Lowerer<'a> {
                 return self.emit_link_call(MessageTag::LinkAssign, link, args.to_vec(), "", false);
             }
             let (receiver, receiver_type) = self.resolve_receiver(callee)?;
-            let key = format!(
-                "{}.{}",
-                base_type_name(&receiver_type.name()),
-                callee.last()
-            );
+            let class = base_type_name(&receiver_type.name()).to_owned();
+            let method = callee.last();
+            self.check_receiver_call(&receiver, method)?;
+            let key = self.method_key(&class, method);
             if let Some(inner) = env.user_functions.get(&key) {
-                return self
-                    .inline_user_function(inner, Some(receiver), args, depth + 1)
-                    .map(|_| ());
+                self.inline_user_function(inner, Some(receiver.clone()), args, depth + 1)?;
+                self.apply_receiver_call(&receiver, method);
+                return Ok(());
             }
-            let link = env
-                .native_links
-                .get(&key)
-                .ok_or_else(|| format!("Undefined method `{key}`"))?;
-            let mut combined = vec![Expr::ident(receiver)];
+            let Some(link) = env.native_links.get(&key) else {
+                if self.is_ownership_method(&class, method) {
+                    self.apply_receiver_call(&receiver, method);
+                    return Ok(());
+                }
+                return Err(format!("Undefined method `{key}`"));
+            };
+            let mut combined = vec![Expr::ident(receiver.clone())];
             combined.extend_from_slice(args);
-            return self.emit_link_call(MessageTag::LinkAssign, link, combined, "", true);
+            self.emit_link_call(MessageTag::LinkAssign, link, combined, "", true)?;
+            self.apply_receiver_call(&receiver, method);
+            return Ok(());
         }
         let name = callee.first();
         if let Some(inner) = env.user_functions.get(name) {

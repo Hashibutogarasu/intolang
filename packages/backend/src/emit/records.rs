@@ -104,6 +104,26 @@ pub fn construct(output: &mut String, target: &str, class: &str) {
     );
 }
 
+/// Make `target` refer to the storage `source` holds, as `move` and `borrow`
+/// do: no memory is copied.
+pub fn alias(output: &mut String, target: &str, source: &str) {
+    push(
+        output,
+        Record::new(MessageTag::Alias).field(target).field(source),
+    );
+}
+
+/// Copy the whole instance `source` holds into new storage for `target`.
+pub fn copy(output: &mut String, target: &str, source: &str, class: &str) {
+    push(
+        output,
+        Record::new(MessageTag::Copy)
+            .field(target)
+            .field(source)
+            .field(class),
+    );
+}
+
 /// A call to an imported function that is lowered to a plain `NATIVE` record.
 pub fn native_call(output: &mut String, symbol: &str, argument: &NativeArg) {
     let (kind, value) = match argument {

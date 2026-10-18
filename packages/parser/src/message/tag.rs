@@ -30,6 +30,8 @@ impl FromStr for TagLexeme {
             "NATIVE_LOOP_BEGIN" => MessageTag::LoopBegin,
             "NATIVE_LOOP_END" => MessageTag::LoopEnd,
             "NATIVE_BREAK" => MessageTag::Break,
+            "NATIVE_ALIAS" => MessageTag::Alias,
+            "NATIVE_COPY" => MessageTag::Copy,
             other => bail!("Unknown message tag `{other}`"),
         }))
     }
@@ -77,6 +79,8 @@ impl fmt::Display for TagLexeme {
             MessageTag::LoopBegin => "NATIVE_LOOP_BEGIN",
             MessageTag::LoopEnd => "NATIVE_LOOP_END",
             MessageTag::Break => "NATIVE_BREAK",
+            MessageTag::Alias => "NATIVE_ALIAS",
+            MessageTag::Copy => "NATIVE_COPY",
         })
     }
 }

@@ -3,9 +3,10 @@ use parser::Record;
 use types::MessageTag;
 
 use crate::native::{
-    Class, NativeArith, NativeAssign, NativeBreak, NativeCall, NativeConstruct, NativeFieldPrint,
-    NativeIfBegin, NativeIfCall, NativeIfConst, NativeIfElse, NativeIfEnd, NativeLinkAssign,
-    NativeLoopBegin, NativeLoopEnd, NativeModule, NativePrint, NativePrintConst, NativeWhileBegin,
+    Class, NativeAlias, NativeArith, NativeAssign, NativeBreak, NativeCall, NativeConstruct,
+    NativeCopy, NativeFieldPrint, NativeIfBegin, NativeIfCall, NativeIfConst, NativeIfElse,
+    NativeIfEnd, NativeLinkAssign, NativeLoopBegin, NativeLoopEnd, NativeModule, NativePrint,
+    NativePrintConst, NativeWhileBegin,
 };
 use crate::{Codegen, Text};
 
@@ -49,6 +50,8 @@ pub(crate) fn parse(message: &str) -> Result<Program> {
             MessageTag::LoopBegin => Box::new(NativeLoopBegin::try_from(&record)?),
             MessageTag::LoopEnd => Box::new(NativeLoopEnd::from(&record)),
             MessageTag::Break => Box::new(NativeBreak::from(&record)),
+            MessageTag::Alias => Box::new(NativeAlias::try_from(&record)?),
+            MessageTag::Copy => Box::new(NativeCopy::try_from(&record)?),
         };
         statements.push(node);
     }

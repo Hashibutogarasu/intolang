@@ -1,11 +1,14 @@
 use std::collections::HashMap;
 
-use super::variable::Variable;
+use super::variable::{Tracking, Variable};
 
 /// What lowering changes as it walks statements.
 #[derive(Default)]
 pub struct State {
     pub values: HashMap<String, Variable>,
+    /// The tracking the next declared binding starts with, set by `copy`,
+    /// `move` and `borrow` while their value is lowered.
+    pub pending_tracking: Option<Tracking>,
     pub output: String,
     pub temp_counter: usize,
     pub in_init: bool,
