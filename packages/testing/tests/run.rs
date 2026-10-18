@@ -25,6 +25,24 @@ fn compiles_scope_end_destroys_with_drop_flags() {
 }
 
 #[test]
+fn objects_have_a_default_text_and_hash() {
+    let source = "import \"intolang://builtin/std\";\npub Counter() {\n    pub into: Int32 value = 7;\n}\ninit {\n    now into a = Counter();\n    now into b = a.copy();\n    println(a.toString());\n    now into first = a.hash();\n    now into second = a.hash();\n    now into other = b.hash();\n    if (first == second) {\n        println(\"same\");\n    }\n    if (first != other) {\n        println(\"different\");\n    }\n}\n";
+    let execution = eval_run(source).unwrap();
+    assert!(execution.success, "{}", execution.stderr);
+    assert!(
+        execution.stdout.starts_with("Object@"),
+        "{}",
+        execution.stdout
+    );
+    assert!(execution.stdout.contains("same\n"), "{}", execution.stdout);
+    assert!(
+        execution.stdout.contains("different\n"),
+        "{}",
+        execution.stdout
+    );
+}
+
+#[test]
 fn reports_lowering_errors_before_compiling() {
     let error = eval_run("init {\n    into value: Int32 = \"x\";\n}\n").unwrap_err();
     assert!(error.to_string().contains("Type mismatch"), "{error}");

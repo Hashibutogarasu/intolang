@@ -81,6 +81,21 @@ impl Lowerer<'_> {
             self.print_literal(literal, newline);
             return Ok(());
         }
+        if let Expr::Call { callee, .. } = argument
+            && callee.is_member()
+        {
+            let temporary = format!("__print{}", self.state.temp_counter);
+            self.state.temp_counter += 1;
+            let (value, ty, native) = self
+                .declaration_value(argument, None, &env.type_params, &temporary)
+                .map_err(|message| self.diagnostic(line, &message))?;
+            if native {
+                emit::print(&mut self.state.output, &temporary, &ty, newline);
+            } else {
+                emit::text(&mut self.state.output, &value, newline);
+            }
+            return Ok(());
+        }
         Err(self.diagnostic(line, &format!("Undefined variable `{argument}`")))
     }
 

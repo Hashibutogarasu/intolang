@@ -1,0 +1,7 @@
+pub abstract Object() {
+    #[link("c", "src/ffi/object.c", "into_object_to_string")]
+    pub default c fun toString(): String;
+
+    #[link("c", "src/ffi/object.c", "into_object_hash")]
+    pub default c fun hash(): Int32;
+}

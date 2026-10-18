@@ -5,7 +5,7 @@ use std::path::Path;
 
 use super::loaded::LoadedModule;
 use super::module::Module;
-use crate::package::{PackageInfo, find_by_alias};
+use crate::package::{BUILTIN_ALIAS, PackageInfo, find_by_alias};
 use crate::spec::ImportSpec;
 
 /// Follow `import` statements depth-first, returning every reachable module
@@ -49,9 +49,21 @@ fn collect(
     Ok(())
 }
 
+/// The module every program imports without naming it: the native members of
+/// `Object`.
+const IMPLICIT_IMPORTS: &str = "import \"intolang://builtin/object\";";
+const IMPLICIT_MODULE_FILE: &str = "src/main/object.into";
+
 /// Follow the imports reachable from `program`, returning every module.
 pub fn collect_modules(program: &Program, packages_dir: &Path) -> Result<Vec<LoadedModule>> {
     let mut modules = Vec::new();
-    collect(program, packages_dir, &mut HashSet::new(), &mut modules)?;
+    let mut seen = HashSet::new();
+    let provided = find_by_alias(packages_dir, BUILTIN_ALIAS)?
+        .is_some_and(|root| root.join(IMPLICIT_MODULE_FILE).is_file());
+    if provided {
+        let implicit = IMPLICIT_IMPORTS.parse::<Program>()?;
+        collect(&implicit, packages_dir, &mut seen, &mut modules)?;
+    }
+    collect(program, packages_dir, &mut seen, &mut modules)?;
     Ok(modules)
 }

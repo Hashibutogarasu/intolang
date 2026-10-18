@@ -7,7 +7,7 @@ use crate::collect::{
     ancestors, builtin_classes, check_inheritance, collect_class_infos, collect_classes,
     collect_enums, collect_type_params, collect_user_functions,
 };
-use crate::context::{Env, FieldDef, Lowerer};
+use crate::context::{Env, FieldDef, Lowerer, OBJECT};
 use crate::diagnostic::syntax_diagnostic;
 use crate::emit;
 
@@ -106,6 +106,9 @@ fn prepare(program: &Program, packages_dir: Option<&Path>, source_path: &str) ->
         declared.push((module_path, collect_class_infos(&module.program)));
     }
     declared.push((source_path.to_owned(), collect_class_infos(program)));
+    for (_, infos) in &mut declared {
+        infos.retain(|info| info.name != OBJECT);
+    }
     for (_, infos) in &declared {
         for info in infos {
             env.classes.insert(info.name.clone(), info.clone());
