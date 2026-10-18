@@ -15,6 +15,7 @@ pub enum CompoundOperator {
     GreaterEqual,
     And,
     Or,
+    Arrow,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

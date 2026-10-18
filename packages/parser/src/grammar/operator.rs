@@ -85,6 +85,7 @@ impl FromStr for CompoundLexeme {
             ">=" => CompoundOperator::GreaterEqual,
             "&&" => CompoundOperator::And,
             "||" => CompoundOperator::Or,
+            "=>" => CompoundOperator::Arrow,
             other => bail!("`{other}` is not a compound operator"),
         }))
     }
@@ -111,6 +112,7 @@ impl fmt::Display for CompoundLexeme {
             CompoundOperator::GreaterEqual => ">=",
             CompoundOperator::And => "&&",
             CompoundOperator::Or => "||",
+            CompoundOperator::Arrow => "=>",
         })
     }
 }

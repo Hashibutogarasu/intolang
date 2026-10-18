@@ -26,5 +26,25 @@ fn builds_compound_operators_from_symbol_pairs() {
         CompoundLexeme::from(CompoundOperator::And).to_string(),
         "&&"
     );
-    assert!(CompoundLexeme::try_from(('=', '>')).is_err());
+    let arrow: CompoundOperator = CompoundLexeme::try_from(('=', '>')).unwrap().into();
+    assert_eq!(arrow, CompoundOperator::Arrow);
+    assert_eq!(CompoundLexeme::from(CompoundOperator::Arrow).to_string(), "=>");
+    assert!(CompoundLexeme::try_from(('=', '<')).is_err());
+}
+
+#[test]
+fn parses_the_object_model_keywords() {
+    for (text, keyword) in [
+        ("event", Keyword::Event),
+        ("thread", Keyword::Thread),
+        ("await", Keyword::Await),
+        ("abstract", Keyword::Abstract),
+        ("default", Keyword::Default),
+        ("override", Keyword::Override),
+        ("as", Keyword::As),
+    ] {
+        let parsed: Keyword = text.parse::<KeywordLexeme>().unwrap().into();
+        assert_eq!(parsed, keyword);
+        assert_eq!(KeywordLexeme::from(keyword).to_string(), text);
+    }
 }

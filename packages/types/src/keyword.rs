@@ -19,4 +19,11 @@ pub enum Keyword {
     Throw,
     Import,
     Export,
+    Event,
+    Thread,
+    Await,
+    Abstract,
+    Default,
+    Override,
+    As,
 }

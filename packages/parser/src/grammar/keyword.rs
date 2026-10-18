@@ -30,6 +30,13 @@ impl FromStr for KeywordLexeme {
             "throw" => Keyword::Throw,
             "import" => Keyword::Import,
             "export" => Keyword::Export,
+            "event" => Keyword::Event,
+            "thread" => Keyword::Thread,
+            "await" => Keyword::Await,
+            "abstract" => Keyword::Abstract,
+            "default" => Keyword::Default,
+            "override" => Keyword::Override,
+            "as" => Keyword::As,
             other => bail!("`{other}` is not a keyword"),
         }))
     }
@@ -77,6 +84,13 @@ impl fmt::Display for KeywordLexeme {
             Keyword::Throw => "throw",
             Keyword::Import => "import",
             Keyword::Export => "export",
+            Keyword::Event => "event",
+            Keyword::Thread => "thread",
+            Keyword::Await => "await",
+            Keyword::Abstract => "abstract",
+            Keyword::Default => "default",
+            Keyword::Override => "override",
+            Keyword::As => "as",
         })
     }
 }
