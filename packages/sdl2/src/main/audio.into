@@ -1,28 +1,28 @@
 pub SDL2Audio() {
-    #[link("cpp", "src/main/native/sdl2/audio.cpp", "sdl2_new")]
+    #[link("cpp", "src/ffi/sdl2/audio.cpp", "sdl2_new")]
     pub cpp fun new(): SDL2Audio;
 
-    #[link("cpp", "src/main/native/sdl2/audio.cpp", "sdl2_open")]
+    #[link("cpp", "src/ffi/sdl2/audio.cpp", "sdl2_open")]
     pub cpp fun open(frequency: Int32, channels: Int32): SDL2Audio;
 
-    #[link("cpp", "src/main/native/sdl2/audio.cpp", "sdl2_queue")]
+    #[link("cpp", "src/ffi/sdl2/audio.cpp", "sdl2_queue")]
     pub cpp fun queue(samples: Pointer, bytes: Int32): Void;
 
-    #[link("cpp", "src/main/native/sdl2/audio.cpp", "sdl2_pause")]
+    #[link("cpp", "src/ffi/sdl2/audio.cpp", "sdl2_pause")]
     pub cpp fun pause(): Void;
 
-    #[link("cpp", "src/main/native/sdl2/audio.cpp", "sdl2_resume")]
+    #[link("cpp", "src/ffi/sdl2/audio.cpp", "sdl2_resume")]
     pub cpp fun resume(): Void;
 
-    #[link("cpp", "src/main/native/sdl2/audio.cpp", "sdl2_clear")]
+    #[link("cpp", "src/ffi/sdl2/audio.cpp", "sdl2_clear")]
     pub cpp fun clear(): Void;
 
-    #[link("cpp", "src/main/native/sdl2/audio.cpp", "sdl2_queued")]
+    #[link("cpp", "src/ffi/sdl2/audio.cpp", "sdl2_queued")]
     pub cpp fun queued(): Int32;
 
-    #[link("cpp", "src/main/native/sdl2/audio.cpp", "sdl2_close")]
+    #[link("cpp", "src/ffi/sdl2/audio.cpp", "sdl2_close")]
     pub cpp fun close(): Void;
 
-    #[link("cpp", "src/main/native/sdl2/audio.cpp", "sdl2_destroy")]
+    #[link("cpp", "src/ffi/sdl2/audio.cpp", "sdl2_destroy")]
     pub cpp fun destroy(): Void;
 }

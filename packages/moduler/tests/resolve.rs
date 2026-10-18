@@ -56,7 +56,7 @@ fn resolves_link_metadata_for_public_declarations_only() {
     let root = temp_package_root("links");
     write_greet_package(
         &root,
-        "#[link(\"c\", \"src/main/native/hello.c\", \"greet_hello\")]\npub c fun hello(name: String?): Void;\n#[link(\"c\", \"src/main/native/hello.c\", \"hidden\")]\nc fun secret(): Void;\n",
+        "#[link(\"c\", \"src/ffi/hello.c\", \"greet_hello\")]\npub c fun hello(name: String?): Void;\n#[link(\"c\", \"src/ffi/hello.c\", \"hidden\")]\nc fun secret(): Void;\n",
     );
 
     let entry: Program = ENTRY.parse().unwrap();

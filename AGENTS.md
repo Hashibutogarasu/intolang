@@ -19,7 +19,8 @@ It is a Cargo workspace (Rust edition 2024).
 | Path | Crate / contents | Role |
 | --- | --- | --- |
 | `src/` | `intolang` (root) | CLI entrypoint (`main.rs`) and `src/commands/*` (`new`, `build`, `install`, `format`) |
-| `apps/compiler/` | `compiler` | LLVM codegen, target machine, object emission, native source compilation, links via `lld`; embeds resources in `build.rs` |
+| `apps/compiler/` | `compiler` | Drives `codegen`: target machine, object emission, native source compilation (`native`), links via `lld`; embeds resources in `build.rs` |
+| `packages/codegen/` | `codegen` | LLVM code generation from the lowered message: one node per record under `src/native/`, shared LLVM state in `src/context/` |
 | `apps/compiler/res/` | — | `packages/intolang` runtime and `templates/hello_world` used by `into new` |
 | `packages/types/` | `types` | Language type structures only (tokens, keywords, `Type`, message tags); no tokenizing or formatting behaviour |
 | `packages/parser/` | `parser` | `FromStr`/`TryFrom`/`From` conversions from text to the `types` structures (lexemes, types, literals, hex, message `Record`s) |
@@ -138,11 +139,11 @@ sources, and `lld` links a binary/shared library.
   `parser::Record`s: the record separator `\u{1e}`, a tag from
   `types::MessageTag` (`NATIVE_CLASS`, `NATIVE_LINK_ASSIGN`, `NATIVE_IF_BEGIN`,
   ...) and tab separated fields. `backend` writes them (`backend/src/emit`) and
-  `apps/compiler/src/codegen/ast/program.rs` reads them; keep both in sync
+  `packages/codegen/src/program/message.rs` reads them; keep both in sync
   through `MessageTag`, `Record` and the shared `native` types (`LinkCall`,
   `Comparison`, `Operand`, `NativeArg`) when adding a tag.
-- `backend` must not depend on LLVM. `compiler` depends on `backend`, `native`
-  and `lld`.
+- `backend` must not depend on LLVM. `codegen` owns the LLVM node code and
+  `compiler` depends on `backend`, `codegen`, `native` and `lld`.
 - `apps/compiler/build.rs` copies resources and embedded packages into `OUT_DIR`
   and exports `COMPILER_BUNDLED_RES`. It re-runs when `res/`,
   `packages/intolang`, `packages/system/modules`, or workspace packages change —

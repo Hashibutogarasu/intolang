@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "LICENCE": "MIT",
   "nativeDependencies": {
-    "src/main/native/client.c": ["wayland-client"],
-    "src/main/native/wayland/window.cpp": ["wayland-client"]
+    "src/ffi/client.c": ["wayland-client"],
+    "src/ffi/wayland/window.cpp": ["wayland-client"]
   },
   "library": "src/main/lib.into",
   "builtConfig": { "dist": "./dist" }

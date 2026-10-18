@@ -1,19 +1,19 @@
 pub List() {
-    #[link("c", "src/main/native/list.c", "into_list_new")]
+    #[link("c", "src/ffi/list.c", "into_list_new")]
     pub c fun new(): Pointer;
 
-    #[link("c", "src/main/native/list.c", "into_list_push")]
+    #[link("c", "src/ffi/list.c", "into_list_push")]
     pub c fun push(value: Pointer): Void;
 
-    #[link("c", "src/main/native/list.c", "into_list_get")]
+    #[link("c", "src/ffi/list.c", "into_list_get")]
     pub c fun get(index: Int32): Pointer;
 
-    #[link("c", "src/main/native/list.c", "into_list_set")]
+    #[link("c", "src/ffi/list.c", "into_list_set")]
     pub c fun set(index: Int32, value: Pointer): Void;
 
-    #[link("c", "src/main/native/list.c", "into_list_length")]
+    #[link("c", "src/ffi/list.c", "into_list_length")]
     pub c fun length(): Int32;
 
-    #[link("c", "src/main/native/list.c", "into_list_free")]
+    #[link("c", "src/ffi/list.c", "into_list_free")]
     pub c fun free(): Void;
 }

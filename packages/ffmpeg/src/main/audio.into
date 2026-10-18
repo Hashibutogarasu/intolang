@@ -1,70 +1,70 @@
 pub Audio() {
-    #[link("cpp", "src/main/native/ffmpeg/audio.cpp", "ffmpeg_media_destroy")]
+    #[link("cpp", "src/ffi/ffmpeg/audio.cpp", "ffmpeg_media_destroy")]
     pub cpp fun destroy(): Void;
 
-    #[link("cpp", "src/main/native/ffmpeg/audio.cpp", "ffmpeg_media_format")]
+    #[link("cpp", "src/ffi/ffmpeg/audio.cpp", "ffmpeg_media_format")]
     pub cpp fun format(): Pointer;
 
-    #[link("cpp", "src/main/native/ffmpeg/audio.cpp", "ffmpeg_media_decoder")]
+    #[link("cpp", "src/ffi/ffmpeg/audio.cpp", "ffmpeg_media_decoder")]
     pub cpp fun decoder(): Pointer;
 
-    #[link("cpp", "src/main/native/ffmpeg/audio.cpp", "ffmpeg_media_packet")]
+    #[link("cpp", "src/ffi/ffmpeg/audio.cpp", "ffmpeg_media_packet")]
     pub cpp fun packet(): Pointer;
 
-    #[link("cpp", "src/main/native/ffmpeg/audio.cpp", "ffmpeg_media_frame")]
+    #[link("cpp", "src/ffi/ffmpeg/audio.cpp", "ffmpeg_media_frame")]
     pub cpp fun frame(): Pointer;
 
-    #[link("cpp", "src/main/native/ffmpeg/audio.cpp", "ffmpeg_media_resampler")]
+    #[link("cpp", "src/ffi/ffmpeg/audio.cpp", "ffmpeg_media_resampler")]
     pub cpp fun resampler(): Pointer;
 
-    #[link("cpp", "src/main/native/ffmpeg/audio.cpp", "ffmpeg_media_stream_index")]
+    #[link("cpp", "src/ffi/ffmpeg/audio.cpp", "ffmpeg_media_stream_index")]
     pub cpp fun streamIndex(): Int32;
 
-    #[link("cpp", "src/main/native/ffmpeg/audio.cpp", "ffmpeg_media_sample_rate")]
+    #[link("cpp", "src/ffi/ffmpeg/audio.cpp", "ffmpeg_media_sample_rate")]
     pub cpp fun sampleRate(): Int32;
 
-    #[link("cpp", "src/main/native/ffmpeg/audio.cpp", "ffmpeg_media_channels")]
+    #[link("cpp", "src/ffi/ffmpeg/audio.cpp", "ffmpeg_media_channels")]
     pub cpp fun channels(): Int32;
 
-    #[link("cpp", "src/main/native/ffmpeg/audio.cpp", "ffmpeg_media_out_capacity")]
+    #[link("cpp", "src/ffi/ffmpeg/audio.cpp", "ffmpeg_media_out_capacity")]
     pub cpp fun outCapacity(): Int32;
 
-    #[link("cpp", "src/main/native/ffmpeg/audio.cpp", "ffmpeg_media_reserve")]
+    #[link("cpp", "src/ffi/ffmpeg/audio.cpp", "ffmpeg_media_reserve")]
     pub cpp fun reserve(samples: Int32): Pointer;
 
-    #[link("cpp", "src/main/native/ffmpeg/audio.cpp", "ffmpeg_media_buffer")]
+    #[link("cpp", "src/ffi/ffmpeg/audio.cpp", "ffmpeg_media_buffer")]
     pub cpp fun buffer(): Pointer;
 }
 
-#[link("cpp", "src/main/native/ffmpeg/audio.cpp", "ffmpeg_media_open_path")]
+#[link("cpp", "src/ffi/ffmpeg/audio.cpp", "ffmpeg_media_open_path")]
 pub cpp fun openAudioPath(path: Path): Audio;
 
-#[link("cpp", "src/main/native/ffmpeg/audio.cpp", "ffmpeg_media_open_buffer")]
+#[link("cpp", "src/ffi/ffmpeg/audio.cpp", "ffmpeg_media_open_buffer")]
 pub cpp fun openAudioBuffer(data: Bytes): Audio;
 
-#[link("cpp", "src/main/native/ffmpeg/audio.cpp", "av_read_frame")]
+#[link("cpp", "src/ffi/ffmpeg/audio.cpp", "av_read_frame")]
 pub cpp fun readAudioFrame(format: Pointer, packet: Pointer): Int32;
 
-#[link("cpp", "src/main/native/ffmpeg/audio.cpp", "avcodec_send_packet")]
+#[link("cpp", "src/ffi/ffmpeg/audio.cpp", "avcodec_send_packet")]
 pub cpp fun sendAudioPacket(decoder: Pointer, packet: Pointer): Int32;
 
-#[link("cpp", "src/main/native/ffmpeg/audio.cpp", "avcodec_receive_frame")]
+#[link("cpp", "src/ffi/ffmpeg/audio.cpp", "avcodec_receive_frame")]
 pub cpp fun receiveAudioFrame(decoder: Pointer, frame: Pointer): Int32;
 
-#[link("cpp", "src/main/native/ffmpeg/audio.cpp", "av_packet_unref")]
+#[link("cpp", "src/ffi/ffmpeg/audio.cpp", "av_packet_unref")]
 pub cpp fun unrefAudioPacket(packet: Pointer): Void;
 
-#[link("cpp", "src/main/native/ffmpeg/audio.cpp", "av_frame_unref")]
+#[link("cpp", "src/ffi/ffmpeg/audio.cpp", "av_frame_unref")]
 pub cpp fun unrefAudioFrame(frame: Pointer): Void;
 
-#[link("cpp", "src/main/native/ffmpeg/audio.cpp", "swr_convert")]
+#[link("cpp", "src/ffi/ffmpeg/audio.cpp", "swr_convert")]
 pub cpp fun convertAudio(resampler: Pointer, output: Pointer, outputCount: Int32, input: Pointer, inputCount: Int32): Int32;
 
-#[link("cpp", "src/main/native/ffmpeg/audio.cpp", "ffmpeg_packet_stream")]
+#[link("cpp", "src/ffi/ffmpeg/audio.cpp", "ffmpeg_packet_stream")]
 pub cpp fun audioPacketStream(packet: Pointer): Int32;
 
-#[link("cpp", "src/main/native/ffmpeg/audio.cpp", "ffmpeg_frame_samples")]
+#[link("cpp", "src/ffi/ffmpeg/audio.cpp", "ffmpeg_frame_samples")]
 pub cpp fun audioFrameSamples(frame: Pointer): Int32;
 
-#[link("cpp", "src/main/native/ffmpeg/audio.cpp", "ffmpeg_frame_data")]
+#[link("cpp", "src/ffi/ffmpeg/audio.cpp", "ffmpeg_frame_data")]
 pub cpp fun audioFrameData(frame: Pointer): Pointer;

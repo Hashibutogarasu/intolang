@@ -1,6 +1,5 @@
 extern crate llvm_sys as llvm;
 
-mod codegen;
 mod object;
 mod resources;
 mod target;

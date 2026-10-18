@@ -7,7 +7,7 @@
     "dist": "./dist"
   },
   "nativeDependencies": {
-    "src/main/native/list.c": []
+    "src/ffi/list.c": []
   },
   "supported-platforms": ["linux", "windows", "macos", "android"]
 }

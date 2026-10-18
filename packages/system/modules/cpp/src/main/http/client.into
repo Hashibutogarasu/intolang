@@ -6,5 +6,5 @@ pub HttpResponse() {
     pub into: String html = "";
 }
 
-#[link("cpp", "src/main/native/http/client.cpp", "http")]
+#[link("cpp", "src/ffi/http/client.cpp", "http")]
 pub cpp fun http(method: Method, url: String): HttpResponse;

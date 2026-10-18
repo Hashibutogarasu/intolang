@@ -6,7 +6,7 @@ fn greet(module: &str) -> Package {
         .file("src/main/hello.into", module)
 }
 
-const LINKED_MODULE: &str = "#[link(\"c\", \"src/main/native/hello.c\", \"greet_hello\")]\npub fun hello(): Void;\nfun secret(): Void;\n";
+const LINKED_MODULE: &str = "#[link(\"c\", \"src/ffi/hello.c\", \"greet_hello\")]\npub fun hello(): Void;\nfun secret(): Void;\n";
 
 #[test]
 fn resolves_module_exports() {
@@ -16,9 +16,7 @@ fn resolves_module_exports() {
     )
     .unwrap();
     assert!(
-        output.contains(
-            "NATIVE_LINK_ASSIGN\tgreet\tc\tsrc/main/native/hello.c\tgreet_hello\tVoid\t\n"
-        ),
+        output.contains("NATIVE_LINK_ASSIGN\tgreet\tc\tsrc/ffi/hello.c\tgreet_hello\tVoid\t\n"),
         "{output}"
     );
 }
@@ -42,7 +40,7 @@ fn emits_a_module_record_for_resolved_imports() {
 
 #[test]
 fn passes_arguments_and_defaults_to_native_calls() {
-    let module = "#[link(\"c\", \"src/main/native/hello.c\", \"greet\")]\npub c fun greet(name: String, times: Int32 = 2, loud: Boolean = true): Void;\n";
+    let module = "#[link(\"c\", \"src/ffi/hello.c\", \"greet\")]\npub c fun greet(name: String, times: Int32 = 2, loud: Boolean = true): Void;\n";
     let output = eval_with(
         "import \"greet://hello\";\ninit {\n    greet(\"ab\");\n}\n",
         &[greet(module)],
@@ -56,7 +54,8 @@ fn passes_arguments_and_defaults_to_native_calls() {
 
 #[test]
 fn rejects_too_many_native_arguments() {
-    let module = "#[link(\"c\", \"src/main/native/hello.c\", \"greet\")]\npub c fun greet(name: String): Void;\n";
+    let module =
+        "#[link(\"c\", \"src/ffi/hello.c\", \"greet\")]\npub c fun greet(name: String): Void;\n";
     let error = eval_with(
         "import \"greet://hello\";\ninit {\n    greet(\"a\", \"b\");\n}\n",
         &[greet(module)],
@@ -83,7 +82,7 @@ fn inlines_user_functions_with_substituted_arguments() {
 
 #[test]
 fn inlines_methods_with_the_receiver_as_this() {
-    let module = "pub Greeter() {\n    #[link(\"c\", \"src/main/native/greeter.c\", \"greeter_new\")]\n    pub c fun new(): Greeter;\n\n    #[link(\"c\", \"src/main/native/greeter.c\", \"greeter_attach\")]\n    pub c fun attach(): Void;\n\n    pub fun present() {\n        this.attach();\n    }\n}\n";
+    let module = "pub Greeter() {\n    #[link(\"c\", \"src/ffi/greeter.c\", \"greeter_new\")]\n    pub c fun new(): Greeter;\n\n    #[link(\"c\", \"src/ffi/greeter.c\", \"greeter_attach\")]\n    pub c fun attach(): Void;\n\n    pub fun present() {\n        this.attach();\n    }\n}\n";
     let output = eval_with(
         "import \"greet://hello\";\ninit {\n    into greeter = Greeter();\n    greeter.present();\n}\n",
         &[greet(module)],

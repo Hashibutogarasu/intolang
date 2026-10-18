@@ -35,7 +35,7 @@ fn evaluates_with_extra_packages() {
         .file("src/main/into-info.into", "export \"tools://math\";\n")
         .file(
             "src/main/math.into",
-            "#[link(\"c\", \"src/main/native/math.c\", \"math_abs\")]\npub c fun abs(value: Int32): Int32;\n",
+            "#[link(\"c\", \"src/ffi/math.c\", \"math_abs\")]\npub c fun abs(value: Int32): Int32;\n",
         );
     let result = eval_with(
         "import \"tools://math\";\ninit {\n    into value: Int32 = abs(-4);\n}\n",

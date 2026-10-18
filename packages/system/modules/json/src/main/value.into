@@ -10,68 +10,68 @@ pub JsonIterator() { }
 pub TextLineIterator() { }
 pub TextByteIterator() { }
 
-#[link("cpp", "src/main/native/json/value.cpp", "json_read_file")]
+#[link("cpp", "src/ffi/json/value.cpp", "json_read_file")]
 pub cpp fun readFile(path: String, format: Format): JsonObject;
 
-#[link("cpp", "src/main/native/json/value.cpp", "json_read_text_file")]
+#[link("cpp", "src/ffi/json/value.cpp", "json_read_text_file")]
 pub cpp fun readTextFile(path: String): String;
 
-#[link("cpp", "src/main/native/json/value.cpp", "json_parse")]
+#[link("cpp", "src/ffi/json/value.cpp", "json_parse")]
 pub cpp fun json_parse(source: String): JsonObject;
 
-#[link("cpp", "src/main/native/json/value.cpp", "json_get")]
+#[link("cpp", "src/ffi/json/value.cpp", "json_get")]
 pub cpp fun json_get(value: JsonObject, key: String): JsonObject;
 
-#[link("cpp", "src/main/native/json/value.cpp", "json_at")]
+#[link("cpp", "src/ffi/json/value.cpp", "json_at")]
 pub cpp fun json_at(value: JsonObject, index: Int32): JsonObject;
 
-#[link("cpp", "src/main/native/json/value.cpp", "json_length")]
+#[link("cpp", "src/ffi/json/value.cpp", "json_length")]
 pub cpp fun json_length(value: JsonObject): Int32;
 
-#[link("cpp", "src/main/native/json/value.cpp", "json_iterator")]
+#[link("cpp", "src/ffi/json/value.cpp", "json_iterator")]
 pub cpp fun json_iterator(value: JsonObject): JsonIterator;
 
-#[link("cpp", "src/main/native/json/value.cpp", "json_iterator_has_next")]
+#[link("cpp", "src/ffi/json/value.cpp", "json_iterator_has_next")]
 pub cpp fun json_iterator_has_next(iterator: JsonIterator): Boolean;
 
-#[link("cpp", "src/main/native/json/value.cpp", "json_iterator_next")]
+#[link("cpp", "src/ffi/json/value.cpp", "json_iterator_next")]
 pub cpp fun json_iterator_next(iterator: JsonIterator): JsonObject;
 
-#[link("cpp", "src/main/native/json/value.cpp", "json_iterator_index")]
+#[link("cpp", "src/ffi/json/value.cpp", "json_iterator_index")]
 pub cpp fun json_iterator_index(iterator: JsonIterator): Int32;
 
-#[link("cpp", "src/main/native/json/value.cpp", "json_number")]
+#[link("cpp", "src/ffi/json/value.cpp", "json_number")]
 pub cpp fun json_number(value: JsonObject): Int32;
 
-#[link("cpp", "src/main/native/json/value.cpp", "text_lines")]
+#[link("cpp", "src/ffi/json/value.cpp", "text_lines")]
 pub cpp fun text_lines(text: String): TextLineIterator;
 
-#[link("cpp", "src/main/native/json/value.cpp", "text_line_iterator_has_next")]
+#[link("cpp", "src/ffi/json/value.cpp", "text_line_iterator_has_next")]
 pub cpp fun text_line_iterator_has_next(iterator: TextLineIterator): Boolean;
 
-#[link("cpp", "src/main/native/json/value.cpp", "text_line_iterator_next")]
+#[link("cpp", "src/ffi/json/value.cpp", "text_line_iterator_next")]
 pub cpp fun text_line_iterator_next(iterator: TextLineIterator): String;
 
-#[link("cpp", "src/main/native/json/value.cpp", "text_line_iterator_index")]
+#[link("cpp", "src/ffi/json/value.cpp", "text_line_iterator_index")]
 pub cpp fun text_line_iterator_index(iterator: TextLineIterator): Int32;
 
-#[link("cpp", "src/main/native/json/value.cpp", "text_line_iterator_destroy")]
+#[link("cpp", "src/ffi/json/value.cpp", "text_line_iterator_destroy")]
 pub cpp fun text_line_iterator_destroy(iterator: TextLineIterator): Void;
 
-#[link("cpp", "src/main/native/json/value.cpp", "text_bytes")]
+#[link("cpp", "src/ffi/json/value.cpp", "text_bytes")]
 pub cpp fun text_bytes(text: String): TextByteIterator;
 
-#[link("cpp", "src/main/native/json/value.cpp", "text_byte_iterator_has_next")]
+#[link("cpp", "src/ffi/json/value.cpp", "text_byte_iterator_has_next")]
 pub cpp fun text_byte_iterator_has_next(iterator: TextByteIterator): Boolean;
 
-#[link("cpp", "src/main/native/json/value.cpp", "text_byte_iterator_next")]
+#[link("cpp", "src/ffi/json/value.cpp", "text_byte_iterator_next")]
 pub cpp fun text_byte_iterator_next(iterator: TextByteIterator): Int32;
 
-#[link("cpp", "src/main/native/json/value.cpp", "text_byte_iterator_index")]
+#[link("cpp", "src/ffi/json/value.cpp", "text_byte_iterator_index")]
 pub cpp fun text_byte_iterator_index(iterator: TextByteIterator): Int32;
 
-#[link("cpp", "src/main/native/json/value.cpp", "text_byte_iterator_destroy")]
+#[link("cpp", "src/ffi/json/value.cpp", "text_byte_iterator_destroy")]
 pub cpp fun text_byte_iterator_destroy(iterator: TextByteIterator): Void;
 
-#[link("cpp", "src/main/native/json/value.cpp", "text_equals")]
+#[link("cpp", "src/ffi/json/value.cpp", "text_equals")]
 pub cpp fun text_equals(left: String, right: String): Boolean;

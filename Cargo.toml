@@ -15,4 +15,4 @@ formatter = { version = "0.1.0", path = "packages/formatter" }
 testing = { version = "0.1.0", path = "packages/testing" }
 
 [workspace]
-members = ["apps/compiler", "packages/ast", "packages/backend", "packages/formatter", "packages/lld", "packages/moduler", "packages/native", "packages/parser", "packages/testing", "packages/tokenizer", "packages/types"]
+members = ["apps/compiler", "packages/ast", "packages/backend", "packages/codegen", "packages/formatter", "packages/lld", "packages/moduler", "packages/native", "packages/parser", "packages/testing", "packages/tokenizer", "packages/types"]

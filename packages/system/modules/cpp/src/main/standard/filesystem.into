@@ -1,13 +1,13 @@
 pub FileIterator() { }
 
-#[link("cpp", "src/main/native/filesystem/directory.cpp", "filesystem_list")]
+#[link("cpp", "src/ffi/filesystem/directory.cpp", "filesystem_list")]
 pub cpp fun filesystem_list(path: String): FileIterator;
 
-#[link("cpp", "src/main/native/filesystem/directory.cpp", "filesystem_has_next")]
+#[link("cpp", "src/ffi/filesystem/directory.cpp", "filesystem_has_next")]
 pub cpp fun filesystem_has_next(iterator: FileIterator): Boolean;
 
-#[link("cpp", "src/main/native/filesystem/directory.cpp", "filesystem_next")]
+#[link("cpp", "src/ffi/filesystem/directory.cpp", "filesystem_next")]
 pub cpp fun filesystem_next(iterator: FileIterator): String;
 
-#[link("cpp", "src/main/native/filesystem/directory.cpp", "filesystem_read_text")]
+#[link("cpp", "src/ffi/filesystem/directory.cpp", "filesystem_read_text")]
 pub cpp fun filesystem_read_text(path: String): String;

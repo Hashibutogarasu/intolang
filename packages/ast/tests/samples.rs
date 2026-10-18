@@ -36,7 +36,7 @@ pub MemoryTest() {
 }
 
 pub Window() {
-    #[link("cpp", "src/main/native/wayland/window.cpp", "window_create")]
+    #[link("cpp", "src/ffi/wayland/window.cpp", "window_create")]
     pub fun create(width: Int32, height: Int32, title: String): Void;
 
     pub fun present() {
@@ -54,7 +54,7 @@ pub Window() {
     }
 }
 
-#[link("c", "src/main/native/client.c", "wayland_display_connect")]
+#[link("c", "src/ffi/client.c", "wayland_display_connect")]
 pub c fun wayland_display_connect(name: String?): Pointer;
 pub cpp fun std_string_create(value: String): Pointer;
 "##;

@@ -1,46 +1,46 @@
 pub Wayland() {
-    #[link("cpp", "src/main/native/wayland/window.cpp", "wayland_new")]
+    #[link("cpp", "src/ffi/wayland/window.cpp", "wayland_new")]
     pub fun new(): Wayland;
 
-    #[link("cpp", "src/main/native/wayland/window.cpp", "wayland_window")]
+    #[link("cpp", "src/ffi/wayland/window.cpp", "wayland_window")]
     pub fun window(): Window;
 
-    #[link("cpp", "src/main/native/wayland/window.cpp", "wayland_set_renderer")]
+    #[link("cpp", "src/ffi/wayland/window.cpp", "wayland_set_renderer")]
     pub fun setRenderer(renderer: Vulkan): Void;
 
-    #[link("cpp", "src/main/native/wayland/window.cpp", "wayland_destroy")]
+    #[link("cpp", "src/ffi/wayland/window.cpp", "wayland_destroy")]
     pub fun destroy(): Void;
 }
 
 pub Window() {
-    #[link("cpp", "src/main/native/wayland/window.cpp", "window_create")]
+    #[link("cpp", "src/ffi/wayland/window.cpp", "window_create")]
     pub fun create(width: Int32, height: Int32, title: String): Void;
 
-    #[link("cpp", "src/main/native/wayland/window.cpp", "window_is_open")]
+    #[link("cpp", "src/ffi/wayland/window.cpp", "window_is_open")]
     pub fun isOpen(): Boolean;
 
-    #[link("cpp", "src/main/native/wayland/window.cpp", "window_clear")]
+    #[link("cpp", "src/ffi/wayland/window.cpp", "window_clear")]
     pub fun clear(color: Int32): Void;
 
-    #[link("cpp", "src/main/native/wayland/window.cpp", "window_fill_rect")]
+    #[link("cpp", "src/ffi/wayland/window.cpp", "window_fill_rect")]
     pub fun fillRect(x: Int32, y: Int32, width: Int32, height: Int32, color: Int32): Void;
 
-    #[link("cpp", "src/main/native/wayland/window.cpp", "window_draw_text")]
+    #[link("cpp", "src/ffi/wayland/window.cpp", "window_draw_text")]
     pub fun drawText(text: String, color: Int32): Void;
 
-    #[link("cpp", "src/main/native/wayland/window.cpp", "window_reset_cursor")]
+    #[link("cpp", "src/ffi/wayland/window.cpp", "window_reset_cursor")]
     pub fun resetCursor(): Void;
 
-    #[link("cpp", "src/main/native/wayland/window.cpp", "window_attach")]
+    #[link("cpp", "src/ffi/wayland/window.cpp", "window_attach")]
     pub fun attach(): Void;
 
-    #[link("cpp", "src/main/native/wayland/window.cpp", "window_damage")]
+    #[link("cpp", "src/ffi/wayland/window.cpp", "window_damage")]
     pub fun damage(): Void;
 
-    #[link("cpp", "src/main/native/wayland/window.cpp", "window_commit")]
+    #[link("cpp", "src/ffi/wayland/window.cpp", "window_commit")]
     pub fun commit(): Void;
 
-    #[link("cpp", "src/main/native/wayland/window.cpp", "window_flush")]
+    #[link("cpp", "src/ffi/wayland/window.cpp", "window_flush")]
     pub fun flush(): Void;
 
     pub fun present() {
@@ -50,24 +50,24 @@ pub Window() {
         this.flush();
     }
 
-    #[link("cpp", "src/main/native/wayland/window.cpp", "window_titlebar")]
+    #[link("cpp", "src/ffi/wayland/window.cpp", "window_titlebar")]
     pub fun titlebar(): TitleBar;
 }
 
 pub TitleBar() {
-    #[link("cpp", "src/main/native/wayland/window.cpp", "window_titlebar_use_standard")]
+    #[link("cpp", "src/ffi/wayland/window.cpp", "window_titlebar_use_standard")]
     pub fun useStandard(): Void;
 
-    #[link("cpp", "src/main/native/wayland/window.cpp", "window_titlebar_allow_maximize")]
+    #[link("cpp", "src/ffi/wayland/window.cpp", "window_titlebar_allow_maximize")]
     pub fun allowMaximize(): Void;
 
-    #[link("cpp", "src/main/native/wayland/window.cpp", "window_titlebar_prevent_maximize")]
+    #[link("cpp", "src/ffi/wayland/window.cpp", "window_titlebar_prevent_maximize")]
     pub fun preventMaximize(): Void;
 
-    #[link("cpp", "src/main/native/wayland/window.cpp", "window_titlebar_allow_close")]
+    #[link("cpp", "src/ffi/wayland/window.cpp", "window_titlebar_allow_close")]
     pub fun allowClose(): Void;
 
-    #[link("cpp", "src/main/native/wayland/window.cpp", "window_titlebar_prevent_close")]
+    #[link("cpp", "src/ffi/wayland/window.cpp", "window_titlebar_prevent_close")]
     pub fun preventClose(): Void;
 
     pub fun create(maximizable: Boolean = true, closable: Boolean = true): TitleBar {

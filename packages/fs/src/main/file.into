@@ -4,29 +4,29 @@ enum Format {
 }
 
 pub File() {
-    #[link("c", "src/main/native/fs/file.c", "fs_file_new")]
+    #[link("c", "src/ffi/fs/file.c", "fs_file_new")]
     pub c fun new(): File;
 
-    #[link("c", "src/main/native/fs/file.c", "fs_file_read")]
+    #[link("c", "src/ffi/fs/file.c", "fs_file_read")]
     pub c fun read(path: String): Bytes;
 
-    #[link("c", "src/main/native/fs/file.c", "fs_file_write")]
+    #[link("c", "src/ffi/fs/file.c", "fs_file_write")]
     pub c fun write(path: String, binary: Bytes, format: Format): Boolean;
 
-    #[link("c", "src/main/native/fs/file.c", "fs_file_destroy")]
+    #[link("c", "src/ffi/fs/file.c", "fs_file_destroy")]
     pub c fun destroy(): Void;
 }
 
 pub Bytes() {
-    #[link("c", "src/main/native/fs/file.c", "fs_bytes_length")]
+    #[link("c", "src/ffi/fs/file.c", "fs_bytes_length")]
     pub c fun length(): Int64;
 
-    #[link("c", "src/main/native/fs/file.c", "fs_bytes_at")]
+    #[link("c", "src/ffi/fs/file.c", "fs_bytes_at")]
     pub c fun at(index: Int64): Int32;
 
-    #[link("c", "src/main/native/fs/file.c", "fs_bytes_text")]
+    #[link("c", "src/ffi/fs/file.c", "fs_bytes_text")]
     pub c fun text(): String;
 
-    #[link("c", "src/main/native/fs/file.c", "fs_bytes_destroy")]
+    #[link("c", "src/ffi/fs/file.c", "fs_bytes_destroy")]
     pub c fun destroy(): Void;
 }
