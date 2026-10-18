@@ -4,8 +4,8 @@ use std::path::Path;
 use super::manifest::ProjectManifest;
 use super::project::{Project, commit, write_pending};
 use crate::package::{
-    BUILTIN_ALIAS, PackageAlias, PackageHash, PackageInfo, find_by_alias, is_builtin, link_directory,
-    relative_path, remove_installed,
+    BUILTIN_ALIAS, PackageAlias, PackageHash, PackageInfo, find_by_alias, is_builtin,
+    link_directory, relative_path, remove_installed,
 };
 
 const PACKAGE_MANIFEST: &str = "into-package.json";

@@ -28,7 +28,10 @@ fn builds_compound_operators_from_symbol_pairs() {
     );
     let arrow: CompoundOperator = CompoundLexeme::try_from(('=', '>')).unwrap().into();
     assert_eq!(arrow, CompoundOperator::Arrow);
-    assert_eq!(CompoundLexeme::from(CompoundOperator::Arrow).to_string(), "=>");
+    assert_eq!(
+        CompoundLexeme::from(CompoundOperator::Arrow).to_string(),
+        "=>"
+    );
     assert!(CompoundLexeme::try_from(('=', '<')).is_err());
 }
 

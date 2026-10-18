@@ -29,9 +29,8 @@ impl Project {
                 if !is_builtin(&locked.alias) {
                     bail!("Lock entry for `{alias}` has no location");
                 }
-                let package_root = find_by_alias(embedded, &locked.alias)?.ok_or_else(|| {
-                    anyhow!("The compiler does not embed the `{alias}` package")
-                })?;
+                let package_root = find_by_alias(embedded, &locked.alias)?
+                    .ok_or_else(|| anyhow!("The compiler does not embed the `{alias}` package"))?;
                 let manifest_path = package_root.join("into-package.json");
                 let package_manifest: serde_json::Value = serde_json::from_slice(
                     &std::fs::read(&manifest_path)

@@ -22,8 +22,8 @@ pub use links::resolve_links;
 pub use lock::LockFile;
 pub use module::{LoadedModule, Module, collect_modules};
 pub use package::{
-    BUILTIN_ALIAS, BUILTIN_SCHEME, PackageAlias, PackageHash, PackageInfo, find_by_alias, is_builtin, is_installed, link_directory,
-    remove_installed,
+    BUILTIN_ALIAS, BUILTIN_SCHEME, PackageAlias, PackageHash, PackageInfo, find_by_alias,
+    is_builtin, is_installed, link_directory, remove_installed,
 };
 pub use project::{Project, Restoration};
 pub use spec::{ExportSpec, ImportSpec};
