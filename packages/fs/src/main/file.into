@@ -14,7 +14,7 @@ pub File() {
     pub c fun write(path: String, binary: Bytes, format: Format): Boolean;
 
     #[link("c", "src/ffi/fs/file.c", "fs_file_destroy")]
-    pub c fun destroy(): Void;
+    pub override c fun destroy(): Void;
 }
 
 pub Bytes() {
@@ -28,5 +28,5 @@ pub Bytes() {
     pub c fun text(): String;
 
     #[link("c", "src/ffi/fs/file.c", "fs_bytes_destroy")]
-    pub c fun destroy(): Void;
+    pub override c fun destroy(): Void;
 }

@@ -3,6 +3,7 @@ use native::NativeLink;
 use std::collections::{HashMap, HashSet};
 
 use super::class_def::{ClassFields, EnumValues};
+use super::class_info::Classes;
 use super::user_function::UserFunction;
 
 /// Everything lowering reads but never changes: the declarations collected
@@ -14,6 +15,7 @@ pub struct Env {
     pub modules: Vec<Module>,
     pub enum_values: EnumValues,
     pub class_fields: ClassFields,
+    pub classes: Classes,
     pub user_functions: HashMap<String, UserFunction>,
     pub type_params: HashSet<String>,
     pub imported_functions: HashSet<String>,

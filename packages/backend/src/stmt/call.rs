@@ -49,7 +49,7 @@ impl Lowerer<'_> {
         let env = self.env;
         let fail = |this: &Self, message: String| this.diagnostic(line, &message);
         if let Some((class, method)) = self.static_receiver(callee) {
-            let key = format!("{class}.{method}");
+            let key = self.method_key(&class, &method);
             if let Some(inner) = env.user_functions.get(&key) {
                 return self
                     .inline_user_function(inner, None, args, 0)
@@ -67,11 +67,7 @@ impl Lowerer<'_> {
         let (receiver, receiver_type) = self
             .resolve_receiver(callee)
             .map_err(|message| fail(self, message))?;
-        let key = format!(
-            "{}.{}",
-            base_type_name(&receiver_type.name()),
-            callee.last()
-        );
+        let key = self.method_key(base_type_name(&receiver_type.name()), callee.last());
         if let Some(inner) = env.user_functions.get(&key) {
             return self
                 .inline_user_function(inner, Some(receiver), args, 0)

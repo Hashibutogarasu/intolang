@@ -2,6 +2,7 @@ use anyhow::Result;
 use types::{Keyword, Punct};
 
 use super::attribute::Attribute;
+use super::event_decl::EventDecl;
 use super::function::FunctionDecl;
 use crate::{Cursor, Expr, SyntaxError, TypeRef};
 
@@ -15,15 +16,18 @@ pub struct FieldDecl {
     pub is_static: bool,
 }
 
-/// `[pub] Name() { fields and methods }`.
+/// `[pub] [abstract] Name() [: Parent] { fields, methods and events }`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClassDecl {
     pub line: usize,
     pub name: String,
     pub is_public: bool,
+    pub is_abstract: bool,
+    pub parent: Option<String>,
     pub attributes: Vec<Attribute>,
     pub fields: Vec<FieldDecl>,
     pub methods: Vec<FunctionDecl>,
+    pub events: Vec<EventDecl>,
 }
 
 impl ClassDecl {
@@ -33,12 +37,25 @@ impl ClassDecl {
         if Attribute::parse_all(&mut probe).is_err() {
             return false;
         }
-        let offset = usize::from(probe.peek_keyword(0) == Some(Keyword::Pub));
-        probe.peek_word(offset).is_some()
+        let mut offset = usize::from(probe.peek_keyword(0) == Some(Keyword::Pub));
+        if probe.peek_keyword(offset) == Some(Keyword::Abstract) {
+            offset += 1;
+        }
+        let header = probe.peek_word(offset).is_some()
             && probe.peek_keyword(offset).is_none()
             && probe.peek_punct(offset + 1) == Some(Punct::LeftParen)
-            && probe.peek_punct(offset + 2) == Some(Punct::RightParen)
-            && probe.peek_punct(offset + 3) == Some(Punct::LeftBrace)
+            && probe.peek_punct(offset + 2) == Some(Punct::RightParen);
+        if !header {
+            return false;
+        }
+        match probe.peek_punct(offset + 3) {
+            Some(Punct::LeftBrace) => true,
+            Some(Punct::Colon) => {
+                probe.peek_word(offset + 4).is_some()
+                    && probe.peek_punct(offset + 5) == Some(Punct::LeftBrace)
+            }
+            _ => false,
+        }
     }
 }
 
@@ -49,12 +66,19 @@ impl TryFrom<&mut Cursor<'_>> for ClassDecl {
         let attributes = Attribute::parse_all(cursor)?;
         let line = cursor.line();
         let is_public = cursor.eat_keyword(Keyword::Pub);
+        let is_abstract = cursor.eat_keyword(Keyword::Abstract);
         let (name, _) = cursor.expect_ident("a class name")?;
         cursor.expect_punct(Punct::LeftParen, "`(`")?;
         cursor.expect_punct(Punct::RightParen, "`)`")?;
+        let parent = if cursor.eat_punct(Punct::Colon) {
+            Some(cursor.expect_ident("a parent class name")?.0)
+        } else {
+            None
+        };
         cursor.expect_punct(Punct::LeftBrace, "`{` after the class header")?;
         let mut fields = Vec::new();
         let mut methods = Vec::new();
+        let mut events = Vec::new();
         loop {
             if cursor.eat_punct(Punct::RightBrace) {
                 break;
@@ -62,7 +86,9 @@ impl TryFrom<&mut Cursor<'_>> for ClassDecl {
             if cursor.at_end() {
                 return Err(cursor.error(format!("Expected `}}` to close class `{name}`")));
             }
-            if FunctionDecl::ahead(cursor) {
+            if EventDecl::ahead(cursor) {
+                events.push(EventDecl::try_from(&mut *cursor)?);
+            } else if FunctionDecl::ahead(cursor) {
                 methods.push(FunctionDecl::try_from(&mut *cursor)?);
             } else {
                 fields.push(field(cursor, &name)?);
@@ -72,9 +98,12 @@ impl TryFrom<&mut Cursor<'_>> for ClassDecl {
             line,
             name,
             is_public,
+            is_abstract,
+            parent,
             attributes,
             fields,
             methods,
+            events,
         })
     }
 }

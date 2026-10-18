@@ -4,6 +4,7 @@ use std::collections::HashSet;
 use types::{MessageTag, Type};
 
 use super::type_name::{base_type_name, parse_type};
+use crate::collect::ancestors;
 use crate::context::{FieldDef, Lowerer, Variable};
 
 impl<'a> Lowerer<'a> {
@@ -20,6 +21,28 @@ impl<'a> Lowerer<'a> {
             .class_fields
             .contains_key(class)
             .then(|| (class.clone(), method.clone()))
+    }
+
+    /// The `Class.method` key a call resolves to: the class itself, then its
+    /// ancestors from the nearest, so a subclass finds inherited members and
+    /// its own `override` wins.
+    pub fn method_key(&self, class: &str, method: &str) -> String {
+        let defined = |key: &str| {
+            self.env.user_functions.contains_key(key) || self.env.native_links.contains_key(key)
+        };
+        let own = format!("{class}.{method}");
+        if defined(&own) {
+            return own;
+        }
+        if let Ok(chain) = ancestors(&self.env.classes, class) {
+            for ancestor in chain {
+                let key = format!("{}.{method}", ancestor.name);
+                if defined(&key) {
+                    return key;
+                }
+            }
+        }
+        own
     }
 
     /// Resolve a static field constant reference `Class.field`.
@@ -52,7 +75,7 @@ impl<'a> Lowerer<'a> {
             .map(|variable| variable.ty.clone())
             .ok_or_else(|| format!("Unknown receiver `{receiver}`"))?;
         for segment in &segments[1..segments.len() - 1] {
-            let key = format!("{}.{}", base_type_name(&current_type.name()), segment);
+            let key = self.method_key(base_type_name(&current_type.name()), segment);
             let link = env.native_links.get(&key).ok_or_else(|| {
                 format!("Undefined member `{segment}` on `{}`", current_type.name())
             })?;
@@ -83,7 +106,7 @@ impl<'a> Lowerer<'a> {
         args: &[Expr],
     ) -> Result<(&'a NativeLink, Vec<Expr>), String> {
         let (receiver, receiver_type) = self.resolve_receiver(path)?;
-        let key = format!("{}.{}", base_type_name(&receiver_type.name()), path.last());
+        let key = self.method_key(base_type_name(&receiver_type.name()), path.last());
         let link = self
             .env
             .native_links

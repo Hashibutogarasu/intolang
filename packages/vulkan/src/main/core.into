@@ -15,7 +15,7 @@ pub Vulkan() {
     pub fun drawText(text: String, color: Int32): Void;
 
     #[link("cpp", "src/ffi/vulkan/wayland.cpp", "vulkan_destroy")]
-    pub fun destroy(): Void;
+    pub override fun destroy(): Void;
 }
 
 #[link("c", "src/ffi/vulkan/core.c", "vulkan_create_instance")]

@@ -9,7 +9,7 @@ pub Wayland() {
     pub fun setRenderer(renderer: Vulkan): Void;
 
     #[link("cpp", "src/ffi/wayland/window.cpp", "wayland_destroy")]
-    pub fun destroy(): Void;
+    pub override fun destroy(): Void;
 }
 
 pub Window() {

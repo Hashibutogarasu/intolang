@@ -1,6 +1,6 @@
 pub Audio() {
     #[link("cpp", "src/ffi/ffmpeg/audio.cpp", "ffmpeg_media_destroy")]
-    pub cpp fun destroy(): Void;
+    pub override cpp fun destroy(): Void;
 
     #[link("cpp", "src/ffi/ffmpeg/audio.cpp", "ffmpeg_media_format")]
     pub cpp fun format(): Pointer;

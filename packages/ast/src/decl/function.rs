@@ -8,14 +8,18 @@ use super::type_params::parse_type_params;
 use crate::stmt::{Scope, parse_block};
 use crate::{Cursor, Stmt, TypeRef};
 
-/// `[pub] [static] [c|cpp] fun name<T>(params): Type { body }`, or the same
-/// header ending in `;` for a declaration implemented elsewhere.
+/// `[pub] [static] [abstract|default|override] [c|cpp] fun name<T>(params):
+/// Type { body }`, or the same header ending in `;` for a declaration
+/// implemented elsewhere.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionDecl {
     pub line: usize,
     pub name: String,
     pub is_public: bool,
     pub is_static: bool,
+    pub is_abstract: bool,
+    pub is_default: bool,
+    pub is_override: bool,
     pub language: Option<Language>,
     pub attributes: Vec<Attribute>,
     pub type_params: Vec<String>,
@@ -40,7 +44,13 @@ impl FunctionDecl {
         while let Some(word) = cursor.peek_word(offset) {
             match word.parse::<KeywordLexeme>().ok().map(Keyword::from) {
                 Some(Keyword::Fun) => return true,
-                Some(Keyword::Pub | Keyword::Static) => {}
+                Some(
+                    Keyword::Pub
+                    | Keyword::Static
+                    | Keyword::Abstract
+                    | Keyword::Default
+                    | Keyword::Override,
+                ) => {}
                 _ if word.parse::<LanguageLexeme>().is_ok() => {}
                 _ => return false,
             }
@@ -57,11 +67,18 @@ impl TryFrom<&mut Cursor<'_>> for FunctionDecl {
         let attributes = Attribute::parse_all(cursor)?;
         let line = cursor.line();
         let (mut is_public, mut is_static, mut language) = (false, false, None);
+        let (mut is_abstract, mut is_default, mut is_override) = (false, false, false);
         loop {
             if cursor.eat_keyword(Keyword::Pub) {
                 is_public = true;
             } else if cursor.eat_keyword(Keyword::Static) {
                 is_static = true;
+            } else if cursor.eat_keyword(Keyword::Abstract) {
+                is_abstract = true;
+            } else if cursor.eat_keyword(Keyword::Default) {
+                is_default = true;
+            } else if cursor.eat_keyword(Keyword::Override) {
+                is_override = true;
             } else if let Some(parsed) = cursor
                 .peek_word(0)
                 .and_then(|word| word.parse::<LanguageLexeme>().ok())
@@ -105,6 +122,9 @@ impl TryFrom<&mut Cursor<'_>> for FunctionDecl {
             name,
             is_public,
             is_static,
+            is_abstract,
+            is_default,
+            is_override,
             language,
             attributes,
             type_params,

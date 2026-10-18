@@ -35,5 +35,5 @@ pub Video() {
     pub cpp fun text(): String;
 
     #[link("cpp", "src/ffi/ffmpeg/decoder.cpp", "ffmpeg_video_destroy")]
-    pub cpp fun destroy(): Void;
+    pub override cpp fun destroy(): Void;
 }

@@ -74,7 +74,7 @@ impl<'a> Lowerer<'a> {
         let env = self.env;
         if callee.is_member() {
             if let Some((class, method)) = self.static_receiver(callee) {
-                let key = format!("{class}.{method}");
+                let key = self.method_key(&class, &method);
                 if let Some(inner) = env.user_functions.get(&key) {
                     let returned = self.inline_user_function(inner, None, args, 0)?;
                     return self
@@ -95,11 +95,7 @@ impl<'a> Lowerer<'a> {
                 return linked_value(link, type_params, annotation).map(Some);
             }
             let (receiver, receiver_type) = self.resolve_receiver(callee)?;
-            let key = format!(
-                "{}.{}",
-                base_type_name(&receiver_type.name()),
-                callee.last()
-            );
+            let key = self.method_key(base_type_name(&receiver_type.name()), callee.last());
             if let Some(inner) = env.user_functions.get(&key) {
                 let returned = self.inline_user_function(inner, Some(receiver), args, 0)?;
                 return self
@@ -118,6 +114,9 @@ impl<'a> Lowerer<'a> {
         let function = callee.first();
         let class = base_type_name(function);
         if env.class_fields.contains_key(class) {
+            if env.classes.get(class).is_some_and(|info| info.is_abstract) {
+                return Err(format!("Cannot instantiate the abstract class `{class}`"));
+            }
             if let Some(link) = env.native_links.get(&format!("{class}.new")) {
                 self.emit_link_call(
                     MessageTag::LinkAssign,

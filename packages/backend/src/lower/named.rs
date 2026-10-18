@@ -3,8 +3,11 @@ use ast::{Item, Program};
 use parser::PathLexeme;
 use std::path::Path;
 
-use crate::collect::{collect_classes, collect_enums, collect_type_params, collect_user_functions};
-use crate::context::{Env, Lowerer};
+use crate::collect::{
+    ancestors, builtin_classes, check_inheritance, collect_class_infos, collect_classes,
+    collect_enums, collect_type_params, collect_user_functions,
+};
+use crate::context::{Env, FieldDef, Lowerer};
 use crate::diagnostic::syntax_diagnostic;
 use crate::emit;
 
@@ -94,5 +97,45 @@ fn prepare(program: &Program, packages_dir: Option<&Path>, source_path: &str) ->
     for function in collect_user_functions(program) {
         env.user_functions.insert(function.name.clone(), function);
     }
+
+    env.classes = builtin_classes();
+    let mut declared = Vec::new();
+    for module in loaded.iter().filter(|module| !module.contents.is_empty()) {
+        let module_path = PathLexeme::from(module.module.source_path.as_path()).to_string();
+        declared.push((module_path, collect_class_infos(&module.program)));
+    }
+    declared.push((source_path.to_owned(), collect_class_infos(program)));
+    for (_, infos) in &declared {
+        for info in infos {
+            env.classes.insert(info.name.clone(), info.clone());
+        }
+    }
+    for (path, infos) in &declared {
+        check_inheritance(&env.classes, infos, path)?;
+    }
+    inherit_fields(&mut env);
     Ok(env)
+}
+
+/// Give every class the instance fields of its ancestors, parents first.
+fn inherit_fields(env: &mut Env) {
+    let names: Vec<String> = env.class_fields.keys().cloned().collect();
+    let inherited: Vec<(String, Vec<FieldDef>)> = names
+        .into_iter()
+        .filter_map(|name| {
+            let chain = ancestors(&env.classes, &name).ok()?;
+            let mut fields: Vec<FieldDef> = Vec::new();
+            for ancestor in chain.iter().rev() {
+                if let Some(own) = env.class_fields.get(&ancestor.name) {
+                    fields.extend(own.iter().cloned());
+                }
+            }
+            (!fields.is_empty()).then_some((name, fields))
+        })
+        .collect();
+    for (name, mut parent_fields) in inherited {
+        let own = env.class_fields.remove(&name).unwrap_or_default();
+        parent_fields.extend(own);
+        env.class_fields.insert(name, parent_fields);
+    }
 }
