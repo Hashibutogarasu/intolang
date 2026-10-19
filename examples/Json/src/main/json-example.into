@@ -1,14 +1,51 @@
-import "json://value";
 import "intolang://builtin/std";
 
-init {
-    into root = readFile("res/sample.json", Format.JSON);
-    into message = json_get(root, "message");
-    println(message.text);
-    into values = json_get(root, "values");
-    into iterator = json_iterator(values);
-    while (json_iterator_has_next(iterator)) {
-        into value = json_iterator_next(iterator);
-        println(value.text);
+pub Cat(): JsonObject {
+    pub into neko = "cat";
+
+    pub override fun toJson(): Json {
+        into json = Json.object();
+        json.set("neko", this.neko);
+        return json;
     }
+}
+
+pub Dog(): JsonObject {
+    pub into foo = "bar";
+    pub into cat = Cat();
+
+    pub override fun toJson(): Json {
+        into json = Json.object();
+        json.set("foo", this.foo);
+        json.set("cat", this.cat);
+        return json;
+    }
+}
+
+init {
+    now into json: Json = { "foo": "bar", "number": 0 };
+    println(json.toString());
+    println(json.type);
+    println(json.number.type);
+
+    now into dog = Dog();
+    now into dogJson: Json = dog.toJson();
+    println(dogJson.foo);
+    println(dogJson.cat.neko);
+
+    dogJson.fields.forEach((field: JsonField) => {
+        println(field.name);
+        println(field.value);
+    });
+    json.forEach((key, value) => {
+        println(key);
+        println(value);
+    });
+
+    into root = Json.read("res/sample.json");
+    println(root.message);
+    into values = root.values;
+    values.items.forEach((value) => {
+        println(value);
+    });
 }
