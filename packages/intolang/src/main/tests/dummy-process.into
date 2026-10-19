@@ -1,0 +1,17 @@
+import "ps://process";
+
+pub DummyProcess(): Process {
+    pub static into: Int32 SIGNALED = -9;
+
+    #[link("c", "src/ffi/dummy-process.c", "dummy_process_current")]
+    pub override static c fun current(): DummyProcess;
+
+    #[link("c", "src/ffi/dummy-process.c", "dummy_process_spawn")]
+    pub override static c fun spawn(path: String, args: String): DummyProcess;
+
+    #[link("c", "src/ffi/dummy-process.c", "dummy_process_alive")]
+    pub static c fun isAlive(pid: Int32): Boolean;
+
+    #[link("c", "src/ffi/dummy-process.c", "dummy_process_advance")]
+    pub static c fun advance(milliseconds: Int32): Void;
+}

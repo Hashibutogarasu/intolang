@@ -1,7 +1,7 @@
 use anyhow::{Result, anyhow};
 use std::rc::Rc;
 
-use super::table::Handle;
+use super::table::{Handle, ProcessState};
 use crate::machine::Vm;
 use crate::value::{Instance, Value};
 
@@ -62,26 +62,71 @@ fn release(vm: &mut Vm, args: &[Value]) -> Result<Value> {
     Ok(Value::Unit)
 }
 
+/// The handle of the current process, which can be taken once until it is
+/// released.
+fn take_current(vm: &mut Vm, class: &str) -> Value {
+    if vm.processes.current_taken {
+        return NULL;
+    }
+    vm.processes.current_taken = true;
+    let pid = vm.processes.current_pid;
+    new_handle(vm, class, vec![Value::Int(i64::from(pid))], pid, true)
+}
+
+fn spawn_child(vm: &mut Vm, class: &str, args: &[Value]) -> Result<Value> {
+    let pid = vm
+        .processes
+        .spawn(&text(argument(args, 0)?), &text(argument(args, 1)?));
+    Ok(new_handle(
+        vm,
+        class,
+        vec![Value::Int(i64::from(pid))],
+        pid,
+        false,
+    ))
+}
+
+/// The functions `DummyProcess` binds to, which only the VM has.
+fn install_dummy_process(vm: &mut Vm) {
+    vm.register(
+        "dummy_process_current",
+        Rc::new(|vm, _| Ok(take_current(vm, "DummyProcess"))),
+    );
+    vm.register(
+        "dummy_process_spawn",
+        Rc::new(|vm, args| spawn_child(vm, "DummyProcess", args)),
+    );
+    vm.register(
+        "dummy_process_alive",
+        Rc::new(|vm, args| {
+            let pid = int(argument(args, 0)?)?;
+            vm.processes.refresh();
+            let alive = vm
+                .processes
+                .get(pid)
+                .is_some_and(|process| process.state == ProcessState::Running);
+            Ok(Value::Int(i64::from(alive)))
+        }),
+    );
+    vm.register(
+        "dummy_process_advance",
+        Rc::new(|vm, args| {
+            let milliseconds = int(argument(args, 0)?)?;
+            vm.processes
+                .advance(u64::try_from(milliseconds).unwrap_or(0));
+            Ok(Value::Unit)
+        }),
+    );
+}
+
 /// Run the `ps` package's C functions against the virtual process table
 /// instead of the real operating system, so that nothing real is started,
 /// signalled or ended.
 pub(crate) fn install(vm: &mut Vm) {
+    install_dummy_process(vm);
     vm.register(
         "ps_process_current",
-        Rc::new(|vm, _| {
-            if vm.processes.current_taken {
-                return Ok(NULL);
-            }
-            vm.processes.current_taken = true;
-            let pid = vm.processes.current_pid;
-            Ok(new_handle(
-                vm,
-                "Process",
-                vec![Value::Int(i64::from(pid))],
-                pid,
-                true,
-            ))
-        }),
+        Rc::new(|vm, _| Ok(take_current(vm, "Process"))),
     );
     vm.register(
         "ps_process_attach",
@@ -101,18 +146,7 @@ pub(crate) fn install(vm: &mut Vm) {
     );
     vm.register(
         "ps_process_spawn",
-        Rc::new(|vm, args| {
-            let pid = vm
-                .processes
-                .spawn(&text(argument(args, 0)?), &text(argument(args, 1)?));
-            Ok(new_handle(
-                vm,
-                "Process",
-                vec![Value::Int(i64::from(pid))],
-                pid,
-                false,
-            ))
-        }),
+        Rc::new(|vm, args| spawn_child(vm, "Process", args)),
     );
     vm.register(
         "ps_process_signal",

@@ -1,0 +1,44 @@
+import "intolang://builtin/tests/macros/test";
+import "intolang://builtin/tests/assert";
+import "intolang://builtin/tests/dummy-process";
+import "ps://process";
+import "ps://events";
+
+#[entrypoint]
+pub ProcessTest() {
+    #[test]
+    pub fun killStopsTheDummyChild() {
+        now into child = DummyProcess.spawn("/bin/sleep", "60");
+        child.kill();
+        now into code = child.wait();
+        assertEquals(code, -9);
+    }
+
+    #[test]
+    pub fun waitReturnsTheExitCode() {
+        now into child = DummyProcess.spawn("/bin/false", "");
+        now into code = child.wait();
+        assertEquals(code, 1);
+    }
+
+    #[test]
+    pub fun theChildLivesUntilItsTimeIsUp() {
+        now into child = DummyProcess.spawn("/bin/sleep", "2");
+        now into before = DummyProcess.isAlive(child.pid);
+        assertTrue(before);
+        DummyProcess.advance(2000);
+        now into after = DummyProcess.isAlive(child.pid);
+        if (after == true) {
+            throw "the child is still alive";
+        }
+    }
+
+    #[test]
+    pub fun destroyDoesNotEndTheChild() {
+        now into child = DummyProcess.spawn("/bin/sleep", "60");
+        now into watcher = Process.attach(child.pid);
+        child.destroy();
+        now into alive = DummyProcess.isAlive(watcher.pid);
+        assertTrue(alive);
+    }
+}

@@ -268,7 +268,7 @@ fn check_members(
                         ),
                     ));
                 }
-                if !signature_matches(kind, class, parent, member) {
+                if !signature_matches(kind, class, ancestor, parent, member) {
                     return Err((
                         member.line,
                         format!(
@@ -284,9 +284,13 @@ fn check_members(
     Ok(())
 }
 
+/// Whether `member` of `class` may override `parent` of `ancestor`. A member
+/// that returns the class declaring it may be overridden by one that returns
+/// the overriding class.
 fn signature_matches(
     kind: MemberKind,
     class: &ClassInfo,
+    ancestor: &ClassInfo,
     parent: &MemberInfo,
     member: &MemberInfo,
 ) -> bool {
@@ -297,8 +301,8 @@ fn signature_matches(
         return true;
     }
     let returns = match (&parent.return_type, &member.return_type) {
-        (Some(parent), Some(child)) if parent == SELF_TYPE => {
-            child == SELF_TYPE || *child == class.name
+        (Some(parent), Some(child)) if parent == SELF_TYPE || *parent == ancestor.name => {
+            child == parent || child == SELF_TYPE || *child == class.name
         }
         (parent, child) => parent == child,
     };

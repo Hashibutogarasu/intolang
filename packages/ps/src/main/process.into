@@ -30,13 +30,13 @@ pub Process() {
     pub into: Int32 pid = 0;
 
     #[link("c", "src/ffi/ps/process.c", "ps_process_current")]
-    pub static c fun current(): Process;
+    pub default static c fun current(): Process;
 
     #[link("c", "src/ffi/ps/process.c", "ps_process_attach")]
     pub static c fun attach(pid: Int32): Process;
 
     #[link("c", "src/ffi/ps/process.c", "ps_process_spawn")]
-    pub static c fun spawn(path: String, args: String): Process;
+    pub default static c fun spawn(path: String, args: String): Process;
 
     #[link("c", "src/ffi/ps/process.c", "ps_process_signal")]
     pub c fun signal(): Signal;

@@ -26,8 +26,11 @@ impl TryFrom<&Record> for NativeLinkAssign {
 impl Codegen for NativeLinkAssign {
     fn generate(&self, ctx: &mut CodegenContext) -> Result<CodegenResult> {
         unsafe {
-            ctx.flush_text()?;
             let call = &self.call;
+            if native::is_vm_only(&call.target) {
+                anyhow::bail!("DummyProcess requires the Into VM (`{}`)", call.target);
+            }
+            ctx.flush_text()?;
             let (mut params, mut args) = ctx.native_call_arguments(&call.args)?;
             let result_type = if call.return_type == "Void" || call.return_type.is_empty() {
                 LLVMVoidTypeInContext(ctx.context)

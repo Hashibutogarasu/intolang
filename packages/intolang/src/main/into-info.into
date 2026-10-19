@@ -18,3 +18,4 @@ export "builtin://tests/ownership-check/assertMoved";
 export "builtin://tests/ownership-check/assertNotMoved";
 export "builtin://tests/ownership-check/assertDestroyed";
 export "builtin://tests/ownership-check/assertNotDestroyed";
+export "builtin://tests/dummy-process";

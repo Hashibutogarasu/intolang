@@ -5,6 +5,7 @@ use types::{Literal, Type};
 use super::captures::mentioned_names;
 use super::ownership::DESTROY;
 use super::type_name::parse_type;
+use crate::collect::ancestors;
 use crate::context::{EVENT, LISTENER, Lowerer, Tracking, Variable};
 use crate::emit;
 
@@ -233,6 +234,16 @@ impl Lowerer<'_> {
         Ok(())
     }
 
+    /// Whether `actual` is a class that has `expected` among its ancestors, so
+    /// that an instance of it can be used where `expected` is written.
+    fn inherits_from(&self, actual: &Type, expected: &Type) -> bool {
+        let (Type::Named(actual), Type::Named(expected)) = (actual, expected) else {
+            return false;
+        };
+        ancestors(&self.env.classes, actual)
+            .is_ok_and(|chain| chain.iter().any(|ancestor| ancestor.name == *expected))
+    }
+
     fn check_event_argument(&self, event: &str, param: &Param, arg: &Expr) -> Result<(), String> {
         let written = param
             .ty
@@ -253,7 +264,10 @@ impl Lowerer<'_> {
             }
             other => return Err(format!("Unsupported event argument `{other}`")),
         };
-        if &actual != expected && !(actual == Type::String && *expected == Type::Path) {
+        if &actual != expected
+            && !(actual == Type::String && *expected == Type::Path)
+            && !self.inherits_from(&actual, expected)
+        {
             return Err(format!(
                 "`{event}` expects `{}` for `{}` but received `{}`",
                 expected.name(),
