@@ -11,6 +11,37 @@ pub fn mentioned_names(body: &[Stmt]) -> BTreeSet<String> {
     names
 }
 
+/// The names a body assigns to as a whole, nested branches and loops included.
+pub fn assigned_names(body: &[Stmt]) -> BTreeSet<String> {
+    let mut names = BTreeSet::new();
+    for stmt in body {
+        collect_assigned(stmt, &mut names);
+    }
+    names
+}
+
+fn collect_assigned(stmt: &Stmt, names: &mut BTreeSet<String>) {
+    match &stmt.kind {
+        StmtKind::Assign { target, .. } => {
+            if let Some(name) = target.as_ident() {
+                names.insert(name.to_owned());
+            }
+        }
+        StmtKind::If {
+            then_body,
+            else_body,
+            ..
+        } => then_body
+            .iter()
+            .chain(else_body.iter().flatten())
+            .for_each(|stmt| collect_assigned(stmt, names)),
+        StmtKind::While { body, .. } | StmtKind::Init(body) => {
+            body.iter().for_each(|stmt| collect_assigned(stmt, names))
+        }
+        _ => {}
+    }
+}
+
 fn collect_statement(stmt: &Stmt, names: &mut BTreeSet<String>) {
     match &stmt.kind {
         StmtKind::Declaration(declaration) => {

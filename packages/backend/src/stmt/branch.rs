@@ -14,6 +14,8 @@ impl Lowerer<'_> {
         then_body: &[Stmt],
         else_body: Option<&[Stmt]>,
     ) -> Result<()> {
+        self.materialize_assigned_texts(then_body);
+        self.materialize_assigned_texts(else_body.unwrap_or_default());
         self.begin_condition(
             line,
             "if",
@@ -31,6 +33,7 @@ impl Lowerer<'_> {
     }
 
     pub fn lower_while(&mut self, line: usize, condition: &Expr, body: &[Stmt]) -> Result<()> {
+        self.materialize_assigned_texts(body);
         let general = self.is_general_condition(condition);
         let flag = if general {
             Some(

@@ -1,6 +1,7 @@
 use anyhow::Result;
 use ast::{Expr, Path};
 use native::{CastAssign, FieldAssign, Operand, OwnershipChange};
+use parser::Hex;
 use types::Type;
 
 use crate::context::Lowerer;
@@ -27,9 +28,17 @@ impl Lowerer<'_> {
             return Err(self.diagnostic(line, &format!("Undefined name `{name}`")));
         };
         let target_type = current.ty.clone();
+        let in_slot = current.native;
         let (text, ty, native) = self
             .declaration_value(value, Some(target_type), &env.type_params, name)
             .map_err(|message| self.diagnostic(line, &message))?;
+        let (text, native) = if in_slot && !native && ty == Type::String {
+            let hex = Hex::from(text.as_str()).to_string();
+            emit::assign(&mut self.state.output, name, &ty, "s", &hex);
+            (ty.name(), true)
+        } else {
+            (text, native)
+        };
         if let Some(variable) = self.state.values.get_mut(name) {
             variable.value = text;
             variable.ty = ty;

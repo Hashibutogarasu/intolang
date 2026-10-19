@@ -308,6 +308,8 @@ impl<'a> Lowerer<'a> {
         depth: usize,
         returned: &mut Returned,
     ) -> Result<(), String> {
+        self.materialize_assigned_texts(then_body);
+        self.materialize_assigned_texts(else_body.unwrap_or_default());
         let folded = fold_comparison(condition);
         match condition {
             _ if folded.is_some() => {

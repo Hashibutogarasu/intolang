@@ -1,7 +1,9 @@
-use ast::Expr;
+use ast::{Expr, Stmt};
 use native::NativeLink;
+use parser::Hex;
 use types::{ArithmeticOperator, ComparisonOperator, Literal, MessageTag, Type};
 
+use super::captures::assigned_names;
 use crate::context::Lowerer;
 use crate::emit;
 
@@ -26,6 +28,26 @@ impl Text {
 }
 
 impl<'a> Lowerer<'a> {
+    /// Give the texts that `body` assigns to a slot of their own before the
+    /// branch or loop starts, because a branch or an iteration may change
+    /// them and later reads must see the value of the run.
+    pub fn materialize_assigned_texts(&mut self, body: &[Stmt]) {
+        for name in assigned_names(body) {
+            let Some(variable) = self.state.values.get(&name) else {
+                continue;
+            };
+            if variable.native || variable.ty != Type::String {
+                continue;
+            }
+            let hex = Hex::from(variable.value.as_str()).to_string();
+            emit::assign(&mut self.state.output, &name, &Type::String, "s", &hex);
+            if let Some(variable) = self.state.values.get_mut(&name) {
+                variable.native = true;
+                variable.value = Type::String.name();
+            }
+        }
+    }
+
     /// Whether the expression is a `String`.
     pub fn is_text(&self, expression: &Expr) -> bool {
         matches!(self.type_of(expression), Ok(Type::String))
@@ -89,6 +111,14 @@ impl<'a> Lowerer<'a> {
                 (true, Type::String) => Ok(Text::Slot(name.to_owned())),
                 (true, Type::Char) => self.char_text(name),
                 (true, other) => Err(format!("`{name}` is a `{}`, not text", other.name())),
+            };
+        }
+        if let Expr::Path(path) = expression
+            && let Some((slot, ty)) = self.lower_field_read(path)?
+        {
+            return match ty {
+                Type::String | Type::Path => Ok(Text::Slot(slot)),
+                other => Err(format!("`{expression}` is a `{}`, not text", other.name())),
             };
         }
         if let Expr::Path(path) = expression

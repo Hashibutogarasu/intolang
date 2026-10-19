@@ -79,6 +79,15 @@ fn a_method_assigns_the_field_of_its_receiver() {
 }
 
 #[test]
+fn a_field_can_be_read_in_arithmetic_and_conditions() {
+    let output = run(
+        "    into r = Record();\n    into total: Int32 = r.count + 3;\n    println(total);\n    if (r.count == 7) {\n        println(\"seven\");\n    }\n    r.ready = true;\n    if (r.ready == true) {\n        println(\"ready\");\n    }\n",
+    )
+    .unwrap();
+    assert_eq!(output, "10\nseven\nready\n");
+}
+
+#[test]
 fn an_unknown_field_or_name_is_an_error() {
     let message = run("    into r = Record();\n    r.missing = 1;\n").unwrap_err();
     assert!(

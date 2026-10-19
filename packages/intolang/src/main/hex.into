@@ -1,0 +1,27 @@
+pub Hex() {
+    pub into: String digits = "";
+
+    pub override event onCast<Int32, Hex>(from: Int32, to: Hex) {
+        into rest: Int32 = from;
+        into text: String = "";
+        if (rest == 0) {
+            text = "0";
+        }
+        while (rest > 0) {
+            into digit: Int32 = rest % 16;
+            if (digit < 10) {
+                text = (('0' as Int32) + digit) as Char + text;
+            } else {
+                text = (('a' as Int32) + digit - 10) as Char + text;
+            }
+            rest = rest / 16;
+        }
+        to.digits = text;
+    }
+
+    pub override event onCast<Char, Hex>(from: Char, to: Hex) {
+        into code: Int32 = from as Int32;
+        into converted: Hex = code as Hex;
+        to.digits = converted.digits;
+    }
+}

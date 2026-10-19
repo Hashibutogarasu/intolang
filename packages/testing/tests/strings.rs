@@ -91,6 +91,14 @@ fn a_loop_can_build_a_text() {
 }
 
 #[test]
+fn a_text_changed_by_a_loop_or_a_branch_keeps_the_value_of_the_run() {
+    let output = output_of(
+        "    into text: String = \"\";\n    into n: Int32 = 0;\n    while (n < 3) {\n        text = 'x' + text;\n        n = n + 1;\n    }\n    println(text);\n    into label: String = \"a\";\n    if (n == 3) {\n        label = \"b\";\n    }\n    println(label);\n    if (n == 4) {\n        label = \"c\";\n    }\n    println(label);\n",
+    );
+    assert_eq!(output, "xxx\nb\nb\n");
+}
+
+#[test]
 fn texts_only_compare_with_equality() {
     let message = error_of(
         "    into s: String = \"abc\";\n    into up = s.toUpper();\n    if (up < \"b\") {\n        println(\"never\");\n    }\n",

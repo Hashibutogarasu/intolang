@@ -253,6 +253,13 @@ impl Vm {
                 let holds = compare(comparison.operator, &left, &right)?;
                 self.store(&assign.target, Value::Int(i64::from(holds)));
             }
+            Instr::FieldLoad(load) => {
+                let holder = self.load_slot(&load.slot)?;
+                let value = self
+                    .read_instance_field(&holder, load.index)
+                    .map_err(|error| anyhow!("`{}`: {error}", load.slot))?;
+                self.store(&load.target, value);
+            }
             Instr::FieldAssign(assign) => {
                 let holder = self.load_slot(&assign.slot)?;
                 let value = self.operand(&assign.operand, &assign.ty)?;

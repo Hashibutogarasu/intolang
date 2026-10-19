@@ -3,6 +3,7 @@ export "builtin://std/println";
 export "builtin://list";
 export "builtin://object";
 export "builtin://string";
+export "builtin://hex";
 export "builtin://tests/macros/test/test";
 export "builtin://tests/assert/assert";
 export "builtin://tests/assert/assertTrue";

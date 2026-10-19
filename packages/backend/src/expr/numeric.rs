@@ -227,6 +227,19 @@ impl Lowerer<'_> {
 
     /// Lower a name or a call whose value lives in a native slot.
     fn lower_value(&mut self, expression: &Expr) -> Result<Numeric, String> {
+        if let Expr::Path(path) = expression
+            && let Some((slot, ty)) = self.lower_field_read(path)?
+        {
+            if !(ty.is_numeric() || matches!(ty, Type::Boolean | Type::Char)) {
+                return Err(format!(
+                    "Arithmetic requires a typed numeric value, not `{expression}`"
+                ));
+            }
+            return Ok(Numeric {
+                operand: Operand::Slot(slot),
+                kind: Kind::Typed(ty),
+            });
+        }
         if let Some(name) = expression.as_ident() {
             self.ensure_usable(name)?;
             let variable = self

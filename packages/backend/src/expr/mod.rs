@@ -3,6 +3,7 @@ mod captures;
 mod casts;
 mod condition;
 mod events;
+mod fields;
 mod inline;
 mod numeric;
 mod operand;
