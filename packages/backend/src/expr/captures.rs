@@ -71,6 +71,6 @@ fn collect_expression(expression: &Expr, names: &mut BTreeSet<String>) {
             collect_expression(left, names);
             collect_expression(right, names);
         }
-        Expr::Not(inner) => collect_expression(inner, names),
+        Expr::Not(inner) | Expr::Cast { value: inner, .. } => collect_expression(inner, names),
     }
 }

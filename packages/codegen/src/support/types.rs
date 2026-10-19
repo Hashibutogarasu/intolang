@@ -23,7 +23,7 @@ impl CodegenContext {
                 "Boolean" => LLVMInt1TypeInContext(self.context),
                 "Int8" => LLVMInt8TypeInContext(self.context),
                 "Int16" => LLVMInt16TypeInContext(self.context),
-                "Int32" => LLVMInt32TypeInContext(self.context),
+                "Int32" | "Char" => LLVMInt32TypeInContext(self.context),
                 "Int64" => LLVMInt64TypeInContext(self.context),
                 "Float32" => LLVMFloatTypeInContext(self.context),
                 "Float64" => LLVMDoubleTypeInContext(self.context),

@@ -35,7 +35,7 @@ fn kind_of(ty: &str, classes: &HashMap<String, ClassDef>) -> (FieldKind, usize) 
     match ty {
         "Int8" | "Boolean" => (FieldKind::Int(1), 1),
         "Int16" => (FieldKind::Int(2), 2),
-        "Int32" => (FieldKind::Int(4), 4),
+        "Int32" | "Char" => (FieldKind::Int(4), 4),
         "Int64" => (FieldKind::Int(8), 8),
         "Float32" => (FieldKind::Float32, 4),
         "Float64" => (FieldKind::Float64, 8),

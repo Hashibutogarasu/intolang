@@ -73,6 +73,26 @@ pub fn operate(ty: &str, operation: &str, left: &Value, right: &Value) -> Result
     Ok(Value::Int(wrap(ty, result)))
 }
 
+/// Convert a scalar from the type `from` to the type `to`.
+pub fn convert(from: &str, to: &str, value: &Value) -> Result<Value> {
+    if is_float(to) {
+        let Some(number) = value.float() else {
+            bail!("Cannot cast {from} to {to}");
+        };
+        return Ok(Value::Float(if to == "Float32" {
+            number as f32 as f64
+        } else {
+            number
+        }));
+    }
+    let number = match value {
+        Value::Int(number) => *number,
+        Value::Float(number) => *number as i64,
+        _ => bail!("Cannot cast {from} to {to}"),
+    };
+    Ok(Value::Int(wrap(to, number)))
+}
+
 pub fn compare(operator: ComparisonOperator, left: &Value, right: &Value) -> Result<bool> {
     let ordering = match (left, right) {
         (Value::Int(a), Value::Int(b)) => a.cmp(b),

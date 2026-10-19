@@ -38,9 +38,13 @@ impl CodegenContext {
         ty: *mut LLVMType,
         value: *mut LLVMValue,
         newline: bool,
+        character: bool,
     ) -> Result<()> {
         unsafe {
             let (format, value) = match LLVMGetTypeKind(ty) {
+                LLVMTypeKind::LLVMIntegerTypeKind if character => {
+                    (if newline { "%lc\n" } else { "%lc" }, value)
+                }
                 LLVMTypeKind::LLVMFloatTypeKind => {
                     let promoted = LLVMBuildFPExt(
                         self.builder,

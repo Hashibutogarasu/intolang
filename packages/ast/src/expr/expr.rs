@@ -8,7 +8,7 @@ use types::{
 
 use super::path::Path;
 use crate::stmt::{Scope, parse_block};
-use crate::{Cursor, Param, Stmt};
+use crate::{Cursor, Param, Stmt, TypeRef};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
@@ -42,6 +42,10 @@ pub enum Expr {
         right: Box<Expr>,
     },
     Not(Box<Expr>),
+    Cast {
+        value: Box<Expr>,
+        ty: TypeRef,
+    },
 }
 
 impl Expr {
@@ -116,6 +120,10 @@ impl Expr {
                 right: Box::new(right.substitute(bindings)),
             },
             Expr::Not(inner) => Expr::Not(Box::new(inner.substitute(bindings))),
+            Expr::Cast { value, ty } => Expr::Cast {
+                value: Box::new(value.substitute(bindings)),
+                ty: ty.clone(),
+            },
         }
     }
 }
@@ -139,6 +147,13 @@ fn literal_text(literal: &Literal) -> String {
         Literal::Int(value) => value.to_string(),
         Literal::Float(value) => value.to_string(),
         Literal::Bool(value) => value.to_string(),
+        Literal::Char(value) => match value {
+            '\'' => "'\\''".to_owned(),
+            '\\' => "'\\\\'".to_owned(),
+            '\n' => "'\\n'".to_owned(),
+            '\t' => "'\\t'".to_owned(),
+            other => format!("'{other}'"),
+        },
         Literal::String(value) => {
             let mut text = String::from("\"");
             for ch in value.chars() {
@@ -193,6 +208,7 @@ impl fmt::Display for Expr {
                 write!(f, "{left} {} {right}", ComparisonLexeme::from(*op))
             }
             Expr::Not(inner) => write!(f, "!{inner}"),
+            Expr::Cast { value, ty } => write!(f, "{value} as {ty}"),
         }
     }
 }
@@ -315,7 +331,7 @@ fn arithmetic_operator(cursor: &Cursor<'_>, level: usize) -> Option<(ArithmeticO
 
 fn binary(cursor: &mut Cursor<'_>, level: usize) -> Result<Expr> {
     if level == LEVELS.len() {
-        return unary(cursor);
+        return cast(cursor);
     }
     let mut left = binary(cursor, level + 1)?;
     while let Some((op, width)) = arithmetic_operator(cursor, level) {
@@ -330,6 +346,17 @@ fn binary(cursor: &mut Cursor<'_>, level: usize) -> Result<Expr> {
         };
     }
     Ok(left)
+}
+
+fn cast(cursor: &mut Cursor<'_>) -> Result<Expr> {
+    let mut value = unary(cursor)?;
+    while cursor.eat_keyword(Keyword::As) {
+        value = Expr::Cast {
+            value: Box::new(value),
+            ty: TypeRef::parse_plain(cursor)?,
+        };
+    }
+    Ok(value)
 }
 
 fn unary(cursor: &mut Cursor<'_>) -> Result<Expr> {
@@ -389,6 +416,11 @@ fn primary(cursor: &mut Cursor<'_>) -> Result<Expr> {
         TokenKind::String(value) => {
             cursor.bump();
             Ok(Expr::Literal(Literal::String(value.clone())))
+        }
+        TokenKind::Char(value) => {
+            let value = *value;
+            cursor.bump();
+            Ok(Expr::Literal(Literal::Char(value)))
         }
         TokenKind::Number(_) => Ok(Expr::Literal(number(cursor)?)),
         TokenKind::Identifier(_)

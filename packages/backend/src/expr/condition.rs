@@ -33,6 +33,7 @@ pub fn fold_comparison(condition: &Expr) -> Option<bool> {
                 _ => None,
             };
         }
+        (Literal::Char(left), Literal::Char(right)) => left.cmp(right),
         (Literal::Int(left), Literal::Int(right)) => left.cmp(right),
         (Literal::Int(left), Literal::Float(right)) => (*left as f64).partial_cmp(right)?,
         (Literal::Float(left), Literal::Int(right)) => left.partial_cmp(&(*right as f64))?,
@@ -70,7 +71,8 @@ impl Lowerer<'_> {
             .as_ident()
             .and_then(|name| self.state.values.get(name).map(|value| (name, value)))
             .filter(|(_, value)| {
-                value.native && (value.ty.is_numeric() || value.ty == Type::Boolean)
+                value.native
+                    && (value.ty.is_numeric() || matches!(value.ty, Type::Boolean | Type::Char))
             });
         let Some((name, variable)) = variable else {
             return Err(format!(

@@ -32,7 +32,7 @@ impl Codegen for NativePrintConst {
                 bail!("A printed constant must be a number");
             };
             let constant = ctx.const_for_type(ty, value)?;
-            ctx.print_scalar(ty, constant, self.newline)?;
+            ctx.print_scalar(ty, constant, self.newline, self.return_type == "Char")?;
             Ok(CodegenResult::unit())
         }
     }

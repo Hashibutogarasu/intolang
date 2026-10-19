@@ -4,6 +4,8 @@ use std::fmt;
 use std::str::FromStr;
 use types::Literal;
 
+use crate::CharLexeme;
+
 /// The decoded body of a quoted string literal (`\r` is also recognised).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StringBody(String);
@@ -76,6 +78,13 @@ impl FromStr for LiteralLexeme {
         if text.starts_with('"') && text.ends_with('"') && text.len() >= 2 {
             let body = StringBody::from(&text[1..text.len() - 1]);
             return Ok(Self(Literal::String(body.into())));
+        }
+        if text.len() >= 3
+            && let Some(body) = text
+                .strip_prefix('\'')
+                .and_then(|rest| rest.strip_suffix('\''))
+        {
+            return Ok(Self(Literal::Char(body.parse::<CharLexeme>()?.value())));
         }
         if text == "true" {
             return Ok(Self(Literal::Bool(true)));

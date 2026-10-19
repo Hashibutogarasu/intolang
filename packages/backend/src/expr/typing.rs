@@ -12,6 +12,7 @@ fn literal_type(literal: &Literal) -> Type {
         Literal::Float(_) => Type::Float64,
         Literal::String(_) => Type::String,
         Literal::Bool(_) => Type::Boolean,
+        Literal::Char(_) => Type::Char,
     }
 }
 
@@ -38,6 +39,7 @@ impl Lowerer<'_> {
                     )),
                 }
             }
+            Expr::Cast { ty, .. } => Ok(spelled(ty.as_str())),
             Expr::Compare { .. } | Expr::Logical { .. } | Expr::Not(_) => Ok(Type::Boolean),
             Expr::Thread { .. } => Ok(Type::Named(THREAD.to_owned())),
             Expr::Lambda { .. } => Err("A lambda has no type here".to_owned()),

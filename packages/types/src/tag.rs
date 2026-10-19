@@ -13,6 +13,7 @@ pub enum MessageTag {
     Assign,
     Arith,
     Compare,
+    Cast,
     Print,
     PrintConst,
     FieldPrint,

@@ -47,6 +47,7 @@ impl TypeLexeme {
             "bool" | "Boolean" | "Bool" => Type::Boolean,
             "string" | "String" | "str" => Type::String,
             "path" | "Path" => Type::Path,
+            "char" | "Char" => Type::Char,
             "i8" | "Int8" => Type::Int8,
             "i16" | "Int16" => Type::Int16,
             "i32" | "Int32" => Type::Int32,

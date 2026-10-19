@@ -50,7 +50,7 @@ impl Codegen for NativeFieldPrint {
                 ctx.empty.as_ptr(),
             );
             let loaded = LLVMBuildLoad2(ctx.builder, field_type, field_pointer, ctx.empty.as_ptr());
-            ctx.print_scalar(field_type, loaded, self.newline)?;
+            ctx.print_scalar(field_type, loaded, self.newline, false)?;
             Ok(CodegenResult::unit())
         }
     }

@@ -1,5 +1,5 @@
 use anyhow::{Result, bail};
-use parser::{CommentLexeme, IdentLexeme, NumberLexeme, StringLexeme, SymbolLexeme};
+use parser::{CharLexeme, CommentLexeme, IdentLexeme, NumberLexeme, StringLexeme, SymbolLexeme};
 use types::{Span, Token};
 
 /// Split Into source into tokens, skipping whitespace. `//` comments are
@@ -77,6 +77,26 @@ pub(crate) fn scan(source: &str, keep_comments: bool) -> Result<Vec<Token>> {
                 end: index,
             };
             tokens.push(raw.parse::<StringLexeme>()?.with_span(span).into());
+            continue;
+        }
+        if ch == '\'' {
+            let start = index;
+            let mut end = index + 1;
+            while end < chars.len() && chars[end] != '\'' && chars[end] != '\n' {
+                end += if chars[end] == '\\' { 2 } else { 1 };
+            }
+            if chars.get(end) != Some(&'\'') {
+                bail!("Unterminated character literal at line {line}");
+            }
+            let raw: String = chars[start + 1..end].iter().collect();
+            let span = Span {
+                line,
+                end_line: line,
+                start,
+                end: end + 1,
+            };
+            tokens.push(raw.parse::<CharLexeme>()?.with_span(span).into());
+            index = end + 1;
             continue;
         }
         if ch.is_ascii_alphabetic() || ch == '_' {

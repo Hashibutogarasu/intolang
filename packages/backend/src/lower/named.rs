@@ -4,8 +4,9 @@ use parser::PathLexeme;
 use std::path::Path;
 
 use crate::collect::{
-    ancestors, builtin_classes, check_inheritance, collect_class_infos, collect_classes,
-    collect_consuming, collect_enums, collect_events, collect_type_params, collect_user_functions,
+    ancestors, builtin_classes, check_inheritance, collect_cast_handlers, collect_class_infos,
+    collect_classes, collect_consuming, collect_enums, collect_events, collect_type_params,
+    collect_user_functions,
 };
 use crate::context::{Env, FieldDef, Lowerer, OBJECT};
 use crate::diagnostic::syntax_diagnostic;
@@ -135,6 +136,12 @@ fn prepare(program: &Program, packages_dir: Option<&Path>, source_path: &str) ->
                 env.user_functions.insert(function.name.clone(), function);
             }
         }
+        for handler in collect_cast_handlers(&module.program) {
+            let class = handler.name.split('.').next().unwrap_or_default();
+            if public.contains(class) {
+                env.user_functions.insert(handler.name.clone(), handler);
+            }
+        }
         env.consuming.extend(collect_consuming(&module.program));
         for (name, event) in collect_events(&module.program) {
             if public.contains(&name) {
@@ -148,6 +155,9 @@ fn prepare(program: &Program, packages_dir: Option<&Path>, source_path: &str) ->
     }
     for function in collect_user_functions(program) {
         env.user_functions.insert(function.name.clone(), function);
+    }
+    for handler in collect_cast_handlers(program) {
+        env.user_functions.insert(handler.name.clone(), handler);
     }
     env.consuming.extend(collect_consuming(program));
     env.events.extend(collect_events(program));

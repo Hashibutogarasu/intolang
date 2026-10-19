@@ -23,6 +23,7 @@ pub enum TokenKind {
     Identifier(String),
     Number(String),
     String(String),
+    Char(char),
     Symbol(char),
     Comment(String),
 }

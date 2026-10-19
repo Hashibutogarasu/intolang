@@ -28,7 +28,7 @@ impl Codegen for NativePrint {
             ctx.flush_text()?;
             let ty = ctx.into_type(&self.return_type);
             let value = ctx.load_slot(&self.variable)?;
-            ctx.print_scalar(ty, value, self.newline)?;
+            ctx.print_scalar(ty, value, self.newline, self.return_type == "Char")?;
             Ok(CodegenResult::unit())
         }
     }

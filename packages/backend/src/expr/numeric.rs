@@ -1,8 +1,9 @@
 use ast::Expr;
-use native::{CompareAssign, Comparison, Operand};
+use native::{CastAssign, CompareAssign, Comparison, Operand};
 use parser::ArithmeticLexeme;
 use types::{ArithmeticOperator, ComparisonOperator, Literal, LogicalOperator, MessageTag, Type};
 
+use super::type_name::parse_type;
 use crate::context::{Lowerer, Variable};
 use crate::emit;
 
@@ -76,7 +77,7 @@ impl Lowerer<'_> {
     }
 
     /// The slot holding `numeric`; a number is stored into a new slot of `ty`.
-    fn slot_of(&mut self, numeric: &Numeric, ty: &Type) -> String {
+    pub(super) fn slot_of(&mut self, numeric: &Numeric, ty: &Type) -> String {
         match &numeric.operand {
             Operand::Slot(name) => name.clone(),
             Operand::Number(value) => {
@@ -159,6 +160,11 @@ impl Lowerer<'_> {
                 operand: Operand::Number(if *flag { "1" } else { "0" }.to_owned()),
                 kind: Kind::Typed(Type::Boolean),
             }),
+            Expr::Literal(Literal::Char(value)) => Ok(Numeric {
+                operand: Operand::Number(u32::from(*value).to_string()),
+                kind: Kind::Typed(Type::Char),
+            }),
+            Expr::Cast { value, ty } => self.lower_cast(value, ty.as_str()),
             Expr::Binary { left, op, right } => {
                 let target = format!("__value{}", self.state.temp_counter);
                 self.state.temp_counter += 1;
@@ -182,6 +188,43 @@ impl Lowerer<'_> {
         }
     }
 
+    /// Lower `value as ty` between the scalar types: integers, floats, `Char`
+    /// and `Boolean` (which only converts to a number).
+    fn lower_cast(&mut self, value: &Expr, written: &str) -> Result<Numeric, String> {
+        let to = parse_type(written, &self.env.type_params).map_err(|error| error.to_string())?;
+        let scalar = |ty: &Type| ty.is_numeric() || *ty == Type::Char;
+        if let Ok(declared) = self.type_of(value)
+            && !(scalar(&declared) || declared == Type::Boolean)
+        {
+            return Err(format!("no cast from {} to {}", declared.name(), to.name()));
+        }
+        let source = self.lower_numeric(value)?;
+        let from = match &source.kind {
+            Kind::Typed(ty) => ty.clone(),
+            Kind::IntLiteral => Type::Int32,
+            Kind::FloatLiteral => Type::Float64,
+        };
+        let convertible = (scalar(&from) || from == Type::Boolean) && scalar(&to);
+        if !convertible {
+            return Err(format!("no cast from {} to {}", from.name(), to.name()));
+        }
+        let source_slot = self.slot_of(&source, &from);
+        let target = self.fresh_slot(&to);
+        emit::cast_assign(
+            &mut self.state.output,
+            &CastAssign {
+                target: target.clone(),
+                source: source_slot,
+                from: from.name(),
+                to: to.name(),
+            },
+        );
+        Ok(Numeric {
+            operand: Operand::Slot(target),
+            kind: Kind::Typed(to),
+        })
+    }
+
     /// Lower a name or a call whose value lives in a native slot.
     fn lower_value(&mut self, expression: &Expr) -> Result<Numeric, String> {
         if let Some(name) = expression.as_ident() {
@@ -192,7 +235,7 @@ impl Lowerer<'_> {
                 .get(name)
                 .filter(|variable| variable.native)
                 .ok_or_else(|| "Arithmetic requires a typed numeric value".to_owned())?;
-            if !(variable.ty.is_numeric() || variable.ty == Type::Boolean) {
+            if !(variable.ty.is_numeric() || matches!(variable.ty, Type::Boolean | Type::Char)) {
                 return Err("Arithmetic requires a typed numeric value".to_owned());
             }
             return Ok(Numeric {

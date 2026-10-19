@@ -114,7 +114,7 @@ impl Vm {
                 "" | "Void" => Value::Unit,
                 "Int8" => Value::Int(i64::from(raw as i8)),
                 "Int16" => Value::Int(i64::from(raw as i16)),
-                "Int32" => Value::Int(i64::from(raw as i32)),
+                "Int32" | "Char" => Value::Int(i64::from(raw as i32)),
                 "Boolean" => Value::Int(i64::from(raw as u8 != 0)),
                 "String" | "Path" => {
                     if raw == 0 {

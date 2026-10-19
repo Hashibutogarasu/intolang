@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::rc::Rc;
 
-use super::arith::{compare, constant, is_float, operate};
+use super::arith::{compare, constant, convert, is_float, operate};
 use super::events::EventTable;
 use super::frame::Frame;
 use super::memory::Binding;
@@ -250,6 +250,11 @@ impl Vm {
                 let holds = compare(comparison.operator, &left, &right)?;
                 self.store(&assign.target, Value::Int(i64::from(holds)));
             }
+            Instr::Cast(cast) => {
+                let value = self.load_slot(&cast.source)?;
+                let converted = convert(&cast.from, &cast.to, &value)?;
+                self.store(&cast.target, converted);
+            }
             Instr::Print {
                 variable,
                 ty,
@@ -422,6 +427,12 @@ impl Vm {
 
     fn print(&mut self, ty: &str, value: &Value, newline: bool) -> Result<()> {
         let mut text = match value {
+            Value::Int(number) if ty == "Char" => u32::try_from(*number)
+                .ok()
+                .and_then(char::from_u32)
+                .unwrap_or(char::REPLACEMENT_CHARACTER)
+                .to_string()
+                .into_bytes(),
             Value::Int(number) => number.to_string().into_bytes(),
             Value::Float(number) => format!("{number:.6}").into_bytes(),
             Value::Str(bytes) => bytes.clone(),

@@ -9,5 +9,5 @@ pub use grammar::{
 };
 pub use message::{Record, TagLexeme};
 pub use meta::{LanguageLexeme, TypeLexeme};
-pub use token::{CommentLexeme, IdentLexeme, NumberLexeme, StringLexeme, SymbolLexeme};
+pub use token::{CharLexeme, CommentLexeme, IdentLexeme, NumberLexeme, StringLexeme, SymbolLexeme};
 pub use value::{Hex, LiteralLexeme, PathLexeme, StringBody};

@@ -15,22 +15,13 @@ impl TypeRef {
         &self.0
     }
 
-    /// Resolve the written type, treating names in `params` as generics.
-    pub fn resolve(&self, params: &HashSet<String>) -> Result<Type> {
-        Ok(TypeLexeme::with_generics(&self.0, params)?.into())
+    /// A type without `*` or `&` suffixes, for places where those symbols are
+    /// operators (`x as Int32 * 2`).
+    pub fn parse_plain(cursor: &mut Cursor<'_>) -> Result<Self> {
+        Self::parse(cursor, false)
     }
-}
 
-impl From<&str> for TypeRef {
-    fn from(text: &str) -> Self {
-        Self(text.to_owned())
-    }
-}
-
-impl TryFrom<&mut Cursor<'_>> for TypeRef {
-    type Error = anyhow::Error;
-
-    fn try_from(cursor: &mut Cursor<'_>) -> Result<Self> {
+    fn parse(cursor: &mut Cursor<'_>, suffixes: bool) -> Result<Self> {
         let (name, _) = cursor.expect_ident("a type name")?;
         let mut text = name;
         if cursor.peek_symbol(0) == Some('<') {
@@ -55,15 +46,36 @@ impl TryFrom<&mut Cursor<'_>> for TypeRef {
             cursor.bump();
             text.push('>');
         }
-        while cursor.peek_symbol(0) == Some('*') {
-            cursor.bump();
-            text.push('*');
-        }
-        if cursor.peek_symbol(0) == Some('&') {
-            cursor.bump();
-            text.push('&');
+        if suffixes {
+            while cursor.peek_symbol(0) == Some('*') {
+                cursor.bump();
+                text.push('*');
+            }
+            if cursor.peek_symbol(0) == Some('&') {
+                cursor.bump();
+                text.push('&');
+            }
         }
         Ok(Self(text))
+    }
+
+    /// Resolve the written type, treating names in `params` as generics.
+    pub fn resolve(&self, params: &HashSet<String>) -> Result<Type> {
+        Ok(TypeLexeme::with_generics(&self.0, params)?.into())
+    }
+}
+
+impl From<&str> for TypeRef {
+    fn from(text: &str) -> Self {
+        Self(text.to_owned())
+    }
+}
+
+impl TryFrom<&mut Cursor<'_>> for TypeRef {
+    type Error = anyhow::Error;
+
+    fn try_from(cursor: &mut Cursor<'_>) -> Result<Self> {
+        Self::parse(cursor, true)
     }
 }
 

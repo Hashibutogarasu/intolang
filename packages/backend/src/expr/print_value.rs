@@ -10,6 +10,9 @@ impl Lowerer<'_> {
         let output = &mut self.state.output;
         match literal {
             Literal::String(value) => emit::text(output, value, newline),
+            Literal::Char(value) => {
+                emit::print_const(output, &Type::Char, &u32::from(*value).to_string(), newline)
+            }
             Literal::Int(number) => {
                 emit::print_const(output, &Type::Int32, &number.to_string(), newline)
             }

@@ -1,10 +1,11 @@
 use ast::{Expr, Path};
-use native::NativeLink;
+use native::{NativeLink, Operand};
 use std::collections::HashSet;
 use types::{Literal, MessageTag, Type};
 
 use super::annotation::resolve_annotation;
 use super::events::{RuntimeCall, event_value, listener_value};
+use super::numeric::Kind;
 use super::ownership::{BORROW, DESTROY};
 use super::threads::{task_value, thread_value};
 use super::type_name::{base_type_name, parse_type};
@@ -98,6 +99,28 @@ impl<'a> Lowerer<'a> {
             }
             Expr::Await(_) => {
                 return Err("`await` can only be used as a statement".into());
+            }
+            Expr::Cast { value, ty } => {
+                let target =
+                    parse_type(ty.as_str(), type_params).map_err(|error| error.to_string())?;
+                if self.is_class_type(&target) {
+                    let Type::Named(class) = &target else {
+                        unreachable!("a class type is a named type")
+                    };
+                    let class = self.lower_class_cast(value, class, assigned_to)?;
+                    let class = resolve_annotation(class, annotation)?;
+                    return Ok((class.name(), class, true));
+                }
+                let value = self.lower_numeric(rhs)?;
+                let Kind::Typed(ty) = value.kind else {
+                    return Err(format!("`{rhs}` is not a typed value"));
+                };
+                let Operand::Slot(slot) = value.operand else {
+                    return Err(format!("`{rhs}` is not a typed value"));
+                };
+                emit::assign(&mut self.state.output, assigned_to, &ty, "p", &slot);
+                let ty = resolve_annotation(ty, annotation)?;
+                return Ok((ty.name(), ty, true));
             }
             Expr::Compare { .. } | Expr::Logical { .. } | Expr::Not(_) => {
                 let slot = self.lower_boolean(rhs)?;
@@ -292,6 +315,7 @@ impl<'a> Lowerer<'a> {
     ) -> Result<Bound, String> {
         let (inferred, native) = match literal {
             Literal::String(_) => (Type::String, None),
+            Literal::Char(value) => (Type::Char, Some(u32::from(*value).to_string())),
             Literal::Int(number) => (Type::Int32, Some(number.to_string())),
             Literal::Float(number) => (Type::Float64, Some(number.to_string())),
             Literal::Bool(flag) => (

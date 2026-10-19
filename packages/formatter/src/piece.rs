@@ -57,7 +57,9 @@ pub(crate) fn pieces(tokens: &[Token], chars: &[char]) -> Vec<Piece> {
                 let keyword = name.parse::<KeywordLexeme>().ok().map(Keyword::from);
                 (name.clone(), Kind::Word(keyword), span.end)
             }
-            TokenKind::Number(_) | TokenKind::String(_) => (raw(token), Kind::Literal, span.end),
+            TokenKind::Number(_) | TokenKind::String(_) | TokenKind::Char(_) => {
+                (raw(token), Kind::Literal, span.end)
+            }
             TokenKind::Comment(text) => (text.clone(), Kind::Comment, span.end),
             TokenKind::Symbol(symbol) => {
                 let compound = tokens.get(index + 1).and_then(|next| match next.kind {

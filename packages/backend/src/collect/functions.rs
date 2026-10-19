@@ -6,6 +6,7 @@ use crate::context::{Ownership, UserFunction};
 const CONSUMES: &str = "consumes";
 const DETACHED: &str = "detached";
 const INSPECTS: &str = "inspects";
+pub const CAST_EVENT: &str = "onCast";
 
 /// Collect the Into-bodied, non-generic functions of `program`.
 ///
@@ -22,6 +23,35 @@ pub fn collect_user_functions(program: &Program) -> Vec<UserFunction> {
         }
     }
     functions
+}
+
+/// The name `Class.onCast<From,To>` under which a cast handler of a class is
+/// stored and looked up.
+pub fn cast_handler_key(class: &str, from: &str, to: &str) -> String {
+    format!("{class}.{CAST_EVENT}<{from},{to}>")
+}
+
+/// Collect the `onCast` events declared in the classes of `program` as
+/// functions without a receiver, one for each pair of type arguments.
+pub fn collect_cast_handlers(program: &Program) -> Vec<UserFunction> {
+    let mut handlers = Vec::new();
+    for class in program.classes() {
+        for event in class.events.iter().filter(|event| event.name == CAST_EVENT) {
+            let [from, to] = event.type_params.as_slice() else {
+                continue;
+            };
+            handlers.push(UserFunction {
+                name: cast_handler_key(&class.name, from, to),
+                receiver: None,
+                is_static: true,
+                params: event.params.clone(),
+                return_type: None,
+                body: event.body.clone(),
+                inspects: false,
+            });
+        }
+    }
+    handlers
 }
 
 fn user_function(function: &FunctionDecl, class: Option<&str>) -> Option<UserFunction> {

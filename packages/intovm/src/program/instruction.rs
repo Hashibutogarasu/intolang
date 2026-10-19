@@ -1,5 +1,6 @@
 use native::{
-    CompareAssign, Comparison, LinkCall, NativeArg, Operand, OwnershipChange, StateCheck,
+    CastAssign, CompareAssign, Comparison, LinkCall, NativeArg, Operand, OwnershipChange,
+    StateCheck,
 };
 use std::collections::HashMap;
 
@@ -32,6 +33,7 @@ pub enum Instr {
         ty: String,
     },
     Compare(CompareAssign),
+    Cast(CastAssign),
     Print {
         variable: String,
         ty: String,
