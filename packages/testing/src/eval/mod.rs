@@ -13,6 +13,8 @@ pub use execution::Execution;
 pub use package::Package;
 #[cfg(feature = "run")]
 pub use run::eval_run;
+#[cfg(feature = "run")]
+pub use vm::eval_vm_bundled;
 pub(crate) use vm::run_message;
 pub use vm::{VmOutcome, eval_vm, eval_vm_with};
 pub use workspace::Workspace;

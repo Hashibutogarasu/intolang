@@ -1,5 +1,6 @@
 use anyhow::{Result, anyhow, bail};
 use ast::{Program, SyntaxError};
+use intovm::VmOptions;
 use parser::PathLexeme;
 use std::path::Path;
 
@@ -36,7 +37,7 @@ pub fn run_tests(source: &str, path: &Path, packages_dir: &Path) -> Result<TestS
     let mut summary = TestSummary::default();
     for test in find_tests(&program, &attribute) {
         let outcome = backend::lower_test(source, path, Some(packages_dir), &test.name)
-            .and_then(|message| run_message(&message));
+            .and_then(|message| run_message(&message, VmOptions::default()));
         match outcome {
             Ok(_) => {
                 summary.passed += 1;

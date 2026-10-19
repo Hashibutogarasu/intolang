@@ -7,6 +7,7 @@ use super::arith::{compare, constant, is_float, operate};
 use super::events::EventTable;
 use super::frame::Frame;
 use super::memory::Binding;
+use super::process::{ChildBehavior, ProcessTable, install};
 use super::threads::Thread;
 use super::trace::TraceEntry;
 use crate::program::{Cond, Instr, Program};
@@ -15,8 +16,28 @@ use crate::value::{Instance, Value};
 /// A native function the VM runs instead of calling the C symbol.
 pub type Intrinsic = Rc<dyn Fn(&mut Vm, &[Value]) -> Result<Value>>;
 
-#[derive(Debug, Clone, Default)]
-pub struct VmOptions {}
+/// What a VM starts with.
+#[derive(Debug, Clone)]
+pub struct VmOptions {
+    /// The pid of the virtual process the program is.
+    pub current_pid: i32,
+    /// The virtual clock when the program starts, in milliseconds.
+    pub clock_ms: u64,
+    /// What the programs `spawn` can start do, by path. A path that is not
+    /// listed behaves as `true`, `false` or `sleep` when it names one of
+    /// them and as a program that exits at once with 0 otherwise.
+    pub programs: HashMap<String, ChildBehavior>,
+}
+
+impl Default for VmOptions {
+    fn default() -> Self {
+        Self {
+            current_pid: 4242,
+            clock_ms: 0,
+            programs: HashMap::new(),
+        }
+    }
+}
 
 /// Runs a lowered message without generating machine code.
 pub struct Vm {
@@ -31,12 +52,20 @@ pub struct Vm {
     pub(super) bindings: HashMap<String, Binding>,
     pub(super) in_init: bool,
     pub(super) trace: Vec<TraceEntry>,
+    pub(super) processes: ProcessTable,
+    options: VmOptions,
     stdout: Vec<u8>,
 }
 
 impl Vm {
-    pub fn new(_options: VmOptions) -> Self {
-        Self {
+    pub fn new(options: VmOptions) -> Self {
+        let mut vm = Self {
+            processes: ProcessTable::new(
+                options.current_pid,
+                options.clock_ms,
+                options.programs.clone(),
+            ),
+            options,
             program: Rc::new(Program::default()),
             globals: HashMap::new(),
             frames: vec![Frame::main()],
@@ -49,11 +78,20 @@ impl Vm {
             in_init: false,
             trace: Vec::new(),
             stdout: Vec::new(),
-        }
+        };
+        install(&mut vm);
+        vm
     }
 
     pub fn load(&mut self, message: &str) -> Result<()> {
         self.program = Rc::new(Program::load(message)?);
+        self.processes = ProcessTable::new(
+            self.options.current_pid,
+            self.options.clock_ms,
+            self.options.programs.clone(),
+        );
+        self.heap.clear();
+        self.globals.clear();
         self.frames = vec![Frame::main()];
         self.threads = vec![Thread::default()];
         self.current = 0;
@@ -90,8 +128,12 @@ impl Vm {
     pub fn run(&mut self) -> Result<()> {
         let program = self.program.clone();
         loop {
+            if self.processes.terminated {
+                return Ok(());
+            }
             let Some(frame) = self.frames.last() else {
                 if self.thread_finished()? {
+                    self.processes.finish();
                     return Ok(());
                 }
                 continue;
@@ -102,6 +144,22 @@ impl Vm {
             };
             self.step(&program, instr)?;
         }
+    }
+
+    /// The virtual processes and the virtual clock.
+    pub fn processes(&self) -> &ProcessTable {
+        &self.processes
+    }
+
+    /// Move the virtual clock forward.
+    pub fn advance_clock(&mut self, milliseconds: u64) {
+        self.processes.advance(milliseconds);
+    }
+
+    /// Queue or deliver a signal to a virtual process, as if another process
+    /// had sent it. Returns 0, or -1 when the process does not exist.
+    pub fn send_signal(&mut self, pid: i32, signal: i32) -> i32 {
+        self.processes.send(pid, signal)
     }
 
     fn advance(&mut self) {
