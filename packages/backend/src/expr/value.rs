@@ -262,6 +262,9 @@ impl<'a> Lowerer<'a> {
             return linked_value(link, type_params, annotation).map(Some);
         }
         let function = callee.first();
+        if let Some(call) = self.callable_path(function) {
+            return self.call_value(&call, args, annotation, type_params, assigned_to);
+        }
         let class = base_type_name(function);
         if env.class_fields.contains_key(class) {
             if env.classes.get(class).is_some_and(|info| info.is_abstract) {

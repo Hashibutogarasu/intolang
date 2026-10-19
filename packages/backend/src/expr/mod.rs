@@ -8,6 +8,7 @@ mod fields;
 mod functions;
 mod inline;
 mod lists;
+mod member_events;
 mod numeric;
 mod operand;
 mod ownership;

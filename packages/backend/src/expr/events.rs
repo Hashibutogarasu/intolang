@@ -30,6 +30,9 @@ impl Lowerer<'_> {
         args: &[Expr],
         assigned_to: &str,
     ) -> Result<RuntimeCall, String> {
+        if let Some(handled) = self.lower_member_event_call(callee, args, assigned_to)? {
+            return Ok(handled);
+        }
         if callee.segments().len() > 2 {
             return self.lower_signal_call(callee, args, assigned_to);
         }
@@ -131,7 +134,7 @@ impl Lowerer<'_> {
         let [Expr::Lambda { params, body }] = args else {
             return Err(format!("`{event}.on` expects one lambda handler"));
         };
-        let info = &self.env.events[event];
+        let info = self.event_info(event)?;
         if params.len() != info.params.len() {
             return Err(format!(
                 "The handler of `{event}` takes {} parameter(s) but the lambda declares {}",
@@ -139,7 +142,7 @@ impl Lowerer<'_> {
                 params.len()
             ));
         }
-        let declared = info.params.clone();
+        let declared = info.params;
         let locals: Vec<String> = params.iter().map(|param| param.name.clone()).collect();
         let handler = format!("__handler_{event}_{}", self.state.temp_counter);
         self.state.temp_counter += 1;
@@ -218,8 +221,8 @@ impl Lowerer<'_> {
         Ok(())
     }
 
-    fn emit_event(&mut self, event: &str, args: &[Expr]) -> Result<(), String> {
-        let declared = self.env.events[event].params.clone();
+    pub(super) fn emit_event(&mut self, event: &str, args: &[Expr]) -> Result<(), String> {
+        let declared = self.event_info(event)?.params;
         if args.len() != declared.len() {
             return Err(format!(
                 "`{event}` takes {} argument(s) but received {}",

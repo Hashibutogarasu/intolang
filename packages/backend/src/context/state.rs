@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use types::Type;
 
+use super::event_info::EventInfo;
 use super::variable::{Tracking, Variable};
 
 /// An inlined function call being lowered.
@@ -30,6 +31,9 @@ pub struct State {
     /// The inlined function calls being lowered, innermost last.
     pub frames: Vec<InlineFrame>,
     pub destroyed_events: HashSet<String>,
+    /// The events of class members reached so far, by the path to them such as
+    /// `http.on.response`; each binding has its own.
+    pub member_events: HashMap<String, EventInfo>,
     /// The functions called at run time whose definition is in the output.
     pub defined_functions: HashSet<String>,
     /// The types the run time functions being lowered return, innermost last.

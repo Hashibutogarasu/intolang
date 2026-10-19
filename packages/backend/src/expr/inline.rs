@@ -452,6 +452,12 @@ impl<'a> Lowerer<'a> {
         if self.lower_indirect_call(name, args)? {
             return Ok(());
         }
+        if let Some(call) = self.callable_path(name) {
+            return self.inline_call(&call, args, depth);
+        }
+        if self.lower_event_handler_call(name, args)? {
+            return Ok(());
+        }
         let key = self.pick_overload(name, args)?;
         if let Some(inner) = env.user_functions.get(&key) {
             return self

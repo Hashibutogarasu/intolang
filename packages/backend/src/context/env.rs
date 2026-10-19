@@ -25,6 +25,8 @@ pub struct Env {
     pub runtime_functions: HashSet<String>,
     pub consuming: HashMap<String, Ownership>,
     pub events: HashMap<String, EventInfo>,
+    /// The events each class declares, by class and event name.
+    pub class_events: HashMap<String, HashMap<String, EventInfo>>,
     pub type_params: HashSet<String>,
     pub imported_functions: HashSet<String>,
     /// Whether a call to a function that was never imported is an error

@@ -9,7 +9,7 @@ mod type_params;
 
 pub use classes::collect_classes;
 pub use enums::collect_enums;
-pub use events::collect_events;
+pub use events::{collect_class_events, collect_events};
 pub use functions::{
     CAST_EVENT, cast_handler_key, collect_cast_handlers, collect_consuming, collect_user_functions,
 };

@@ -34,6 +34,15 @@ impl Lowerer<'_> {
         {
             return Ok(());
         }
+        if let Some(call) = self.callable_path(name) {
+            return self.lower_method_call(line, &call, args);
+        }
+        if self
+            .lower_event_handler_call(name, args)
+            .map_err(|message| self.diagnostic(line, &message))?
+        {
+            return Ok(());
+        }
         let key = self
             .pick_overload(name, args)
             .map_err(|message| self.diagnostic(line, &message))?;

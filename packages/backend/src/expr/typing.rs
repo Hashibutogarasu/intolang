@@ -59,6 +59,9 @@ impl Lowerer<'_> {
         if let Some(field) = self.static_field(path) {
             return Ok(spelled(&field.ty));
         }
+        if let Some(event) = self.member_event_type(path.segments()) {
+            return Ok(event);
+        }
         if self.is_type_property(path) {
             return Ok(Type::Named(super::type_property::TYPE_CLASS.to_owned()));
         }
