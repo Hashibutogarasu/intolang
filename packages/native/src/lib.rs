@@ -6,7 +6,10 @@ mod operand;
 mod ownership;
 
 pub use arg::NativeArg;
-pub use build::{NativeBuild, NativeSource, collect_sources, compile_sources, native_dependencies};
+pub use build::{
+    NativeBuild, NativeSource, SharedSource, collect_sources, compile_shared_library,
+    compile_sources, native_dependencies,
+};
 pub use call::LinkCall;
 pub use link::{NativeLink, is_vm_only};
 pub use operand::{Comparison, Operand};

@@ -1,5 +1,6 @@
 mod inex;
 mod machine;
+mod native_call;
 mod program;
 mod value;
 

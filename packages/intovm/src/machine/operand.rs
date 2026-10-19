@@ -46,14 +46,11 @@ impl Vm {
             NativeArg::Str(bytes) => Ok(Value::Str(bytes.clone())),
             NativeArg::Slot(name) => self.load_slot(name),
             NativeArg::Field { slot, index, .. } => {
-                let Value::Ref(reference) = self.load_slot(slot)? else {
+                let holder = self.load_slot(slot)?;
+                if self.class_of(&holder).is_err() {
                     bail!("`{slot}` holds no instance");
-                };
-                self.instance(reference)?
-                    .fields
-                    .get(*index)
-                    .cloned()
-                    .ok_or_else(|| anyhow!("Unknown field index {index}"))
+                }
+                self.read_instance_field(&holder, *index)
             }
         }
     }

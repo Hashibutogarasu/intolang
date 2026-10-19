@@ -83,11 +83,13 @@ pub(super) fn run_file(path: &PathBuf) -> Result<()> {
     execute(&inex)
 }
 
-/// Run the program of `inex` in the VM, ending this process with the code the
+/// Run the program of `inex` in the VM as the application, so it works with
+/// the real process, signals and time, and end this process with the code the
 /// program ends with.
 pub(super) fn execute(inex: &Inex) -> Result<()> {
     let mut vm = Vm::new(VmOptions {
         echo_stdout: true,
+        real_processes: true,
         ..VmOptions::default()
     });
     vm.load_inex(inex)?;

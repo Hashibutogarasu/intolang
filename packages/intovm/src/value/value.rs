@@ -4,8 +4,8 @@ pub enum Value {
     Int(i64),
     Float(f64),
     Str(Vec<u8>),
-    /// The instance with this index on the heap.
     Ref(usize),
+    Native { ptr: usize, class: String },
     Unit,
 }
 

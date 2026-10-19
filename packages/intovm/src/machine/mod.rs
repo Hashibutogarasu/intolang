@@ -2,6 +2,7 @@ mod arith;
 mod events;
 mod frame;
 mod memory;
+mod native;
 mod operand;
 mod process;
 mod threads;

@@ -17,7 +17,7 @@ pub struct NativeBuild {
 
 /// The environment variable that overrides, and the default for, the compiler
 /// of a source language.
-fn toolchain(language: Language) -> (&'static str, &'static str) {
+pub(super) fn toolchain(language: Language) -> (&'static str, &'static str) {
     match language {
         Language::C => ("CC", "cc"),
         Language::Cpp => ("CXX", "c++"),

@@ -119,11 +119,34 @@ fn install_dummy_process(vm: &mut Vm) {
     );
 }
 
-/// Run the `ps` package's C functions against the virtual process table
-/// instead of the real operating system, so that nothing real is started,
-/// signalled or ended.
-pub(crate) fn install(vm: &mut Vm) {
+/// Run the `ps` package's C functions and the clock against the virtual
+/// process table unless the VM runs a program for real, so that tests never
+/// start, signal or end a real process and never wait for real time.
+pub(crate) fn install(vm: &mut Vm, real_processes: bool) {
     install_dummy_process(vm);
+    if !real_processes {
+        install_virtual_processes(vm);
+        install_virtual_time(vm);
+    }
+}
+
+fn install_virtual_time(vm: &mut Vm) {
+    vm.register(
+        "standard_sleep",
+        Rc::new(|vm, args| {
+            let milliseconds = int(argument(args, 0)?)?;
+            vm.processes
+                .advance(u64::try_from(milliseconds).unwrap_or(0));
+            Ok(Value::Unit)
+        }),
+    );
+    vm.register(
+        "standard_monotonic_milliseconds",
+        Rc::new(|vm, _| Ok(Value::Int(vm.processes.clock_ms as i64))),
+    );
+}
+
+fn install_virtual_processes(vm: &mut Vm) {
     vm.register(
         "ps_process_current",
         Rc::new(|vm, _| Ok(take_current(vm, "Process"))),

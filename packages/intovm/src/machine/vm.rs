@@ -12,8 +12,13 @@ use super::process::{ChildBehavior, ProcessState, ProcessTable, install};
 use super::threads::Thread;
 use super::trace::TraceEntry;
 use crate::inex::Inex;
+use crate::native_call::{self, Library};
 use crate::program::{Cond, Instr, Program};
 use crate::value::{Instance, Value};
+
+/// The native function that lets other threads run while this one waits,
+/// because the virtual threads only switch at points like this one.
+const SLEEP: &str = "standard_sleep";
 
 /// A native function the VM runs instead of calling the C symbol.
 pub type Intrinsic = Rc<dyn Fn(&mut Vm, &[Value]) -> Result<Value>>;
@@ -32,6 +37,9 @@ pub struct VmOptions {
     /// Whether the program output also goes to the standard output of the
     /// process the VM runs in as the program prints it.
     pub echo_stdout: bool,
+    /// Whether the `ps` functions work on the real operating system instead
+    /// of the virtual process table.
+    pub real_processes: bool,
 }
 
 impl Default for VmOptions {
@@ -41,6 +49,7 @@ impl Default for VmOptions {
             clock_ms: 0,
             programs: HashMap::new(),
             echo_stdout: false,
+            real_processes: false,
         }
     }
 }
@@ -59,6 +68,7 @@ pub struct Vm {
     pub(super) in_init: bool,
     pub(super) trace: Vec<TraceEntry>,
     pub(super) processes: ProcessTable,
+    pub(super) native: Option<Rc<Library>>,
     options: VmOptions,
     stdout: Vec<u8>,
 }
@@ -71,6 +81,7 @@ impl Vm {
                 options.clock_ms,
                 options.programs.clone(),
             ),
+            native: None,
             options,
             program: Rc::new(Program::default()),
             globals: HashMap::new(),
@@ -85,7 +96,8 @@ impl Vm {
             trace: Vec::new(),
             stdout: Vec::new(),
         };
-        install(&mut vm);
+        let real_processes = vm.options.real_processes;
+        install(&mut vm, real_processes);
         vm
     }
 
@@ -159,7 +171,11 @@ impl Vm {
 
     /// Load the program of an `.inex` file.
     pub fn load_inex(&mut self, inex: &Inex) -> Result<()> {
-        self.load(&inex.message)
+        self.load(&inex.message)?;
+        if !inex.sources.is_empty() {
+            self.native = Some(Rc::new(native_call::load(inex)?));
+        }
+        Ok(())
     }
 
     /// The code the program would have ended the operating system process
@@ -248,17 +264,14 @@ impl Vm {
                 index,
                 newline,
             } => {
-                let Value::Ref(reference) = self.load_slot(variable)? else {
-                    bail!("`{variable}` holds no instance");
-                };
-                let instance = self.instance(reference)?;
-                let value =
-                    instance.fields.get(*index).cloned().ok_or_else(|| {
-                        anyhow!("Unknown field index for class `{}`", instance.class)
-                    })?;
+                let holder = self.load_slot(variable)?;
+                let class = self
+                    .class_of(&holder)
+                    .map_err(|_| anyhow!("`{variable}` holds no instance"))?;
+                let value = self.read_instance_field(&holder, *index)?;
                 let ty = program
                     .classes
-                    .get(&instance.class)
+                    .get(&class)
                     .and_then(|class| class.fields.get(*index))
                     .map(|field| field.ty.clone())
                     .unwrap_or_default();
@@ -274,20 +287,46 @@ impl Vm {
                 self.store(target, value);
             }
             Instr::Copy { target, source } => {
-                let Value::Ref(reference) = self.load_slot(source)? else {
-                    bail!("`{source}` holds no instance");
+                let holder = self.load_slot(source)?;
+                let class = self
+                    .class_of(&holder)
+                    .map_err(|_| anyhow!("`{source}` holds no instance"))?;
+                let copy = match holder {
+                    Value::Native { ptr, .. } => {
+                        let size = self.layout_of(&class).size;
+                        let mut bytes = vec![0u64; size / 8 + 1];
+                        unsafe {
+                            std::ptr::copy_nonoverlapping(
+                                ptr as *const u8,
+                                bytes.as_mut_ptr() as *mut u8,
+                                size,
+                            )
+                        };
+                        let ptr = Box::leak(bytes.into_boxed_slice()).as_ptr() as usize;
+                        Value::Native { ptr, class }
+                    }
+                    other => {
+                        let Value::Ref(reference) = other else {
+                            bail!("`{source}` holds no instance");
+                        };
+                        let instance = self.instance(reference)?.clone();
+                        Value::Ref(self.allocate(instance))
+                    }
                 };
-                let instance = self.instance(reference)?.clone();
-                let copy = self.allocate(instance);
-                self.store(target, Value::Ref(copy));
+                self.store(target, copy);
             }
             Instr::NativeCall { symbol, argument } => {
                 let argument = self.argument(argument)?;
-                self.call(symbol, &[argument])?;
+                self.call_typed(symbol, &[argument], "Void")?;
             }
             Instr::LinkAssign(call) => {
                 let result = self.link_call(call)?;
                 self.store_result(call, result);
+                if call.target == SLEEP {
+                    self.advance();
+                    self.switch_thread()?;
+                    return Ok(());
+                }
             }
             Instr::EventOn {
                 event,
@@ -351,7 +390,7 @@ impl Vm {
             .iter()
             .map(|arg| self.argument(arg))
             .collect::<Result<Vec<_>>>()?;
-        self.call(&call.target, &args)
+        self.call_typed(&call.target, &args, &call.return_type)
     }
 
     fn store_result(&mut self, call: &LinkCall, result: Value) {
@@ -361,11 +400,17 @@ impl Vm {
     }
 
     pub fn call(&mut self, symbol: &str, args: &[Value]) -> Result<Value> {
-        let intrinsic =
-            self.intrinsics.get(symbol).cloned().ok_or_else(|| {
-                anyhow!("The native function `{symbol}` is not available in the VM")
-            })?;
-        intrinsic(self, args)
+        self.call_typed(symbol, args, "Void")
+    }
+
+    /// Run `symbol` as an intrinsic when the VM has one, and as a function of
+    /// the native library of the program otherwise.
+    fn call_typed(&mut self, symbol: &str, args: &[Value], return_type: &str) -> Result<Value> {
+        if let Some(intrinsic) = self.intrinsics.get(symbol).cloned() {
+            return intrinsic(self, args);
+        }
+        self.call_native(symbol, args, return_type)?
+            .ok_or_else(|| anyhow!("The native function `{symbol}` is not available in the VM"))
     }
 
     fn print(&mut self, ty: &str, value: &Value, newline: bool) -> Result<()> {
@@ -373,7 +418,9 @@ impl Vm {
             Value::Int(number) => number.to_string().into_bytes(),
             Value::Float(number) => format!("{number:.6}").into_bytes(),
             Value::Str(bytes) => bytes.clone(),
-            Value::Ref(_) | Value::Unit => bail!("A value of type `{ty}` cannot be printed"),
+            Value::Ref(_) | Value::Native { .. } | Value::Unit => {
+                bail!("A value of type `{ty}` cannot be printed")
+            }
         };
         if newline {
             text.push(b'\n');
