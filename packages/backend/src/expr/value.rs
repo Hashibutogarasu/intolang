@@ -120,11 +120,11 @@ impl<'a> Lowerer<'a> {
                 let target =
                     parse_type(ty.as_str(), type_params).map_err(|error| error.to_string())?;
                 if self.is_class_type(&target) {
-                    let Type::Named(class) = &target else {
-                        unreachable!("a class type is a named type")
+                    let Some(class) = target.class_name() else {
+                        unreachable!("a class type has a class name")
                     };
-                    let class = self.lower_class_cast(value, class, assigned_to)?;
-                    let class = resolve_annotation(class, annotation)?;
+                    self.lower_class_cast(value, class, assigned_to)?;
+                    let class = resolve_annotation(target.clone(), annotation)?;
                     return Ok((class.name(), class, true));
                 }
                 let value = self.lower_numeric(rhs)?;

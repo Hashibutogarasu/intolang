@@ -73,7 +73,8 @@ impl Lowerer<'_> {
                     .get(&class)
                     .and_then(|fields| fields.iter().find(|f| !f.is_static && f.name == *segment))
                     .ok_or_else(|| format!("`{class}` has no field `{segment}`"))?;
-                current = spelled(&field.ty);
+                let written = self.written_type(&field.ty);
+                current = self.bind_arguments(&current, written);
             }
             return Ok(current);
         }
@@ -110,18 +111,50 @@ impl Lowerer<'_> {
             if matches!(segment.as_str(), COPY | MOVE | BORROW) {
                 continue;
             }
-            current = self.function_type(&self.method_key(&class, segment))?;
+            let result = self.function_type(&self.method_key(&class, segment))?;
+            current = self.bind_arguments(&current, result);
         }
         Ok(current)
+    }
+
+    /// A type as written in a declaration, where the names of type parameters
+    /// stand for generic parameters.
+    fn written_type(&self, text: &str) -> Type {
+        parse_type(text, &self.env.type_params).unwrap_or_else(|_| Type::Named(text.to_owned()))
+    }
+
+    /// Replace the type parameters of the class `receiver` is an instance of
+    /// by the type arguments it was given.
+    pub(crate) fn bind_arguments(&self, receiver: &Type, ty: Type) -> Type {
+        let arguments = receiver.arguments();
+        let Some(class) = receiver
+            .class_name()
+            .and_then(|name| self.env.classes.get(name))
+        else {
+            return ty;
+        };
+        if arguments.is_empty() || class.type_params.len() != arguments.len() {
+            return ty;
+        }
+        let bindings = class
+            .type_params
+            .iter()
+            .cloned()
+            .zip(arguments.iter().cloned())
+            .collect();
+        ty.substitute(&bindings)
     }
 
     fn function_type(&self, key: &str) -> Result<Type, String> {
         let env = self.env;
         if let Some(function) = env.user_functions.get(key) {
-            return Ok(function.return_type.as_deref().map_or(Type::Void, spelled));
+            return Ok(function
+                .return_type
+                .as_deref()
+                .map_or(Type::Void, |written| self.written_type(written)));
         }
         if let Some(link) = env.native_links.get(key) {
-            return Ok(spelled(&link.return_type));
+            return Ok(self.written_type(&link.return_type));
         }
         Err(format!("Undefined function `{key}`"))
     }

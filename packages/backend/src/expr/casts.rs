@@ -11,7 +11,8 @@ use crate::emit;
 impl Lowerer<'_> {
     /// Whether `ty` names a class declared in the program or built in.
     pub fn is_class_type(&self, ty: &Type) -> bool {
-        matches!(ty, Type::Named(name) if self.env.classes.contains_key(name))
+        ty.class_name()
+            .is_some_and(|name| self.env.classes.contains_key(name))
     }
 
     /// Lower `value as class`: build the instance and run the `onCast`

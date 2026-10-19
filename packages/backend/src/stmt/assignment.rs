@@ -65,7 +65,8 @@ impl Lowerer<'_> {
         if !variable.native {
             return Err(format!("`{holder}` holds no instance"));
         }
-        let class = base_type_name(&variable.ty.name()).to_owned();
+        let receiver_type = variable.ty.clone();
+        let class = base_type_name(&receiver_type.name()).to_owned();
         let fields = env
             .class_fields
             .get(&class)
@@ -76,8 +77,9 @@ impl Lowerer<'_> {
             .enumerate()
             .find(|(_, definition)| definition.name == field)
             .ok_or_else(|| format!("`{class}` has no field `{field}`"))?;
-        let field_type =
+        let written =
             parse_type(&definition.ty, &env.type_params).map_err(|error| error.to_string())?;
+        let field_type = self.bind_arguments(&receiver_type, written);
         let operand = self.field_operand(field, &field_type, value)?;
         emit::field_assign(
             &mut self.state.output,

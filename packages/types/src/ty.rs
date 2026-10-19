@@ -24,8 +24,10 @@ pub enum Type {
     Reference(Box<Type>),
     /// A generic type parameter such as `T`.
     Generic(String),
-    /// A user-defined or otherwise named type, e.g. `JsonObject` or `Vec<T>`.
+    /// A user-defined or otherwise named type, e.g. `JsonObject`.
     Named(String),
+    /// A generic class given its type arguments, e.g. `Callback<JsonField>`.
+    Applied(String, Vec<Type>),
 }
 
 impl Type {
@@ -94,7 +96,43 @@ impl Type {
             (Type::List(_), Type::Named(name)) | (Type::Named(name), Type::List(_)) => {
                 name == "List"
             }
+            (Type::Applied(name, arguments), Type::Applied(target_name, target_arguments)) => {
+                name == target_name
+                    && arguments.len() == target_arguments.len()
+                    && arguments
+                        .iter()
+                        .zip(target_arguments)
+                        .all(|(argument, target)| target.accepts_argument(argument))
+            }
+            (Type::Applied(name, _), Type::Named(target))
+            | (Type::Named(target), Type::Applied(name, _)) => name == target,
             _ => false,
+        }
+    }
+
+    /// Whether `argument` may stand where this type argument is written: a
+    /// generic parameter takes any type, and the types are otherwise equal or
+    /// assignable.
+    fn accepts_argument(&self, argument: &Type) -> bool {
+        matches!(self, Type::Generic(_))
+            || matches!(argument, Type::Generic(_))
+            || argument.is_assignable_to(self)
+    }
+
+    /// The name of the class this type is an instance of, with the type
+    /// arguments left out.
+    pub fn class_name(&self) -> Option<&str> {
+        match self {
+            Type::Named(name) | Type::Applied(name, _) => Some(name),
+            _ => None,
+        }
+    }
+
+    /// The type arguments of a generic class type.
+    pub fn arguments(&self) -> &[Type] {
+        match self {
+            Type::Applied(_, arguments) => arguments,
+            _ => &[],
         }
     }
 
@@ -107,13 +145,30 @@ impl Type {
     pub fn substitute(&self, bindings: &HashMap<String, Type>) -> Type {
         match self {
             Type::Generic(name) => bindings.get(name).cloned().unwrap_or_else(|| self.clone()),
+            Type::PointerTo(inner) => Type::PointerTo(Box::new(inner.substitute(bindings))),
+            Type::List(inner) => Type::List(Box::new(inner.substitute(bindings))),
+            Type::Reference(inner) => Type::Reference(Box::new(inner.substitute(bindings))),
+            Type::Applied(name, arguments) => Type::Applied(
+                name.clone(),
+                arguments
+                    .iter()
+                    .map(|argument| argument.substitute(bindings))
+                    .collect(),
+            ),
             _ => self.clone(),
         }
     }
 
     /// Whether the type still contains unresolved generic parameters.
     pub fn has_generic(&self) -> bool {
-        matches!(self, Type::Generic(_))
+        match self {
+            Type::Generic(_) => true,
+            Type::PointerTo(inner) | Type::List(inner) | Type::Reference(inner) => {
+                inner.has_generic()
+            }
+            Type::Applied(_, arguments) => arguments.iter().any(Type::has_generic),
+            _ => false,
+        }
     }
 }
 
@@ -136,6 +191,16 @@ impl fmt::Display for Type {
             Type::List(inner) => write!(f, "List<{inner}>"),
             Type::Reference(inner) => write!(f, "{inner}&"),
             Type::Generic(name) | Type::Named(name) => f.write_str(name),
+            Type::Applied(name, arguments) => {
+                write!(f, "{name}<")?;
+                for (index, argument) in arguments.iter().enumerate() {
+                    if index > 0 {
+                        f.write_str(", ")?;
+                    }
+                    write!(f, "{argument}")?;
+                }
+                f.write_str(">")
+            }
         }
     }
 }

@@ -239,7 +239,7 @@ impl Lowerer<'_> {
     /// Whether `actual` is a class that has `expected` among its ancestors, so
     /// that an instance of it can be used where `expected` is written.
     fn inherits_from(&self, actual: &Type, expected: &Type) -> bool {
-        let (Type::Named(actual), Type::Named(expected)) = (actual, expected) else {
+        let (Some(actual), Some(expected)) = (actual.class_name(), expected.class_name()) else {
             return false;
         };
         ancestors(&self.env.classes, actual)

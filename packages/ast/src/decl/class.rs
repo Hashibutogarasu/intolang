@@ -4,6 +4,7 @@ use types::{Keyword, Punct};
 use super::attribute::Attribute;
 use super::event_decl::EventDecl;
 use super::function::FunctionDecl;
+use super::type_params::parse_type_params;
 use crate::{Cursor, Expr, SyntaxError, TypeRef};
 
 /// `pub into: Type name = default;` inside a class body.
@@ -16,14 +17,19 @@ pub struct FieldDecl {
     pub is_static: bool,
 }
 
-/// `[pub] [abstract] Name() [: Parent] { fields, methods and events }`.
+/// `[pub] [abstract] Name[<T, U>]() [: Parent[<T>]] { fields, methods and events }`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClassDecl {
     pub line: usize,
     pub name: String,
     pub is_public: bool,
     pub is_abstract: bool,
+    /// The type parameters written after the name, `T` in `Box<T>()`.
+    pub type_params: Vec<String>,
+    /// The name of the parent class, without its type arguments.
     pub parent: Option<String>,
+    /// The parent as written, with its type arguments.
+    pub parent_type: Option<TypeRef>,
     pub attributes: Vec<Attribute>,
     pub fields: Vec<FieldDecl>,
     pub methods: Vec<FunctionDecl>,
@@ -41,22 +47,51 @@ impl ClassDecl {
         if probe.peek_keyword(offset) == Some(Keyword::Abstract) {
             offset += 1;
         }
-        let header = probe.peek_word(offset).is_some()
-            && probe.peek_keyword(offset).is_none()
-            && probe.peek_punct(offset + 1) == Some(Punct::LeftParen)
-            && probe.peek_punct(offset + 2) == Some(Punct::RightParen);
+        if probe.peek_word(offset).is_none() || probe.peek_keyword(offset).is_some() {
+            return false;
+        }
+        offset = skip_brackets(&probe, offset + 1);
+        let header = probe.peek_punct(offset) == Some(Punct::LeftParen)
+            && probe.peek_punct(offset + 1) == Some(Punct::RightParen);
         if !header {
             return false;
         }
-        match probe.peek_punct(offset + 3) {
+        match probe.peek_punct(offset + 2) {
             Some(Punct::LeftBrace) => true,
             Some(Punct::Colon) => {
-                probe.peek_word(offset + 4).is_some()
-                    && probe.peek_punct(offset + 5) == Some(Punct::LeftBrace)
+                if probe.peek_word(offset + 3).is_none() {
+                    return false;
+                }
+                let end = skip_brackets(&probe, offset + 4);
+                probe.peek_punct(end) == Some(Punct::LeftBrace)
             }
             _ => false,
         }
     }
+}
+
+/// The offset after the `<...>` that starts at `offset`, or `offset` itself
+/// when no angle brackets start there.
+fn skip_brackets(cursor: &Cursor<'_>, offset: usize) -> usize {
+    if cursor.peek_symbol(offset) != Some('<') {
+        return offset;
+    }
+    let mut depth = 0usize;
+    let mut index = offset;
+    while let Some(_) = cursor.peek_nth(index) {
+        match cursor.peek_symbol(index) {
+            Some('<') => depth += 1,
+            Some('>') => {
+                depth -= 1;
+                if depth == 0 {
+                    return index + 1;
+                }
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    offset
 }
 
 impl TryFrom<&mut Cursor<'_>> for ClassDecl {
@@ -68,13 +103,22 @@ impl TryFrom<&mut Cursor<'_>> for ClassDecl {
         let is_public = cursor.eat_keyword(Keyword::Pub);
         let is_abstract = cursor.eat_keyword(Keyword::Abstract);
         let (name, _) = cursor.expect_ident("a class name")?;
+        let type_params = parse_type_params(cursor)?;
         cursor.expect_punct(Punct::LeftParen, "`(`")?;
         cursor.expect_punct(Punct::RightParen, "`)`")?;
-        let parent = if cursor.eat_punct(Punct::Colon) {
-            Some(cursor.expect_ident("a parent class name")?.0)
+        let parent_type = if cursor.eat_punct(Punct::Colon) {
+            Some(TypeRef::parse_plain(cursor)?)
         } else {
             None
         };
+        let parent = parent_type.as_ref().map(|parent| {
+            parent
+                .as_str()
+                .split('<')
+                .next()
+                .unwrap_or_default()
+                .to_owned()
+        });
         cursor.expect_punct(Punct::LeftBrace, "`{` after the class header")?;
         let mut fields = Vec::new();
         let mut methods = Vec::new();
@@ -99,7 +143,9 @@ impl TryFrom<&mut Cursor<'_>> for ClassDecl {
             name,
             is_public,
             is_abstract,
+            type_params,
             parent,
+            parent_type,
             attributes,
             fields,
             methods,

@@ -19,7 +19,8 @@ impl Lowerer<'_> {
         if !variable.native {
             return Ok(None);
         }
-        let class = base_type_name(&variable.ty.name()).to_owned();
+        let receiver_type = variable.ty.clone();
+        let class = base_type_name(&receiver_type.name()).to_owned();
         let env = self.env;
         let Some((index, definition)) = env.class_fields.get(&class).and_then(|fields| {
             fields
@@ -31,7 +32,9 @@ impl Lowerer<'_> {
             return Ok(None);
         };
         self.ensure_usable(holder)?;
-        let ty = parse_type(&definition.ty, &env.type_params).map_err(|error| error.to_string())?;
+        let written =
+            parse_type(&definition.ty, &env.type_params).map_err(|error| error.to_string())?;
+        let ty = self.bind_arguments(&receiver_type, written);
         let target = self.fresh_slot(&ty);
         emit::field_load(
             &mut self.state.output,

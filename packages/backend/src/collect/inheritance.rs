@@ -40,7 +40,9 @@ pub fn builtin_classes() -> Classes {
         name: OBJECT.to_owned(),
         line: 0,
         is_abstract: true,
+        type_params: Vec::new(),
         parent: None,
+        parent_type: None,
         methods: vec![
             default("toString", "String"),
             default("hash", "Int32"),
@@ -55,7 +57,9 @@ pub fn builtin_classes() -> Classes {
         name: name.to_owned(),
         line: 0,
         is_abstract: false,
+        type_params: Vec::new(),
         parent: None,
+        parent_type: None,
         methods: Vec::new(),
         events: Vec::new(),
     };
@@ -76,7 +80,9 @@ pub fn collect_class_infos(program: &Program) -> Vec<ClassInfo> {
             name: class.name.clone(),
             line: class.line,
             is_abstract: class.is_abstract,
+            type_params: class.type_params.clone(),
             parent: class.parent.clone(),
+            parent_type: class.parent_type.as_ref().map(ToString::to_string),
             methods: class.methods.iter().map(method_info).collect(),
             events: class.events.iter().map(event_info).collect(),
         })

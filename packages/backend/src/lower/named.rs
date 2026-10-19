@@ -118,6 +118,9 @@ fn prepare(program: &Program, packages_dir: Option<&Path>, source_path: &str) ->
         loaded = moduler::collect_modules(program, packages_dir)?;
     }
     env.type_params = collect_type_params(program);
+    for module in &loaded {
+        env.type_params.extend(collect_type_params(&module.program));
+    }
     env.modules = loaded.iter().map(|loaded| loaded.module.clone()).collect();
 
     for module in loaded.iter().filter(|module| !module.contents.is_empty()) {

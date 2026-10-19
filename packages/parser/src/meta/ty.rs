@@ -42,6 +42,22 @@ impl TypeLexeme {
             let inner = Self::with_generics(inner, params)?;
             return Ok(Self(Type::List(Box::new(inner.0))));
         }
+        if let Some((base, rest)) = text.split_once('<')
+            && let Some(inner) = rest.strip_suffix('>')
+        {
+            let base = base.trim();
+            if base.is_empty() {
+                bail!("Type arguments need a type name before `<`");
+            }
+            let mut arguments = Vec::new();
+            for argument in split_arguments(inner) {
+                if argument.is_empty() {
+                    bail!("Type `{base}<>` needs a type argument");
+                }
+                arguments.push(Self::with_generics(argument, params)?.0);
+            }
+            return Ok(Self(Type::Applied(base.to_owned(), arguments)));
+        }
         Ok(Self(match text {
             "void" | "Void" => Type::Void,
             "bool" | "Boolean" | "Bool" => Type::Boolean,
@@ -60,22 +76,32 @@ impl TypeLexeme {
                 if params.contains(text) {
                     Type::Generic(text.to_owned())
                 } else {
-                    Type::Named(normalize_named(text))
+                    Type::Named(text.to_owned())
                 }
             }
         }))
     }
 }
 
-fn normalize_named(text: &str) -> String {
-    let text = text.trim();
-    match text.split_once('<') {
-        Some((base, rest)) => {
-            let args = rest.trim_end_matches('>');
-            format!("{}<{}>", base.trim(), args.trim())
+/// The type arguments between the angle brackets of a type, split at the
+/// commas that are not inside nested brackets.
+fn split_arguments(inner: &str) -> Vec<&str> {
+    let mut arguments = Vec::new();
+    let mut depth = 0usize;
+    let mut start = 0;
+    for (index, ch) in inner.char_indices() {
+        match ch {
+            '<' => depth += 1,
+            '>' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => {
+                arguments.push(inner[start..index].trim());
+                start = index + 1;
+            }
+            _ => {}
         }
-        None => text.to_owned(),
     }
+    arguments.push(inner[start..].trim());
+    arguments
 }
 
 impl FromStr for TypeLexeme {

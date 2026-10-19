@@ -47,7 +47,11 @@ pub struct ClassInfo {
     pub name: String,
     pub line: usize,
     pub is_abstract: bool,
+    /// The type parameters of a generic class, `T` for `Box<T>()`.
+    pub type_params: Vec<String>,
     pub parent: Option<String>,
+    /// The parent as written, with its type arguments.
+    pub parent_type: Option<String>,
     pub methods: Vec<MemberInfo>,
     pub events: Vec<MemberInfo>,
 }
