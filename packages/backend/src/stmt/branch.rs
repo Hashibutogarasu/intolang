@@ -121,7 +121,10 @@ impl Lowerer<'_> {
                             self.diagnostic(line, &format!("Function `{name}` is not imported"))
                         );
                     }
-                    let link = env.native_links.get(name).ok_or_else(|| {
+                    let key = self
+                        .pick_overload(name, args)
+                        .map_err(|message| self.diagnostic(line, &message))?;
+                    let link = env.native_links.get(&key).ok_or_else(|| {
                         self.diagnostic(line, &format!("Function `{name}` has no native link"))
                     })?;
                     (link, args.to_vec(), false)

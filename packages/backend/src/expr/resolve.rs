@@ -3,6 +3,7 @@ use native::NativeLink;
 use std::collections::HashSet;
 use types::{MessageTag, Type};
 
+use super::callbacks::names_callback;
 use super::type_name::{base_type_name, parse_type};
 use crate::collect::ancestors;
 use crate::context::{FieldDef, Lowerer, Variable};
@@ -28,7 +29,9 @@ impl<'a> Lowerer<'a> {
     /// its own `override` wins.
     pub fn method_key(&self, class: &str, method: &str) -> String {
         let defined = |key: &str| {
-            self.env.user_functions.contains_key(key) || self.env.native_links.contains_key(key)
+            self.env.user_functions.contains_key(key)
+                || self.env.native_links.contains_key(key)
+                || self.env.overloads.contains_key(key)
         };
         let own = format!("{class}.{method}");
         if defined(&own) {
@@ -43,6 +46,66 @@ impl<'a> Lowerer<'a> {
             }
         }
         own
+    }
+
+    /// The key of the function a call with `args` runs, when several functions
+    /// share `key` and differ in the types of their parameters: the one whose
+    /// parameters fit the arguments best, preferring identical types.
+    pub fn pick_overload(&self, key: &str, args: &[Expr]) -> Result<String, String> {
+        let env = self.env;
+        let Some(candidates) = env.overloads.get(key) else {
+            return Ok(key.to_owned());
+        };
+        let types: Vec<Option<Type>> = args.iter().map(|arg| self.type_of(arg).ok()).collect();
+        let mut best: Option<(usize, &str)> = None;
+        'candidates: for candidate in candidates {
+            if args.len() < candidate.required || args.len() > candidate.params.len() {
+                continue;
+            }
+            let mut score = 0;
+            for ((written, actual), arg) in candidate.params.iter().zip(&types).zip(args) {
+                match (written, actual) {
+                    (Some(written), Some(actual)) => {
+                        let Ok(expected) = parse_type(written, &env.type_params) else {
+                            continue 'candidates;
+                        };
+                        if actual.referent() == expected.referent() {
+                            score += 2;
+                        } else if actual.is_assignable_to(&expected) {
+                            score += 1;
+                        } else {
+                            continue 'candidates;
+                        }
+                    }
+                    (Some(written), None) => {
+                        if matches!(arg, Expr::Lambda { .. }) && names_callback(written) {
+                            score += 1;
+                        } else {
+                            continue 'candidates;
+                        }
+                    }
+                    (None, _) => {}
+                }
+            }
+            if best.is_none_or(|(top, _)| score > top) {
+                best = Some((score, &candidate.key));
+            }
+        }
+        best.map(|(_, picked)| picked.to_owned()).ok_or_else(|| {
+            let given: Vec<String> = types
+                .iter()
+                .map(|ty| ty.as_ref().map_or_else(|| "?".to_owned(), Type::name))
+                .collect();
+            format!(
+                "No overload of `{key}` accepts ({}); the choices are {}",
+                given.join(", "),
+                candidates
+                    .iter()
+                    .map(|candidate| format!("`{}`", candidate.key))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        })
     }
 
     /// Resolve a static field constant reference `Class.field`.
@@ -107,6 +170,7 @@ impl<'a> Lowerer<'a> {
     ) -> Result<(&'a NativeLink, Vec<Expr>), String> {
         let (receiver, receiver_type) = self.resolve_receiver(path)?;
         let key = self.method_key(base_type_name(&receiver_type.name()), path.last());
+        let key = self.pick_overload(&key, args)?;
         let link = self
             .env
             .native_links

@@ -14,5 +14,5 @@ pub use enum_decl::{EnumDecl, EnumVariant};
 pub use event_decl::EventDecl;
 pub use function::FunctionDecl;
 pub use macro_decl::MacroDecl;
-pub use param::Param;
+pub use param::{Param, overload_key};
 pub use use_decl::UseDecl;

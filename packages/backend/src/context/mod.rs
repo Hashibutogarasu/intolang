@@ -13,5 +13,5 @@ pub use env::Env;
 pub use event_info::EventInfo;
 pub use lowerer::Lowerer;
 pub use state::InlineFrame;
-pub use user_function::UserFunction;
+pub use user_function::{Overload, UserFunction};
 pub use variable::{Ownership, Tracking, Variable};

@@ -5,8 +5,8 @@ use std::path::Path;
 
 use crate::collect::{
     ancestors, builtin_classes, check_inheritance, collect_cast_handlers, collect_class_infos,
-    collect_classes, collect_consuming, collect_enums, collect_events, collect_type_params,
-    collect_user_functions, runtime_functions,
+    collect_classes, collect_consuming, collect_enums, collect_events, collect_overloads,
+    collect_type_params, collect_user_functions, runtime_functions,
 };
 use crate::context::{Env, FieldDef, Lowerer, OBJECT};
 use crate::diagnostic::syntax_diagnostic;
@@ -135,7 +135,7 @@ fn prepare(program: &Program, packages_dir: Option<&Path>, source_path: &str) ->
             }
         }
         for function in collect_user_functions(&module.program) {
-            if public.contains(&function.name) {
+            if public.contains(&function.base) {
                 env.user_functions.insert(function.name.clone(), function);
             }
         }
@@ -165,6 +165,7 @@ fn prepare(program: &Program, packages_dir: Option<&Path>, source_path: &str) ->
     env.consuming.extend(collect_consuming(program));
     env.events.extend(collect_events(program));
     env.runtime_functions = runtime_functions(&env.user_functions);
+    env.overloads = collect_overloads(&env.user_functions, &env.native_links);
 
     env.classes = builtin_classes();
     let mut declared = Vec::new();

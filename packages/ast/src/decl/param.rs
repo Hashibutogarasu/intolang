@@ -14,6 +14,20 @@ pub struct Param {
     pub default: Option<Expr>,
 }
 
+/// The name a function gets when several functions share `base` and differ
+/// in the types of their parameters: `base$Int32$String`. A parameter without
+/// a written type is `_`.
+pub fn overload_key(base: &str, params: &[Param]) -> String {
+    let mut key = format!("{base}$");
+    for (index, param) in params.iter().enumerate() {
+        if index > 0 {
+            key.push('$');
+        }
+        key.push_str(param.ty.as_ref().map_or("_", TypeRef::as_str));
+    }
+    key
+}
+
 impl Param {
     /// The argument used when a call omits this parameter: its written
     /// default (`true`/`false` become `1`/`0`), or the empty string or `0` for

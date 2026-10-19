@@ -34,14 +34,17 @@ impl Lowerer<'_> {
         {
             return Ok(());
         }
-        if let Some(inner) = env.user_functions.get(name) {
+        let key = self
+            .pick_overload(name, args)
+            .map_err(|message| self.diagnostic(line, &message))?;
+        if let Some(inner) = env.user_functions.get(&key) {
             return self
                 .inline_user_function(inner, None, args, 0)
                 .map(|_| ())
                 .map_err(|message| self.diagnostic(line, &message));
         }
         if env.imported_functions.contains(name)
-            && let Some(link) = env.native_links.get(name)
+            && let Some(link) = env.native_links.get(&key)
         {
             return self
                 .emit_link_call(MessageTag::LinkAssign, link, args.to_vec(), "", false)
@@ -70,6 +73,9 @@ impl Lowerer<'_> {
         }
         if let Some((class, method)) = self.static_receiver(callee) {
             let key = self.method_key(&class, &method);
+            let key = self
+                .pick_overload(&key, args)
+                .map_err(|message| fail(self, message))?;
             if let Some(inner) = env.user_functions.get(&key) {
                 return self
                     .inline_user_function(inner, None, args, 0)
@@ -102,6 +108,9 @@ impl Lowerer<'_> {
             return Ok(());
         }
         let key = self.method_key(&class, method);
+        let key = self
+            .pick_overload(&key, args)
+            .map_err(|message| fail(self, message))?;
         if let Some(inner) = env.user_functions.get(&key) {
             self.inline_user_function(inner, Some(receiver.clone()), args, 0)
                 .map_err(|message| fail(self, message))?;

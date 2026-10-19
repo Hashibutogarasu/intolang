@@ -196,6 +196,7 @@ impl<'a> Lowerer<'a> {
             }
             if let Some((class, method)) = self.static_receiver(callee) {
                 let key = self.method_key(&class, &method);
+                let key = self.pick_overload(&key, args)?;
                 if let Some(inner) = env.user_functions.get(&key) {
                     let returned = self.inline_user_function(inner, None, args, 0)?;
                     return self
@@ -235,6 +236,7 @@ impl<'a> Lowerer<'a> {
             }
             self.check_receiver_call(&receiver, method)?;
             let key = self.method_key(&class, method);
+            let key = self.pick_overload(&key, args)?;
             if let Some(inner) = env.user_functions.get(&key) {
                 let returned = self.inline_user_function(inner, Some(receiver.clone()), args, 0)?;
                 self.apply_receiver_call(&receiver, method);
@@ -258,7 +260,8 @@ impl<'a> Lowerer<'a> {
             if env.classes.get(class).is_some_and(|info| info.is_abstract) {
                 return Err(format!("Cannot instantiate the abstract class `{class}`"));
             }
-            if let Some(link) = env.native_links.get(&format!("{class}.new")) {
+            let constructor = self.pick_overload(&format!("{class}.new"), args)?;
+            if let Some(link) = env.native_links.get(&constructor) {
                 self.emit_link_call(
                     MessageTag::LinkAssign,
                     link,
@@ -274,14 +277,15 @@ impl<'a> Lowerer<'a> {
             emit::construct(&mut self.state.output, assigned_to, class);
             return Ok(Some((ty.name(), ty, true)));
         }
-        if let Some(inner) = env.user_functions.get(function) {
+        let key = self.pick_overload(function, args)?;
+        if let Some(inner) = env.user_functions.get(&key) {
             let returned = self.inline_user_function(inner, None, args, 0)?;
             return self
-                .inlined_value(returned, function, annotation, assigned_to)
+                .inlined_value(returned, &key, annotation, assigned_to)
                 .map(Some);
         }
         if env.imported_functions.contains(function) {
-            let link = env.native_links.get(function).ok_or_else(|| {
+            let link = env.native_links.get(&key).ok_or_else(|| {
                 format!("Imported function `{function}` has no #[link] attribute")
             })?;
             self.emit_link_call(

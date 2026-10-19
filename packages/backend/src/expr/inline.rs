@@ -219,7 +219,10 @@ impl<'a> Lowerer<'a> {
                 Ok(())
             }
             StmtKind::Return(Some(expression)) => {
-                let name = expression.to_string();
+                let name = match expression.as_ident() {
+                    Some(name) if self.state.values.contains_key(name) => name.to_owned(),
+                    _ => self.materialize_return(expression)?,
+                };
                 let variable = self
                     .state
                     .values
@@ -400,6 +403,7 @@ impl<'a> Lowerer<'a> {
             }
             if let Some((class, method)) = self.static_receiver(callee) {
                 let key = self.method_key(&class, &method);
+                let key = self.pick_overload(&key, args)?;
                 if let Some(inner) = env.user_functions.get(&key) {
                     return self
                         .inline_user_function(inner, None, args, depth + 1)
@@ -425,6 +429,7 @@ impl<'a> Lowerer<'a> {
                 return Ok(());
             }
             let key = self.method_key(&class, method);
+            let key = self.pick_overload(&key, args)?;
             if let Some(inner) = env.user_functions.get(&key) {
                 self.inline_user_function(inner, Some(receiver.clone()), args, depth + 1)?;
                 self.apply_receiver_call(&receiver, method);
@@ -447,14 +452,15 @@ impl<'a> Lowerer<'a> {
         if self.lower_indirect_call(name, args)? {
             return Ok(());
         }
-        if let Some(inner) = env.user_functions.get(name) {
+        let key = self.pick_overload(name, args)?;
+        if let Some(inner) = env.user_functions.get(&key) {
             return self
                 .inline_user_function(inner, None, args, depth + 1)
                 .map(|_| ());
         }
         let link = env
             .native_links
-            .get(name)
+            .get(&key)
             .ok_or_else(|| format!("Undefined function `{name}`"))?;
         self.emit_link_call(MessageTag::LinkAssign, link, args.to_vec(), "", false)
     }

@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use super::class_def::{ClassFields, EnumValues};
 use super::class_info::Classes;
 use super::event_info::EventInfo;
-use super::user_function::UserFunction;
+use super::user_function::{Overload, UserFunction};
 use super::variable::Ownership;
 
 /// Everything lowering reads but never changes: the declarations collected
@@ -19,6 +19,8 @@ pub struct Env {
     pub class_fields: ClassFields,
     pub classes: Classes,
     pub user_functions: HashMap<String, UserFunction>,
+    /// The functions that share each name, by the name or `Class.method`.
+    pub overloads: HashMap<String, Vec<Overload>>,
     /// The keys of the functions that are called at run time.
     pub runtime_functions: HashSet<String>,
     pub consuming: HashMap<String, Ownership>,

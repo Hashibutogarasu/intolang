@@ -26,7 +26,7 @@ impl Lowerer<'_> {
         match expression {
             Expr::Literal(literal) => Ok(literal_type(literal)),
             Expr::Path(path) => self.path_type(path),
-            Expr::Call { callee, .. } => self.call_type(callee),
+            Expr::Call { callee, args } => self.call_type(callee, args),
             Expr::Binary { left, op, right } => {
                 let (left, right) = (self.type_of(left)?, self.type_of(right)?);
                 if *op == types::ArithmeticOperator::Add
@@ -88,17 +88,18 @@ impl Lowerer<'_> {
         Err(format!("Unknown name `{path}`"))
     }
 
-    fn call_type(&self, callee: &Path) -> Result<Type, String> {
+    fn call_type(&self, callee: &Path, args: &[Expr]) -> Result<Type, String> {
         let env = self.env;
         if !callee.is_member() {
             let name = callee.first();
             if env.class_fields.contains_key(base_type_name(name)) {
                 return Ok(Type::Named(name.to_owned()));
             }
-            return self.function_type(name);
+            return self.function_type(&self.pick_overload(name, args)?);
         }
         if let Some((class, method)) = self.static_receiver(callee) {
-            return self.function_type(&self.method_key(&class, &method));
+            let key = self.method_key(&class, &method);
+            return self.function_type(&self.pick_overload(&key, args)?);
         }
         let segments = callee.segments();
         let mut current = self
@@ -118,7 +119,8 @@ impl Lowerer<'_> {
                 current = (**element).clone();
                 continue;
             }
-            let result = self.function_type(&self.method_key(&class, segment))?;
+            let key = self.method_key(&class, segment);
+            let result = self.function_type(&self.pick_overload(&key, args)?)?;
             current = self.bind_arguments(&current, result);
         }
         Ok(current)

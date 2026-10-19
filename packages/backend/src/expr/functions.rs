@@ -1,5 +1,6 @@
 use ast::Expr;
 use native::{CastAssign, FunctionCall, FunctionDefinition, FunctionReturn, NativeArg, Operand};
+use parser::Hex;
 use std::mem;
 use types::Type;
 
@@ -238,6 +239,36 @@ impl Lowerer<'_> {
         self.state.pending_tracking = pending;
         emit::handler_end(&mut self.state.output);
         released
+    }
+
+    /// Compute the value of a `return` of an inlined function into a slot of
+    /// its own, and give the name of the slot.
+    pub(crate) fn materialize_return(&mut self, expression: &Expr) -> Result<String, String> {
+        let slot = format!("__return{}", self.state.temp_counter);
+        self.state.temp_counter += 1;
+        if self.is_text(expression) {
+            match self.lower_text(expression, Some(&slot))? {
+                Text::Const(text) => {
+                    let hex = Hex::from(text.as_str()).to_string();
+                    emit::assign(&mut self.state.output, &slot, &Type::String, "s", &hex);
+                }
+                Text::Slot(existing) if existing != slot => return Ok(existing),
+                Text::Slot(_) => {}
+            }
+            self.state
+                .values
+                .insert(slot.clone(), Variable::temporary(Type::String));
+            return Ok(slot);
+        }
+        let env = self.env;
+        let (_, ty, native) = self.declaration_value(expression, None, &env.type_params, &slot)?;
+        if !native {
+            return Err(format!("Unsupported return value `{expression}`"));
+        }
+        self.state
+            .values
+            .insert(slot.clone(), Variable::temporary(ty));
+        Ok(slot)
     }
 
     /// Lower `return value;` inside a function called at run time.
