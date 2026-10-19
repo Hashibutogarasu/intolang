@@ -32,20 +32,12 @@ pub type Intrinsic = Rc<dyn Fn(&mut Vm, &[Value]) -> Result<Value>>;
 /// What a VM starts with.
 #[derive(Debug, Clone)]
 pub struct VmOptions {
-    /// The pid of the virtual process the program is.
     pub current_pid: i32,
-    /// The virtual clock when the program starts, in milliseconds.
     pub clock_ms: u64,
-    /// What the programs `spawn` can start do, by path. A path that is not
-    /// listed behaves as `true`, `false` or `sleep` when it names one of
-    /// them and as a program that exits at once with 0 otherwise.
     pub programs: HashMap<String, ChildBehavior>,
-    /// Whether the program output also goes to the standard output of the
-    /// process the VM runs in as the program prints it.
     pub echo_stdout: bool,
-    /// Whether the `ps` functions work on the real operating system instead
-    /// of the virtual process table.
     pub real_processes: bool,
+    pub stdin: Option<Vec<u8>>,
 }
 
 impl Default for VmOptions {
@@ -56,6 +48,7 @@ impl Default for VmOptions {
             programs: HashMap::new(),
             echo_stdout: false,
             real_processes: false,
+            stdin: Some(Vec::new()),
         }
     }
 }
@@ -80,6 +73,7 @@ pub struct Vm {
     pub(super) allocations: HashMap<usize, std::alloc::Layout>,
     options: VmOptions,
     stdout: Vec<u8>,
+    stdin_position: usize,
 }
 
 impl Drop for Vm {
@@ -113,6 +107,7 @@ impl Vm {
             in_init: false,
             trace: Vec::new(),
             stdout: Vec::new(),
+            stdin_position: 0,
         };
         let real_processes = vm.options.real_processes;
         install(&mut vm, real_processes);
@@ -132,6 +127,7 @@ impl Vm {
         );
         self.heap.clear();
         self.lists.clear();
+        self.stdin_position = 0;
         self.globals.clear();
         self.frames = vec![Frame::main()];
         self.threads = vec![Thread::default()];
@@ -163,6 +159,32 @@ impl Vm {
             out.write_all(bytes).ok();
             out.flush().ok();
         }
+    }
+
+    /// The next line of the standard input, without its line break; empty at
+    /// the end of the input.
+    pub fn read_line(&mut self) -> Vec<u8> {
+        let mut line = Vec::new();
+        match &self.options.stdin {
+            Some(input) => {
+                let rest = &input[self.stdin_position.min(input.len())..];
+                let taken = rest
+                    .iter()
+                    .position(|byte| *byte == b'\n')
+                    .map_or(rest.len(), |end| end + 1);
+                line.extend_from_slice(&rest[..taken]);
+                self.stdin_position += taken;
+            }
+            None => {
+                let mut text = String::new();
+                std::io::stdin().read_line(&mut text).ok();
+                line = text.into_bytes();
+            }
+        }
+        while matches!(line.last(), Some(b'\n' | b'\r')) {
+            line.pop();
+        }
+        line
     }
 
     pub fn instance(&self, reference: usize) -> Result<&Instance> {

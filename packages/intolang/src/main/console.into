@@ -1,0 +1,7 @@
+pub Console() {
+    #[link("c", "src/ffi/console.c", "into_console_write")]
+    pub static fun write(text: String): Void;
+
+    #[link("c", "src/ffi/console.c", "into_console_read")]
+    pub static fun read(): String;
+}

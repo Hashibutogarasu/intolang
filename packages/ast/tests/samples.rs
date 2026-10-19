@@ -61,7 +61,7 @@ pub cpp fun std_string_create(value: String): Pointer;
 
 const BUILTINS: &str = r#"
 pub fun print(str: String, params: Object...) {
-  // TODO output to console
+    Console.write(str);
 }
 
 pub fun assert(condition: Boolean) {

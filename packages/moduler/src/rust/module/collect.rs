@@ -52,8 +52,8 @@ fn collect(
 /// The modules of the builtin package every program imports without naming
 /// them: the members of `Object`, `String`, `List`, `Type` and the classes of
 /// functions.
-const IMPLICIT_MODULES: [&str; 9] = [
-    "object", "string", "callback", "list", "type", "memory", "map", "binary", "json",
+const IMPLICIT_MODULES: [&str; 10] = [
+    "object", "string", "callback", "list", "type", "memory", "map", "binary", "console", "json",
 ];
 const IMPLICIT_MODULE_FILE: &str = "src/main/object.into";
 

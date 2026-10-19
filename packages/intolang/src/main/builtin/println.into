@@ -1,3 +1,4 @@
 pub fun println(str: String, params: Object...) {
-  // TODO output to console
+    Console.write(str);
+    Console.write("\n");
 }

@@ -105,6 +105,18 @@ pub(crate) fn install(vm: &mut Vm) {
         Rc::new(|_, args| flag(bytes(args, 0)?.ends_with(bytes(args, 1)?))),
     );
     vm.register(
+        "into_console_write",
+        Rc::new(|vm, args| {
+            let text = bytes(args, 0)?.to_vec();
+            vm.write(&text);
+            Ok(Value::Unit)
+        }),
+    );
+    vm.register(
+        "into_console_read",
+        Rc::new(|vm, _| Ok(Value::Str(vm.read_line()))),
+    );
+    vm.register(
         "into_string_to_lower",
         Rc::new(|_, args| Ok(Value::Str(bytes(args, 0)?.to_ascii_lowercase()))),
     );

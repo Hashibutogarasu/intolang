@@ -90,6 +90,7 @@ pub(super) fn execute(inex: &Inex) -> Result<()> {
     let mut vm = Vm::new(VmOptions {
         echo_stdout: true,
         real_processes: true,
+        stdin: None,
         ..VmOptions::default()
     });
     vm.load_inex(inex)?;
