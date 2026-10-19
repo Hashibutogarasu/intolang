@@ -343,6 +343,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "backend",
+ "bundle",
  "clap",
  "color-eyre",
  "compiler",
@@ -360,6 +361,7 @@ name = "intovm"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bundle",
  "native",
  "parser",
  "types",

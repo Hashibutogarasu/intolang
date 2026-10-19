@@ -8,4 +8,4 @@ pub use dl::Library;
 pub use invoke::{MAX_ARGUMENTS, Returned, Returns, invoke};
 pub use layout::StructLayout;
 pub use memory::{read_field, write_field};
-pub use prepare::load;
+pub use prepare::{links, load};

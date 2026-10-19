@@ -216,8 +216,9 @@ impl Vm {
 
     /// Load the program of an `.inex` file.
     pub fn load_inex(&mut self, inex: &Inex) -> Result<()> {
-        self.load(&inex.message)?;
-        if !inex.sources.is_empty() {
+        let message = inex.intoc()?;
+        self.load(message)?;
+        if native_call::links(message) {
             self.native = Some(Rc::new(native_call::load(inex)?));
         }
         Ok(())

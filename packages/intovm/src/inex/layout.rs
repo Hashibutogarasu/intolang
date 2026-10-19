@@ -1,23 +1,15 @@
-/// The first line, which lets the file run directly where `into` is installed.
-pub const SHEBANG: &str = "#!/usr/bin/env into";
+pub const SHEBANG: &[u8] = b"#!/usr/bin/env into\n";
 
-/// The word that starts the second line, followed by the format version.
-pub const MAGIC: &str = "INEX";
+pub const MAGIC: &[u8] = b"INEX";
 
 /// The format version this tool reads and writes.
-pub const VERSION: u32 = 1;
+pub const VERSION: u32 = 2;
 
-pub const NAME: &str = "name";
-pub const ALIAS: &str = "alias";
-pub const PACKAGE_VERSION: &str = "version";
-pub const GENERATOR: &str = "generator";
-pub const SOURCE: &str = "source";
+/// The file of the bundle that holds the program the VM runs.
+pub const INTOC: &str = "intoc";
 
-/// Header fields are separated by tabs, so paths may contain spaces.
-pub const FIELD: char = '\t';
+pub const DIRECTORY: u8 = 0;
 
-/// The section that carries the lowered message.
-pub const MESSAGE: &str = "message";
+pub const FILE: u8 = 1;
 
-/// The section that carries a bundled file.
-pub const FILE: &str = "file";
+pub const DIGEST_LENGTH: usize = 32;

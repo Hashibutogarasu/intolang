@@ -53,17 +53,20 @@ println("Hello VM");
     let built = into(&[Path::new("build"), Path::new("--vm"), &project.root]);
     assert!(built.status.success(), "{built:?}");
     let file = project.inex("hello");
-    let text = std::fs::read_to_string(&file).unwrap();
-    assert!(
-        text.starts_with(
-            r#"#!/usr/bin/env into
-INEX 1
-name:	hello
-alias:	hello
-version:	0.3.0
+    let bytes = std::fs::read(&file).unwrap();
+    assert!(bytes.starts_with(b"#!/usr/bin/env into\nINEX"));
+    let inex = intovm::Inex::try_from(bytes.as_slice()).unwrap();
+    for path in ["into-package.json", "src/main/hello.into", "intoc"] {
+        assert!(inex.bundle.get(path).is_some(), "{path}");
+    }
+    assert_eq!(
+        inex.bundle.read("src/main/hello.into"),
+        Some(
+            r#"import "intolang://builtin/std";
+println("Hello VM");
 "#
-        ),
-        "{text}"
+            .as_bytes()
+        )
     );
     let ran = into(&[&file]);
     assert_eq!(

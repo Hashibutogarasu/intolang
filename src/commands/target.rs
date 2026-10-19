@@ -6,9 +6,6 @@ use crate::commands::inex;
 /// What a build knows about the package it builds.
 pub(super) struct Project<'a> {
     pub directory: &'a Path,
-    pub name: &'a str,
-    pub alias: &'a str,
-    pub version: &'a str,
     pub packages: &'a Path,
 }
 
@@ -58,13 +55,12 @@ impl Target for InexTarget {
     }
 
     fn build(&self, project: &Project, message: String, output: &Path) -> Result<()> {
-        let header = intovm::InexHeader {
-            name: project.name.to_owned(),
-            alias: project.alias.to_owned(),
-            version: project.version.to_owned(),
-            generator: format!("into {}", env!("CARGO_PKG_VERSION")),
-        };
-        let program = inex::assemble(header, message, project.packages)?;
+        let program = inex::assemble(
+            project.directory,
+            project.packages,
+            message,
+            format!("into {}", env!("CARGO_PKG_VERSION")),
+        )?;
         inex::write(&program, output)
     }
 

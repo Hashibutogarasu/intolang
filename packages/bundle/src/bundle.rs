@@ -113,6 +113,28 @@ impl Bundle {
         self.entries.iter()
     }
 
+    /// A hash of the whole tree: its paths, kinds, modes and contents.
+    pub fn digest(&self) -> String {
+        let mut digest = Sha256::new();
+        for (path, entry) in &self.entries {
+            digest.update(path.as_str().as_bytes());
+            digest.update([0]);
+            match entry {
+                Entry::Directory => digest.update([0]),
+                Entry::File { hash, mode, .. } => {
+                    digest.update([1]);
+                    digest.update(mode.to_le_bytes());
+                    digest.update(hash.as_bytes());
+                }
+            }
+        }
+        digest
+            .finalize()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect()
+    }
+
     /// How many different file contents the bundle holds.
     pub fn distinct_contents(&self) -> usize {
         self.contents.len()

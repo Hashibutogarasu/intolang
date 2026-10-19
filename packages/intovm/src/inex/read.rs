@@ -1,8 +1,8 @@
-use anyhow::{Error, Result, anyhow, bail};
-use parser::LanguageLexeme;
+use anyhow::{Context, Error, Result, anyhow, bail};
+use bundle::{Bundle, Entry};
 
 use super::layout::*;
-use super::model::{Inex, InexFile, InexHeader, InexSource};
+use super::model::Inex;
 
 /// A cursor over the bytes of an `.inex` file.
 struct Reader<'a> {
@@ -11,118 +11,142 @@ struct Reader<'a> {
 }
 
 impl<'a> Reader<'a> {
-    fn line(&mut self) -> Result<&'a str> {
-        let rest = &self.bytes[self.position..];
-        let end = rest
-            .iter()
-            .position(|byte| *byte == b'\n')
+    fn take(&mut self, length: usize) -> Result<&'a [u8]> {
+        let end = self
+            .position
+            .checked_add(length)
+            .filter(|end| *end <= self.bytes.len())
             .ok_or_else(|| anyhow!("The inex file is truncated"))?;
-        self.position += end + 1;
-        std::str::from_utf8(&rest[..end]).map_err(|_| anyhow!("The inex file has a broken line"))
+        let taken = &self.bytes[self.position..end];
+        self.position = end;
+        Ok(taken)
     }
 
-    fn block(&mut self, length: usize) -> Result<&'a [u8]> {
-        let end = self.position + length;
-        if end + 1 > self.bytes.len() || self.bytes[end] != b'\n' {
-            bail!("The inex file is truncated");
-        }
-        let block = &self.bytes[self.position..end];
-        self.position = end + 1;
-        Ok(block)
+    fn u8(&mut self) -> Result<u8> {
+        Ok(self.take(1)?[0])
     }
 
-    fn at_end(&self) -> bool {
-        self.position >= self.bytes.len()
+    fn u32(&mut self) -> Result<u32> {
+        let mut bytes = [0u8; 4];
+        bytes.copy_from_slice(self.take(4)?);
+        Ok(u32::from_le_bytes(bytes))
+    }
+
+    fn u64(&mut self) -> Result<u64> {
+        let mut bytes = [0u8; 8];
+        bytes.copy_from_slice(self.take(8)?);
+        Ok(u64::from_le_bytes(bytes))
+    }
+
+    fn text(&mut self) -> Result<String> {
+        let length = self.u32()? as usize;
+        String::from_utf8(self.take(length)?.to_vec())
+            .map_err(|_| anyhow!("The inex file has a name that is not text"))
+    }
+
+    fn rest(&self) -> &'a [u8] {
+        &self.bytes[self.position..]
     }
 }
 
-fn field<'a>(line: &'a str, key: &str) -> Result<&'a str> {
-    line.strip_prefix(key)
-        .and_then(|rest| rest.strip_prefix(':'))
-        .and_then(|rest| rest.strip_prefix(FIELD))
-        .ok_or_else(|| anyhow!("The inex header lacks `{key}`"))
+struct Raw {
+    path: String,
+    kind: u8,
+    mode: u32,
+    size: u64,
+    offset: u64,
+    digest: [u8; DIGEST_LENGTH],
 }
 
-fn source(line: &str) -> Result<InexSource> {
-    let mut parts = field(line, SOURCE)?.splitn(4, FIELD);
-    let (Some(alias), Some(language), Some(path), Some(dependencies)) =
-        (parts.next(), parts.next(), parts.next(), parts.next())
-    else {
-        bail!("The inex source line is malformed");
-    };
-    Ok(InexSource {
-        alias: alias.to_owned(),
-        language: language.parse::<LanguageLexeme>()?.into(),
-        path: path.to_owned(),
-        dependencies: dependencies
-            .split(',')
-            .filter(|name| !name.is_empty())
-            .map(str::to_owned)
-            .collect(),
-    })
+fn hex(digest: &[u8]) -> String {
+    digest.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 impl TryFrom<&[u8]> for Inex {
     type Error = Error;
 
     fn try_from(bytes: &[u8]) -> Result<Self> {
-        let mut reader = Reader { bytes, position: 0 };
-        let mut first = reader.line().map_err(|_| anyhow!("Not an inex file"))?;
-        if first.starts_with("#!") {
-            first = reader.line().map_err(|_| anyhow!("Not an inex file"))?;
+        let mut bytes = bytes;
+        if bytes.starts_with(b"#!") {
+            let end = bytes
+                .iter()
+                .position(|byte| *byte == b'\n')
+                .ok_or_else(|| anyhow!("Not an inex file"))?;
+            bytes = &bytes[end + 1..];
         }
-        let Some(version) = first
-            .strip_prefix(MAGIC)
-            .and_then(|rest| rest.strip_prefix(' '))
-        else {
+        let Some(rest) = bytes.strip_prefix(MAGIC) else {
             bail!("Not an inex file");
         };
-        let version: u32 = version.parse().map_err(|_| anyhow!("Not an inex file"))?;
+        if let Some(text) = rest.strip_prefix(b" ") {
+            let digits: String = text
+                .iter()
+                .take_while(|byte| byte.is_ascii_digit())
+                .map(|byte| char::from(*byte))
+                .collect();
+            let version: u32 = digits.parse().map_err(|_| anyhow!("Not an inex file"))?;
+            bail!("inex version {version} is not supported");
+        }
+        let mut reader = Reader {
+            bytes: rest,
+            position: 0,
+        };
+        let version = reader.u32().map_err(|_| anyhow!("Not an inex file"))?;
         if version != VERSION {
             bail!("inex version {version} is not supported");
         }
-        let header = InexHeader {
-            name: field(reader.line()?, NAME)?.to_owned(),
-            alias: field(reader.line()?, ALIAS)?.to_owned(),
-            version: field(reader.line()?, PACKAGE_VERSION)?.to_owned(),
-            generator: field(reader.line()?, GENERATOR)?.to_owned(),
-        };
-        let mut sources = Vec::new();
-        loop {
-            let line = reader.line()?;
-            if line.is_empty() {
-                break;
-            }
-            sources.push(source(line)?);
-        }
-        let line = reader.line()?;
-        let length = line
-            .strip_prefix(MESSAGE)
-            .and_then(|rest| rest.strip_prefix(FIELD))
-            .ok_or_else(|| anyhow!("The inex file has no message"))?;
-        let message = String::from_utf8(reader.block(length.parse()?)?.to_vec())
-            .map_err(|_| anyhow!("The inex message is not text"))?;
-        let mut files = Vec::new();
-        while !reader.at_end() {
-            let line = reader.line()?;
-            let mut parts = line
-                .strip_prefix(FILE)
-                .and_then(|rest| rest.strip_prefix(FIELD))
-                .ok_or_else(|| anyhow!("The inex file has an unknown section"))?
-                .splitn(2, FIELD);
-            let (Some(length), Some(path)) = (parts.next(), parts.next()) else {
-                bail!("The inex file section is malformed");
-            };
-            files.push(InexFile {
-                path: path.to_owned(),
-                contents: reader.block(length.parse()?)?.to_vec(),
+        let generator = reader.text()?;
+        let count = reader.u32()?;
+        let mut table = Vec::new();
+        for _ in 0..count {
+            let path = reader.text()?;
+            let kind = reader.u8()?;
+            let mode = reader.u32()?;
+            let size = reader.u64()?;
+            let offset = reader.u64()?;
+            let mut digest = [0u8; DIGEST_LENGTH];
+            digest.copy_from_slice(reader.take(DIGEST_LENGTH)?);
+            table.push(Raw {
+                path,
+                kind,
+                mode,
+                size,
+                offset,
+                digest,
             });
         }
-        Ok(Inex {
-            header,
-            message,
-            sources,
-            files,
-        })
+        let data = reader.rest();
+        let mut bundle = Bundle::new();
+        for raw in table {
+            match raw.kind {
+                DIRECTORY => bundle
+                    .add_directory(&raw.path)
+                    .with_context(|| format!("The inex file has a bad entry `{}`", raw.path))?,
+                FILE => {
+                    let range = usize::try_from(raw.offset)
+                        .ok()
+                        .zip(usize::try_from(raw.size).ok())
+                        .and_then(|(offset, size)| Some(offset..offset.checked_add(size)?))
+                        .filter(|range| range.end <= data.len())
+                        .ok_or_else(|| {
+                            anyhow!(
+                                "The inex file is truncated or has the entry `{}` outside its data",
+                                raw.path
+                            )
+                        })?;
+                    bundle
+                        .add_file(&raw.path, &data[range], raw.mode)
+                        .with_context(|| format!("The inex file has a bad entry `{}`", raw.path))?;
+                    let matches = matches!(
+                        bundle.get(&raw.path),
+                        Some(Entry::File { hash, .. }) if *hash == hex(&raw.digest)
+                    );
+                    if !matches {
+                        bail!("The hash of `{}` does not match its contents", raw.path);
+                    }
+                }
+                other => bail!("The inex file has an entry of the unknown kind {other}"),
+            }
+        }
+        Ok(Inex { generator, bundle })
     }
 }

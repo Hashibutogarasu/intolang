@@ -1,10 +1,15 @@
 use anyhow::{Context, Result};
-use intovm::{Inex, InexFile, InexHeader, InexSource, Vm, VmOptions};
+use bundle::Bundle;
+use intovm::{Inex, Vm, VmOptions};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 /// The extension of the Into executables the VM runs.
 pub(super) const EXTENSION: &str = "inex";
+
+const MANIFEST: &str = "into-package.json";
+
+const FILE_MODE: u32 = 0o644;
 
 /// Whether `path` names an `.inex` file.
 pub(super) fn is_inex(path: &Path) -> bool {
@@ -12,54 +17,52 @@ pub(super) fn is_inex(path: &Path) -> bool {
         .is_some_and(|extension| extension == EXTENSION)
 }
 
-/// Package the lowered `message` of a project with what its native calls
-/// need, found in the package environment `packages`.
-pub(super) fn assemble(header: InexHeader, message: String, packages: &Path) -> Result<Inex> {
-    let native = native::collect_sources(&message, packages)?;
-    let mut sources = Vec::new();
-    let mut directories = BTreeSet::new();
-    for source in &native {
-        sources.push(InexSource {
-            alias: source.alias.clone(),
-            language: source.language,
-            path: source.relative.clone(),
-            dependencies: native::native_dependencies(&source.package, &source.path)?,
-        });
-        directories.insert((source.alias.clone(), source.package.join("src/ffi")));
+/// Package the project in `directory` as an executable: its manifest, its
+/// sources and resources, the manifests and native sources of the packages
+/// the lowered `message` calls into, found in the package environment
+/// `packages`, and the message itself as `intoc`.
+pub(super) fn assemble(
+    directory: &Path,
+    packages: &Path,
+    message: String,
+    generator: String,
+) -> Result<Inex> {
+    let mut bundle = Bundle::new();
+    add_file(&mut bundle, MANIFEST, &directory.join(MANIFEST))?;
+    let sources = directory.join("src");
+    if sources.is_dir() {
+        bundle.add_tree_skipping(&sources, "src", &|relative| {
+            relative == "rust" || relative.starts_with("rust/")
+        })?;
     }
-    let mut files = Vec::new();
-    for (alias, directory) in directories {
-        bundle(&alias, &directory, Path::new("src/ffi"), &mut files)?;
+    let resources = directory.join("res");
+    if resources.is_dir() {
+        bundle.add_tree(&resources, "res")?;
     }
-    Ok(Inex {
-        header,
-        message,
-        sources,
-        files,
-    })
-}
-
-/// Add every file under `directory`, as `alias/relative/...`.
-fn bundle(alias: &str, directory: &Path, relative: &Path, files: &mut Vec<InexFile>) -> Result<()> {
-    if !directory.is_dir() {
-        return Ok(());
-    }
-    let mut entries = std::fs::read_dir(directory)?.collect::<std::io::Result<Vec<_>>>()?;
-    entries.sort_by_key(|entry| entry.file_name());
-    for entry in entries {
-        let path = entry.path();
-        let relative = relative.join(entry.file_name());
-        if path.is_dir() {
-            bundle(alias, &path, &relative, files)?;
-        } else {
-            files.push(InexFile {
-                path: format!("{alias}/{}", relative.to_string_lossy().replace('\\', "/")),
-                contents: std::fs::read(&path)
-                    .with_context(|| format!("Could not read {}", path.display()))?,
-            });
+    let mut mounted = BTreeSet::new();
+    for source in native::collect_sources(&message, packages)? {
+        if !mounted.insert(source.alias.clone()) {
+            continue;
+        }
+        let root = format!(".into/packages/{}", source.alias);
+        add_file(
+            &mut bundle,
+            &format!("{root}/{MANIFEST}"),
+            &source.package.join(MANIFEST),
+        )?;
+        let foreign = source.package.join("src/ffi");
+        if foreign.is_dir() {
+            bundle.add_tree(&foreign, &format!("{root}/src/ffi"))?;
         }
     }
-    Ok(())
+    bundle.add_file("intoc", message.as_bytes(), FILE_MODE)?;
+    Ok(Inex { generator, bundle })
+}
+
+fn add_file(bundle: &mut Bundle, target: &str, source: &Path) -> Result<()> {
+    let contents =
+        std::fs::read(source).with_context(|| format!("Could not read {}", source.display()))?;
+    bundle.add_file(target, contents, FILE_MODE)
 }
 
 /// Write `inex` to `output`, executable where the platform has such a mode.

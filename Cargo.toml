@@ -11,6 +11,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 compiler = { path = "apps/compiler" }
 backend = { path = "packages/backend" }
+bundle = { version = "0.1.0", path = "packages/bundle" }
 formatter = { version = "0.1.0", path = "packages/formatter" }
 testing = { version = "0.1.0", path = "packages/testing" }
 moduler = { version = "0.1.0", path = "packages/moduler" }

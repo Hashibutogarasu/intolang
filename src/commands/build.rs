@@ -12,8 +12,6 @@ use crate::commands::target::{InexTarget, NativeTarget, Project, Target};
 struct Package {
     name: String,
     #[serde(default)]
-    version: String,
-    #[serde(default)]
     alias: Option<String>,
     #[serde(rename = "builtConfig", default)]
     built_config: BuildConfig,
@@ -104,9 +102,6 @@ pub(super) fn run(
     std::fs::create_dir_all(&output_dir)?;
     let project = Project {
         directory: package_dir,
-        name: &package.name,
-        alias: package.alias.as_deref().unwrap_or(&executable),
-        version: &package.version,
         packages: package_environment.path(),
     };
     target.build(&project, message, &output)?;

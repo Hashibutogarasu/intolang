@@ -285,19 +285,29 @@ has a test in the `tests/` directory of the crate that implements it.
   tests, with `SIGNALED`, `current`, `spawn`, `isAlive` and `advance`. Its
   functions exist only in the VM; compiling code that uses them fails with
   `DummyProcess requires the Into VM`.
-- Native calls: the `.inex` file carries the native sources a message calls and
-  the files of their `src/ffi` directories. They are compiled into a shared
-  library under `INTO_CACHE_DIR`, `XDG_CACHE_HOME/into` or `~/.cache/into`,
-  keyed by their content, and loaded with `dlopen`. A call passes at most six
+- Native calls: the `.inex` file carries the manifests and the `src/ffi`
+  directories of the packages whose native sources a message calls, under
+  `.into/packages/<alias>/`. The VM unpacks the tree, finds the sources the way
+  `native::collect_sources` does, compiles them into a shared library under
+  `INTO_CACHE_DIR`, `XDG_CACHE_HOME/into` or `~/.cache/into`, keyed by the
+  content of the tree, and loads it with `dlopen`. A call passes at most six
   integer or pointer arguments (text as C strings, instances the VM made as C
   structs that are read back after the call). Instances that native code
   allocated are read in place from the layout of their class. A function the VM
   has as an intrinsic wins over the library.
-- `.inex` format: the line `#!/usr/bin/env into`, `INEX <version>`, the header
-  lines `name`, `alias`, `version` and `generator`, one `source` line per native
-  source, an empty line, the `message` section and one `file` section per bundled
-  file. Fields are separated by tabs. A file that is not `.inex` or has another
-  version is rejected before it runs.
+- `.inex` format: the line `#!/usr/bin/env into`, then binary data in little
+  endian: the magic `INEX`, the format version (`u32`, 2), the name of the tool
+  that wrote the file (`u32` length and bytes), the number of entries (`u32`),
+  the entry table and the data. An entry is its path (`u32` length and bytes),
+  its kind (`u8`, 0 a directory and 1 a file), its mode (`u32`), its size
+  (`u64`), the offset of its contents in the data (`u64`) and the SHA-256 of its
+  contents (32 bytes); equal contents are stored once. The entries are a
+  `Bundle`, a copy of the project: `into-package.json`, `src/**`, `res/**`,
+  `.into/packages/<alias>/` for the packages with native sources, and `intoc`,
+  the program, which is the lowered message as text. A file that is not `.inex`,
+  has another version (the text format of version 1 included), is truncated,
+  holds an entry outside its data or has contents that do not match their hash
+  is rejected before it runs; so is one without `intoc`.
 - Choose `eval_vm` for tests that need no LLVM and no real process (or
   `eval_vm_bundled`, behind the `run` feature, when they import the bundled
   packages such as `ps`), and `eval_run` for tests that compile and run a native
@@ -369,10 +379,12 @@ walks it to produce the lowered message → `compiler::compile_with_packages`
 runs LLVM codegen, `native::compile_sources` compiles any imported C/C++
 sources, and `lld` links a binary/shared library.
 
-`into build --vm <pkg>` stops after the message: `src/commands/inex.rs` adds the
-native sources and their `src/ffi` files (`native::collect_sources`) and writes
-the `.inex` file. `into <file>.inex` and `into build --test` hand a message to
-`intovm::Vm`.
+`into build` and `into build --vm` lower the entry point the same way and hand
+the message to a `Target` (`src/commands/target.rs`): `NativeTarget` compiles
+and links an executable, `InexTarget` makes a `Bundle` of the project
+(`src/commands/inex.rs`, with the native sources found by
+`native::collect_sources`) and writes the `.inex` file. `into <file>.inex` and
+`into build --test` hand a message to `intovm::Vm`.
 
 - The language is whitespace and newline independent: tokenizing, AST
   construction and formatting work on tokens only, never on source lines.

@@ -1,8 +1,9 @@
 mod support;
 
-use intovm::{Inex, InexFile, InexHeader, InexSource, Vm, VmOptions};
+use bundle::Bundle;
+use intovm::{Inex, Vm, VmOptions};
 use support::record;
-use types::{Language, MessageTag::*};
+use types::MessageTag::*;
 
 const SOURCE: &str = r#"
 #include <stdint.h>
@@ -36,24 +37,21 @@ int32_t is_even(int32_t number) { return number % 2 == 0; }
 "#;
 
 fn program(message: String, source: &str) -> Inex {
+    let mut bundle = Bundle::new();
+    bundle
+        .add_file(
+            ".into/packages/t/into-package.json",
+            r#"{"name":"T","alias":"t","version":"0.1.0","LICENCE":"MIT"}"#,
+            0o644,
+        )
+        .unwrap();
+    bundle
+        .add_file(".into/packages/t/src/ffi/math.c", source, 0o644)
+        .unwrap();
+    bundle.add_file("intoc", message, 0o644).unwrap();
     Inex {
-        header: InexHeader {
-            name: "native".to_owned(),
-            alias: "native".to_owned(),
-            version: "0.1.0".to_owned(),
-            generator: "test".to_owned(),
-        },
-        message,
-        sources: vec![InexSource {
-            alias: "t".to_owned(),
-            language: Language::C,
-            path: "src/ffi/math.c".to_owned(),
-            dependencies: Vec::new(),
-        }],
-        files: vec![InexFile {
-            path: "t/src/ffi/math.c".to_owned(),
-            contents: source.as_bytes().to_vec(),
-        }],
+        generator: "test".to_owned(),
+        bundle,
     }
 }
 
@@ -152,7 +150,10 @@ fn a_function_the_library_lacks_is_reported() {
 fn a_source_that_does_not_compile_is_reported() {
     let mut vm = Vm::new(VmOptions::default());
     let error = vm
-        .load_inex(&program(String::new(), "int broken( {"))
+        .load_inex(&program(
+            call("add_numbers", "Int32", "sum", &["i:2", "i:40"]),
+            "int broken( {",
+        ))
         .unwrap_err();
     assert!(
         format!("{error:#}").contains("compilation failed"),

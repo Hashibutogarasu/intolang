@@ -1,14 +1,20 @@
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use native::SharedSource;
+use parser::Record;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use types::MessageTag;
 
 use super::dl::Library;
 use crate::inex::Inex;
 
 const LIBRARY_NAME: &str = "libinex-native.so";
+
+/// Where the packages the native sources belong to are in the unpacked
+/// bundle.
+const PACKAGES: &str = ".into/packages";
 
 fn cache_root() -> Result<PathBuf> {
     if let Some(directory) = std::env::var_os("INTO_CACHE_DIR") {
@@ -23,47 +29,40 @@ fn cache_root() -> Result<PathBuf> {
 
 fn fingerprint(inex: &Inex) -> String {
     let mut hasher = DefaultHasher::new();
-    for file in &inex.files {
-        file.path.hash(&mut hasher);
-        file.contents.hash(&mut hasher);
-    }
-    for source in &inex.sources {
-        source.alias.hash(&mut hasher);
-        source.path.hash(&mut hasher);
-        source.dependencies.hash(&mut hasher);
-    }
+    inex.bundle.digest().hash(&mut hasher);
     std::env::var("CC").unwrap_or_default().hash(&mut hasher);
     std::env::var("CXX").unwrap_or_default().hash(&mut hasher);
     format!("{:016x}", hasher.finish())
 }
 
-fn inside(path: &str) -> Result<&Path> {
-    let path = Path::new(path);
-    if path.is_absolute()
-        || path
-            .components()
-            .any(|component| matches!(component, Component::ParentDir))
-    {
-        bail!("The bundled path {} leaves its directory", path.display());
-    }
-    Ok(path)
+/// Whether the program calls native functions.
+pub fn links(message: &str) -> bool {
+    message
+        .lines()
+        .filter_map(|line| line.parse::<Record>().ok())
+        .any(|record| record.tag() == MessageTag::LinkAssign)
 }
 
 fn compile(inex: &Inex, work: &Path) -> Result<PathBuf> {
-    for file in &inex.files {
-        let target = work.join(inside(&file.path)?);
+    for (path, entry) in inex.bundle.entries() {
+        let target = work.join(path.as_str());
+        if entry.is_directory() {
+            std::fs::create_dir_all(&target)?;
+            continue;
+        }
         if let Some(parent) = target.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        std::fs::write(&target, &file.contents)
+        std::fs::write(&target, inex.bundle.read(path.as_str()).unwrap_or_default())
             .with_context(|| format!("Could not unpack {}", target.display()))?;
     }
+    let packages = work.join(PACKAGES);
     let mut sources = Vec::new();
-    for source in &inex.sources {
+    for source in native::collect_sources(inex.intoc()?, &packages)? {
         sources.push(SharedSource {
-            path: work.join(&source.alias).join(inside(&source.path)?),
+            dependencies: native::native_dependencies(&source.package, &source.path)?,
+            path: source.path,
             language: source.language,
-            dependencies: source.dependencies.clone(),
         });
     }
     let output = work.join(LIBRARY_NAME);
