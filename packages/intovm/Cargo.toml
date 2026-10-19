@@ -1,0 +1,10 @@
+[package]
+name = "intovm"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.104"
+native = { version = "0.1.0", path = "../native" }
+parser = { version = "0.1.0", path = "../parser" }
+types = { version = "0.1.0", path = "../types" }

@@ -1,0 +1,237 @@
+use anyhow::{Result, anyhow, bail};
+use native::{Comparison, LinkCall};
+use parser::{Hex, Record};
+use types::MessageTag;
+
+use super::instruction::{Cond, Function, Instr, Program};
+use crate::value::{ClassDef, FieldDef};
+
+/// A construct whose end the loader has not reached yet.
+enum Open {
+    If { branch: usize, jump: Option<usize> },
+    Loop { start: usize, breaks: Vec<usize> },
+    Handler { skip: usize },
+}
+
+fn field_def(spec: &str) -> FieldDef {
+    let mut segments = spec.splitn(4, ':');
+    let name = segments.next().unwrap_or_default().to_owned();
+    let ty = segments.next().unwrap_or("String").to_owned();
+    let kind = segments.next().unwrap_or("-");
+    let value = segments.next().unwrap_or_default().to_owned();
+    let default = match kind {
+        "-" | "" => None,
+        _ => Some((kind.chars().next().unwrap_or('-'), value)),
+    };
+    FieldDef { name, ty, default }
+}
+
+impl Program {
+    /// Build the program of a lowered message: every directive line becomes
+    /// its instruction and any other line is literal output.
+    pub fn load(message: &str) -> Result<Self> {
+        let mut program = Program::default();
+        let mut open: Vec<Open> = Vec::new();
+        for line in message.split_inclusive('\n') {
+            let Ok(record) = line.parse::<Record>() else {
+                program.instructions.push(Instr::Text(line.to_owned()));
+                continue;
+            };
+            program.push_record(&record, &mut open)?;
+        }
+        if !open.is_empty() {
+            bail!("The message ends inside an unfinished block");
+        }
+        Ok(program)
+    }
+
+    fn here(&self) -> usize {
+        self.instructions.len()
+    }
+
+    fn branch(&mut self, cond: Cond, open: &mut Vec<Open>) {
+        open.push(Open::If {
+            branch: self.here(),
+            jump: None,
+        });
+        self.instructions.push(Instr::Branch { cond, otherwise: 0 });
+    }
+
+    fn loop_branch(&mut self, cond: Cond, open: &mut Vec<Open>) {
+        open.push(Open::Loop {
+            start: self.here(),
+            breaks: Vec::new(),
+        });
+        self.instructions.push(Instr::Branch { cond, otherwise: 0 });
+    }
+
+    fn patch(&mut self, at: usize, target: usize) {
+        match &mut self.instructions[at] {
+            Instr::Branch { otherwise, .. } => *otherwise = target,
+            Instr::Jump(destination) => *destination = target,
+            _ => {}
+        }
+    }
+
+    fn push_record(&mut self, record: &Record, open: &mut Vec<Open>) -> Result<()> {
+        match record.tag() {
+            MessageTag::Class => {
+                let Some((name, fields)) = record.fields().split_first() else {
+                    bail!("Malformed NATIVE_CLASS record");
+                };
+                self.classes.insert(
+                    name.clone(),
+                    ClassDef {
+                        fields: fields.iter().map(|field| field_def(field)).collect(),
+                    },
+                );
+            }
+            MessageTag::Module => self.instructions.push(Instr::Nop),
+            MessageTag::Native => self.instructions.push(Instr::NativeCall {
+                symbol: record.get(0).to_owned(),
+                argument: format!("{}:{}", record.get(1), record.get(2)).parse()?,
+            }),
+            MessageTag::Assign => self.instructions.push(Instr::Assign {
+                target: record.get(0).to_owned(),
+                ty: record.get(1).to_owned(),
+                operand: record.get(2).parse()?,
+            }),
+            MessageTag::Arith => self.instructions.push(Instr::Arith {
+                target: record.get(0).to_owned(),
+                left: record.get(1).to_owned(),
+                operation: record.get(2).to_owned(),
+                operand: record.get(3).parse()?,
+                ty: record.get(4).to_owned(),
+            }),
+            MessageTag::Print => self.instructions.push(Instr::Print {
+                variable: record.get(0).to_owned(),
+                ty: record.get(1).to_owned(),
+                newline: record.get(2) == "1",
+            }),
+            MessageTag::PrintConst => self.instructions.push(Instr::PrintConst {
+                ty: record.get(0).to_owned(),
+                operand: record.get(1).parse()?,
+                newline: record.get(2) == "1",
+            }),
+            MessageTag::FieldPrint => self.instructions.push(Instr::FieldPrint {
+                variable: record.get(0).to_owned(),
+                index: record.get(2).parse()?,
+                newline: record.get(4) == "1",
+            }),
+            MessageTag::LinkAssign => self
+                .instructions
+                .push(Instr::LinkAssign(LinkCall::try_from(record)?)),
+            MessageTag::Construct => self.instructions.push(Instr::Construct {
+                target: record.get(0).to_owned(),
+                class: record.get(1).to_owned(),
+            }),
+            MessageTag::Alias => self.instructions.push(Instr::Alias {
+                target: record.get(0).to_owned(),
+                source: record.get(1).to_owned(),
+            }),
+            MessageTag::Copy => self.instructions.push(Instr::Copy {
+                target: record.get(0).to_owned(),
+                source: record.get(1).to_owned(),
+            }),
+            MessageTag::IfBegin => self.branch(Cond::Compare(Comparison::try_from(record)?), open),
+            MessageTag::IfCall => self.branch(Cond::Call(LinkCall::try_from(record)?), open),
+            MessageTag::IfConst => self.branch(Cond::Const(record.get(0) == "1"), open),
+            MessageTag::IfElse => {
+                let jump = self.here();
+                let Some(Open::If { branch, jump: slot }) = open.last_mut() else {
+                    bail!("NATIVE_IF_ELSE has no matching if");
+                };
+                let branch = *branch;
+                *slot = Some(jump);
+                self.instructions.push(Instr::Jump(0));
+                let otherwise = self.here();
+                self.patch(branch, otherwise);
+            }
+            MessageTag::IfEnd => {
+                let Some(Open::If { branch, jump }) = open.pop() else {
+                    bail!("NATIVE_IF_END has no matching if");
+                };
+                let end = self.here();
+                match jump {
+                    Some(jump) => self.patch(jump, end),
+                    None => self.patch(branch, end),
+                }
+                self.instructions.push(Instr::Nop);
+            }
+            MessageTag::WhileBegin => {
+                self.loop_branch(Cond::Compare(Comparison::try_from(record)?), open)
+            }
+            MessageTag::LoopBegin => {
+                self.loop_branch(Cond::Call(LinkCall::try_from(record)?), open)
+            }
+            MessageTag::LoopEnd => {
+                let Some(Open::Loop { start, breaks }) = open.pop() else {
+                    bail!("NATIVE_LOOP_END has no matching loop");
+                };
+                self.instructions.push(Instr::Jump(start));
+                let exit = self.here();
+                self.patch(start, exit);
+                for at in breaks {
+                    self.patch(at, exit);
+                }
+            }
+            MessageTag::Break => {
+                let at = self.here();
+                let Some(Open::Loop { breaks, .. }) = open
+                    .iter_mut()
+                    .rev()
+                    .find(|open| matches!(open, Open::Loop { .. }))
+                else {
+                    bail!("NATIVE_BREAK is outside a loop");
+                };
+                breaks.push(at);
+                self.instructions.push(Instr::Jump(0));
+            }
+            MessageTag::HandlerBegin => {
+                let captures = record
+                    .get(1)
+                    .split(',')
+                    .filter(|name| !name.is_empty())
+                    .map(str::to_owned)
+                    .collect();
+                let params = record
+                    .fields()
+                    .iter()
+                    .skip(2)
+                    .map(|field| {
+                        field
+                            .split_once(':')
+                            .map(|(name, _)| name.to_owned())
+                            .ok_or_else(|| anyhow!("Malformed handler parameter `{field}`"))
+                    })
+                    .collect::<Result<_>>()?;
+                let skip = self.here();
+                self.instructions.push(Instr::Jump(0));
+                self.functions.insert(
+                    record.get(0).to_owned(),
+                    Function {
+                        entry: self.here(),
+                        params,
+                        captures,
+                    },
+                );
+                open.push(Open::Handler { skip });
+            }
+            MessageTag::HandlerEnd => {
+                let Some(Open::Handler { skip }) = open.pop() else {
+                    bail!("NATIVE_HANDLER_END has no matching handler");
+                };
+                self.instructions.push(Instr::Return);
+                let after = self.here();
+                self.patch(skip, after);
+            }
+            tag => bail!("The VM does not support {tag:?} yet"),
+        }
+        Ok(())
+    }
+}
+
+/// The bytes a hex-encoded default stands for.
+pub fn decode_hex(value: &str) -> Result<Vec<u8>> {
+    Ok(value.parse::<Hex>()?.try_into()?)
+}
