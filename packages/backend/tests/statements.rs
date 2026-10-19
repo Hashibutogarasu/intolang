@@ -75,7 +75,12 @@ fn calls_to_unimported_functions_produce_no_output() {
         "{output}"
     );
     assert_eq!(
-        eval("init {\n    missing();\n}\n").unwrap().records().len(),
+        eval("init {\n    missing();\n}\n")
+            .unwrap()
+            .records()
+            .iter()
+            .filter(|record| record.tag() != types::MessageTag::Ownership)
+            .count(),
         2
     );
 }

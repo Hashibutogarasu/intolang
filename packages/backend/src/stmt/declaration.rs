@@ -1,5 +1,6 @@
 use anyhow::Result;
 use ast::Declaration;
+use native::OwnershipChange;
 use types::{Storage, Type};
 
 use crate::context::{Lowerer, Tracking, Variable};
@@ -63,6 +64,10 @@ impl Lowerer<'_> {
                 tracking,
             },
         );
+        self.emit_change(OwnershipChange::Declare {
+            name: declaration.name.clone(),
+            storage: declaration.storage,
+        });
         self.declare_in_scope(&declaration.name);
         Ok(())
     }

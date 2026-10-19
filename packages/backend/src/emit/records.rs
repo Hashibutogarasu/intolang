@@ -1,6 +1,6 @@
 use ast::Expr;
 use moduler::Module;
-use native::{Comparison, NativeArg, Operand};
+use native::{Comparison, NativeArg, Operand, OwnershipChange, StateCheck};
 use parser::{Hex, Record};
 use types::{ComparisonOperator, Literal, MessageTag, Type};
 
@@ -202,6 +202,23 @@ pub fn event_off(output: &mut String, event: &str, listener: &str) {
 
 pub fn event_destroy(output: &mut String, event: &str) {
     push(output, Record::new(MessageTag::EventDestroy).field(event));
+}
+
+/// Tell the VM what happened to a binding or to the instance it holds.
+pub fn ownership(output: &mut String, change: &OwnershipChange) {
+    push(output, change.to_record());
+}
+
+/// Open an `if` on a property of a binding, such as `isOwned`.
+pub fn if_state(output: &mut String, check: &StateCheck) {
+    push(output, check.to_record());
+}
+
+pub fn throw(output: &mut String, message: &str) {
+    push(
+        output,
+        Record::new(MessageTag::Throw).field(Hex::from(message)),
+    );
 }
 
 /// Start the thread running the function `function`; its task goes to the

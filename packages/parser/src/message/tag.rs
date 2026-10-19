@@ -40,6 +40,9 @@ impl FromStr for TagLexeme {
             "NATIVE_EVENT_DESTROY" => MessageTag::EventDestroy,
             "NATIVE_THREAD_RUN" => MessageTag::ThreadRun,
             "NATIVE_AWAIT" => MessageTag::Await,
+            "NATIVE_OWNERSHIP" => MessageTag::Ownership,
+            "NATIVE_IF_STATE" => MessageTag::IfState,
+            "NATIVE_THROW" => MessageTag::Throw,
             other => bail!("Unknown message tag `{other}`"),
         }))
     }
@@ -97,6 +100,9 @@ impl fmt::Display for TagLexeme {
             MessageTag::EventDestroy => "NATIVE_EVENT_DESTROY",
             MessageTag::ThreadRun => "NATIVE_THREAD_RUN",
             MessageTag::Await => "NATIVE_AWAIT",
+            MessageTag::Ownership => "NATIVE_OWNERSHIP",
+            MessageTag::IfState => "NATIVE_IF_STATE",
+            MessageTag::Throw => "NATIVE_THROW",
         })
     }
 }

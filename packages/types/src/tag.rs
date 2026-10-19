@@ -37,4 +37,7 @@ pub enum MessageTag {
     EventDestroy,
     ThreadRun,
     Await,
+    Ownership,
+    IfState,
+    Throw,
 }

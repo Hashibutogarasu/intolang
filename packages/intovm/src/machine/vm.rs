@@ -6,6 +6,7 @@ use std::rc::Rc;
 use super::arith::{compare, constant, is_float, operate};
 use super::events::EventTable;
 use super::frame::Frame;
+use super::memory::Binding;
 use super::threads::Thread;
 use crate::program::{Cond, Instr, Program};
 use crate::value::{Instance, Value};
@@ -26,6 +27,8 @@ pub struct Vm {
     pub(super) events: HashMap<String, EventTable>,
     pub(super) threads: Vec<Thread>,
     pub(super) current: usize,
+    pub(super) bindings: HashMap<String, Binding>,
+    pub(super) in_init: bool,
     stdout: Vec<u8>,
 }
 
@@ -40,6 +43,8 @@ impl Vm {
             events: HashMap::new(),
             threads: vec![Thread::default()],
             current: 0,
+            bindings: HashMap::new(),
+            in_init: false,
             stdout: Vec::new(),
         }
     }
@@ -50,6 +55,8 @@ impl Vm {
         self.threads = vec![Thread::default()];
         self.current = 0;
         self.events.clear();
+        self.bindings.clear();
+        self.in_init = false;
         Ok(())
     }
 
@@ -204,6 +211,8 @@ impl Vm {
                     return Ok(());
                 }
             }
+            Instr::Ownership(change) => self.apply(change)?,
+            Instr::Throw(message) => bail!("Into assertion failed: {message}"),
             Instr::Branch { cond, otherwise } => {
                 if !self.condition(cond)? {
                     self.jump(*otherwise);
@@ -226,6 +235,7 @@ impl Vm {
     fn condition(&mut self, cond: &Cond) -> Result<bool> {
         match cond {
             Cond::Const(value) => Ok(*value),
+            Cond::State(check) => self.check_state(check),
             Cond::Compare(comparison) => {
                 let left = self.load_slot(&comparison.left)?;
                 let right = self.operand(&comparison.operand, &comparison.type_name)?;

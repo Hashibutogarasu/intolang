@@ -6,8 +6,9 @@ use crate::native::{
     Class, NativeAlias, NativeArith, NativeAssign, NativeAwait, NativeBreak, NativeCall,
     NativeConstruct, NativeCopy, NativeEmit, NativeEventDestroy, NativeEventOff, NativeEventOn,
     NativeFieldPrint, NativeHandlerBegin, NativeHandlerEnd, NativeIfBegin, NativeIfCall,
-    NativeIfConst, NativeIfElse, NativeIfEnd, NativeLinkAssign, NativeLoopBegin, NativeLoopEnd,
-    NativeModule, NativePrint, NativePrintConst, NativeThreadRun, NativeWhileBegin,
+    NativeIfConst, NativeIfElse, NativeIfEnd, NativeIfState, NativeLinkAssign, NativeLoopBegin,
+    NativeLoopEnd, NativeModule, NativeOwnership, NativePrint, NativePrintConst, NativeThreadRun,
+    NativeThrow, NativeWhileBegin,
 };
 use crate::{Codegen, Text};
 
@@ -61,6 +62,9 @@ pub(crate) fn parse(message: &str) -> Result<Program> {
             MessageTag::EventDestroy => Box::new(NativeEventDestroy::try_from(&record)?),
             MessageTag::ThreadRun => Box::new(NativeThreadRun::try_from(&record)?),
             MessageTag::Await => Box::new(NativeAwait::try_from(&record)?),
+            MessageTag::Ownership => Box::new(NativeOwnership::try_from(&record)?),
+            MessageTag::IfState => Box::new(NativeIfState::try_from(&record)?),
+            MessageTag::Throw => Box::new(NativeThrow::try_from(&record)?),
         };
         statements.push(node);
     }

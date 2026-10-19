@@ -8,6 +8,7 @@ mod ownership;
 mod print_value;
 mod resolve;
 mod signals;
+mod state_check;
 mod threads;
 mod type_name;
 mod value;

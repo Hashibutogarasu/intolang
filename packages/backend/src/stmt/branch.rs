@@ -60,6 +60,7 @@ impl Lowerer<'_> {
     ) -> Result<()> {
         let env = self.env;
         match condition {
+            _ if self.begin_state_check(condition) => Ok(()),
             Expr::Compare { left, op, right } => self
                 .begin_comparison(compare_tag, label, left, *op, right)
                 .map_err(|message| self.diagnostic(line, &message)),

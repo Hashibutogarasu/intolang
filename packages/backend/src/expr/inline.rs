@@ -1,4 +1,5 @@
 use ast::{Expr, Param, Path, Stmt, StmtKind};
+use native::OwnershipChange;
 use std::collections::HashSet;
 use types::{Literal, MessageTag, Storage, Type};
 
@@ -205,6 +206,10 @@ impl<'a> Lowerer<'a> {
     ) -> Result<(), String> {
         match &stmt.kind {
             StmtKind::Break | StmtKind::Return(None) => Ok(()),
+            StmtKind::Throw(message) => {
+                self.lower_throw(message);
+                Ok(())
+            }
             StmtKind::Return(Some(expression)) => {
                 let name = expression.to_string();
                 let variable = self
@@ -282,6 +287,10 @@ impl<'a> Lowerer<'a> {
                 tracking,
             },
         );
+        self.emit_change(OwnershipChange::Declare {
+            name: declaration.name.clone(),
+            storage: declaration.storage,
+        });
         self.declare_in_scope(&declaration.name);
         Ok(())
     }
@@ -295,6 +304,7 @@ impl<'a> Lowerer<'a> {
         returned: &mut Returned,
     ) -> Result<(), String> {
         match condition {
+            _ if self.begin_state_check(condition) => {}
             Expr::Compare { left, op, right } => {
                 self.begin_comparison(MessageTag::IfBegin, "if", left, *op, right)?;
             }

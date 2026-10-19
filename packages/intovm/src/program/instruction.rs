@@ -1,4 +1,4 @@
-use native::{Comparison, LinkCall, NativeArg, Operand};
+use native::{Comparison, LinkCall, NativeArg, Operand, OwnershipChange, StateCheck};
 use std::collections::HashMap;
 
 use crate::value::ClassDef;
@@ -9,6 +9,7 @@ pub enum Cond {
     Compare(Comparison),
     Call(LinkCall),
     Const(bool),
+    State(StateCheck),
 }
 
 /// One executable step of a lowered message. Structured control flow is
@@ -83,6 +84,9 @@ pub enum Instr {
     Await {
         task: String,
     },
+    Ownership(OwnershipChange),
+    /// Fail the run with this message.
+    Throw(String),
     Branch {
         cond: Cond,
         otherwise: usize,

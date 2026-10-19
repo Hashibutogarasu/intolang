@@ -37,7 +37,11 @@ impl Lowerer<'_> {
             }
             StmtKind::Init(body) => self.lower_init(line, body),
             StmtKind::Expr(expression) => self.lower_expression_statement(line, expression),
-            StmtKind::Return(_) | StmtKind::Throw(_) => Ok(()),
+            StmtKind::Throw(message) => {
+                self.lower_throw(message);
+                Ok(())
+            }
+            StmtKind::Return(_) => Ok(()),
         }
     }
 }

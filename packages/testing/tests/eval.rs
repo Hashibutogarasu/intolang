@@ -12,7 +12,14 @@ fn evaluates_source_to_a_message() {
         .collect::<Vec<_>>();
     assert_eq!(
         tags,
-        vec![MessageTag::Class, MessageTag::Class, MessageTag::Assign]
+        vec![
+            MessageTag::Class,
+            MessageTag::Class,
+            MessageTag::Ownership,
+            MessageTag::Assign,
+            MessageTag::Ownership,
+            MessageTag::Ownership,
+        ]
     );
 }
 

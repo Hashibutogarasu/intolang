@@ -1,5 +1,5 @@
 use anyhow::{Result, anyhow, bail};
-use native::{Comparison, LinkCall};
+use native::{Comparison, LinkCall, OwnershipChange, StateCheck};
 use parser::{Hex, Record};
 use types::MessageTag;
 
@@ -136,6 +136,13 @@ impl Program {
             MessageTag::IfBegin => self.branch(Cond::Compare(Comparison::try_from(record)?), open),
             MessageTag::IfCall => self.branch(Cond::Call(LinkCall::try_from(record)?), open),
             MessageTag::IfConst => self.branch(Cond::Const(record.get(0) == "1"), open),
+            MessageTag::IfState => self.branch(Cond::State(StateCheck::try_from(record)?), open),
+            MessageTag::Ownership => self
+                .instructions
+                .push(Instr::Ownership(OwnershipChange::try_from(record)?)),
+            MessageTag::Throw => self.instructions.push(Instr::Throw(
+                String::from_utf8_lossy(&decode_hex(record.get(0))?).into_owned(),
+            )),
             MessageTag::IfElse => {
                 let jump = self.here();
                 let Some(Open::If { branch, jump: slot }) = open.last_mut() else {

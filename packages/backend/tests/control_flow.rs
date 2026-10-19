@@ -33,7 +33,10 @@ fn lowers_if_else_with_a_variable_operand() {
     use types::MessageTag::*;
     assert_eq!(
         tags,
-        vec![Class, Class, Assign, Assign, IfBegin, IfElse, Assign, IfEnd]
+        vec![
+            Class, Class, Ownership, Assign, Ownership, Assign, Ownership, IfBegin, IfElse, Assign,
+            Ownership, IfEnd, Ownership
+        ]
     );
     assert!(
         output.contains("NATIVE_IF_BEGIN\ta\t<=\tp:b\tInt32"),

@@ -1,3 +1,4 @@
+use native::OwnershipChange;
 use types::Type;
 
 use super::type_name::base_type_name;
@@ -132,6 +133,12 @@ impl Lowerer<'_> {
     /// statically whether the instance is still owned, so the drop flag is
     /// cleared at run time.
     pub fn set_state(&mut self, name: &str, state: Ownership) {
+        match state {
+            Ownership::Live => {}
+            Ownership::Moved => self.emit_change(OwnershipChange::Moved(name.to_owned())),
+            Ownership::Destroyed => self.emit_change(OwnershipChange::Destroyed(name.to_owned())),
+            Ownership::Detached => self.emit_change(OwnershipChange::Detached(name.to_owned())),
+        }
         let conditional = self.declared_in_outer_scope(name) && self.owns_instance(name);
         if let Some(variable) = self.state.values.get_mut(name) {
             variable.tracking.state = state;
@@ -140,6 +147,10 @@ impl Lowerer<'_> {
         if conditional {
             emit::drop_flag(&mut self.state.output, name, false);
         }
+    }
+
+    pub fn emit_change(&mut self, change: OwnershipChange) {
+        emit::ownership(&mut self.state.output, &change);
     }
 
     /// Give back the borrow `name` holds on its owner, if it is a borrow.
@@ -172,13 +183,25 @@ impl Lowerer<'_> {
         match method {
             COPY => {
                 emit::copy(&mut self.state.output, assigned_to, receiver, &class);
+                self.emit_change(OwnershipChange::Copy {
+                    target: assigned_to.to_owned(),
+                    source: receiver.to_owned(),
+                });
             }
             MOVE => {
                 emit::alias(&mut self.state.output, assigned_to, receiver);
+                self.emit_change(OwnershipChange::Move {
+                    target: assigned_to.to_owned(),
+                    source: receiver.to_owned(),
+                });
                 self.set_state(receiver, Ownership::Moved);
             }
             BORROW => {
                 emit::alias(&mut self.state.output, assigned_to, receiver);
+                self.emit_change(OwnershipChange::Borrow {
+                    target: assigned_to.to_owned(),
+                    source: receiver.to_owned(),
+                });
                 tracking.borrows = Some(receiver.to_owned());
                 tracking.reference = true;
                 if let Some(owner) = self.state.values.get_mut(receiver) {

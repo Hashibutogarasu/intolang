@@ -1,5 +1,6 @@
 use anyhow::Result;
 use ast::{Expr, Path};
+use native::OwnershipChange;
 
 use crate::context::Lowerer;
 
@@ -33,6 +34,7 @@ impl Lowerer<'_> {
         if let Some(variable) = self.state.values.get_mut(name) {
             variable.allocated = false;
             variable.unloaded = true;
+            self.emit_change(OwnershipChange::Unload(name.to_owned()));
         }
     }
 }

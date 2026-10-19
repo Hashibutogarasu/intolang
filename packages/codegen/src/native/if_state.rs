@@ -1,0 +1,31 @@
+use anyhow::{Error, Result, bail};
+use native::StateCheck;
+use parser::Record;
+
+use crate::{Codegen, CodegenContext, CodegenResult};
+
+/// `NATIVE_IF_STATE`: a branch on the ownership or memory state of a binding,
+/// which only the VM knows while it runs.
+pub struct NativeIfState {
+    check: StateCheck,
+}
+
+impl TryFrom<&Record> for NativeIfState {
+    type Error = Error;
+
+    fn try_from(record: &Record) -> Result<Self> {
+        Ok(Self {
+            check: StateCheck::try_from(record)?,
+        })
+    }
+}
+
+impl Codegen for NativeIfState {
+    fn generate(&self, _ctx: &mut CodegenContext) -> Result<CodegenResult> {
+        bail!(
+            "`{}.{}` can only be read by code that runs in the Into VM",
+            self.check.slot,
+            self.check.property
+        )
+    }
+}
