@@ -3,6 +3,7 @@ mod captures;
 mod condition;
 mod events;
 mod inline;
+mod numeric;
 mod operand;
 mod ownership;
 mod print_value;
@@ -16,4 +17,5 @@ mod value;
 
 pub use events::RuntimeCall;
 pub use ownership::{DESTROY, MOVE};
+pub use state_check::state_check;
 pub use type_name::{base_type_name, parse_type};

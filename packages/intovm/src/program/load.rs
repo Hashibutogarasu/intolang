@@ -1,5 +1,5 @@
 use anyhow::{Result, anyhow, bail};
-use native::{Comparison, LinkCall, OwnershipChange, StateCheck};
+use native::{CompareAssign, Comparison, LinkCall, OwnershipChange, StateCheck};
 use parser::{Hex, Record};
 use types::MessageTag;
 
@@ -103,6 +103,9 @@ impl Program {
                 operand: record.get(3).parse()?,
                 ty: record.get(4).to_owned(),
             }),
+            MessageTag::Compare => self
+                .instructions
+                .push(Instr::Compare(CompareAssign::try_from(record)?)),
             MessageTag::Print => self.instructions.push(Instr::Print {
                 variable: record.get(0).to_owned(),
                 ty: record.get(1).to_owned(),

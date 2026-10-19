@@ -243,6 +243,13 @@ impl Vm {
                 let value = operate(ty, operation, &left, &right)?;
                 self.store(target, value);
             }
+            Instr::Compare(assign) => {
+                let comparison = &assign.comparison;
+                let left = self.load_slot(&comparison.left)?;
+                let right = self.operand(&comparison.operand, &comparison.type_name)?;
+                let holds = compare(comparison.operator, &left, &right)?;
+                self.store(&assign.target, Value::Int(i64::from(holds)));
+            }
             Instr::Print {
                 variable,
                 ty,

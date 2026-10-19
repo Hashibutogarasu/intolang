@@ -12,6 +12,7 @@ pub enum MessageTag {
     Class,
     Assign,
     Arith,
+    Compare,
     Print,
     PrintConst,
     FieldPrint,

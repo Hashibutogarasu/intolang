@@ -1,6 +1,6 @@
 use ast::Expr;
 use moduler::Module;
-use native::{Comparison, NativeArg, Operand, OwnershipChange, StateCheck};
+use native::{CompareAssign, Comparison, NativeArg, Operand, OwnershipChange, StateCheck};
 use parser::{Hex, Record};
 use types::{ComparisonOperator, Literal, MessageTag, Type};
 
@@ -46,6 +46,10 @@ pub fn arith(
             .field(operand)
             .field(ty),
     );
+}
+
+pub fn compare_assign(output: &mut String, compare: &CompareAssign) {
+    push(output, compare.to_record());
 }
 
 pub fn print(output: &mut String, name: &str, ty: &Type, newline: bool) {

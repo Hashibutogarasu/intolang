@@ -1,6 +1,5 @@
 use ast::{Expr, Path};
 use native::NativeLink;
-use parser::ArithmeticLexeme;
 use std::collections::HashSet;
 use types::{Literal, MessageTag, Type};
 
@@ -100,7 +99,18 @@ impl<'a> Lowerer<'a> {
             Expr::Await(_) => {
                 return Err("`await` can only be used as a statement".into());
             }
-            Expr::Compare { .. } | Expr::Not(_) => {}
+            Expr::Compare { .. } | Expr::Logical { .. } | Expr::Not(_) => {
+                let slot = self.lower_boolean(rhs)?;
+                emit::assign(
+                    &mut self.state.output,
+                    assigned_to,
+                    &Type::Boolean,
+                    "p",
+                    &slot,
+                );
+                let ty = resolve_annotation(Type::Boolean, annotation)?;
+                return Ok((ty.name(), ty, true));
+            }
         }
         Ok((
             rhs.to_string().trim_matches('"').to_owned(),
@@ -270,40 +280,7 @@ impl<'a> Lowerer<'a> {
         annotation: Option<Type>,
         assigned_to: &str,
     ) -> Result<Bound, String> {
-        const REQUIRES_NUMERIC: &str = "Arithmetic requires a typed numeric value";
-        let name = left.as_ident().ok_or_else(|| REQUIRES_NUMERIC.to_owned())?;
-        let left_var = self
-            .state
-            .values
-            .get(name)
-            .filter(|value| value.native && value.ty.is_numeric())
-            .ok_or_else(|| REQUIRES_NUMERIC.to_owned())?;
-        let ty = match annotation {
-            Some(annotation) if annotation != left_var.ty => {
-                return Err(format!(
-                    "Arithmetic type `{}` does not match operand type `{}`",
-                    annotation.name(),
-                    left_var.ty.name()
-                ));
-            }
-            Some(annotation) => annotation,
-            None => left_var.ty.clone(),
-        };
-        if !ty.is_numeric() {
-            return Err("Arithmetic result type must be numeric".to_owned());
-        }
-        let operand = self
-            .numeric_operand(right)
-            .ok_or_else(|| format!("Unsupported arithmetic operand `{right}`"))?;
-        let operation = ArithmeticLexeme::from(op);
-        emit::arith(
-            &mut self.state.output,
-            assigned_to,
-            name,
-            operation.message_name(),
-            &operand,
-            &ty,
-        );
+        let ty = self.lower_binary_into(left, op, right, annotation.as_ref(), assigned_to)?;
         Ok((ty.name(), ty, true))
     }
 

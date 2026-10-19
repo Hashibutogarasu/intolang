@@ -38,7 +38,7 @@ impl Lowerer<'_> {
                     )),
                 }
             }
-            Expr::Compare { .. } | Expr::Not(_) => Ok(Type::Boolean),
+            Expr::Compare { .. } | Expr::Logical { .. } | Expr::Not(_) => Ok(Type::Boolean),
             Expr::Thread { .. } => Ok(Type::Named(THREAD.to_owned())),
             Expr::Lambda { .. } => Err("A lambda has no type here".to_owned()),
             Expr::Await(_) => Err("`await` has no value".to_owned()),

@@ -12,5 +12,5 @@ pub use build::{
 };
 pub use call::LinkCall;
 pub use link::{NativeLink, is_vm_only};
-pub use operand::{Comparison, Operand};
+pub use operand::{CompareAssign, Comparison, Operand};
 pub use ownership::{OwnershipChange, Property, StateCheck};

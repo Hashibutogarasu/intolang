@@ -51,6 +51,7 @@ impl Codegen for NativeArith {
                     "sub" => LLVMBuildFSub(ctx.builder, left, right, ctx.empty.as_ptr()),
                     "mul" => LLVMBuildFMul(ctx.builder, left, right, ctx.empty.as_ptr()),
                     "div" => LLVMBuildFDiv(ctx.builder, left, right, ctx.empty.as_ptr()),
+                    "rem" => LLVMBuildFRem(ctx.builder, left, right, ctx.empty.as_ptr()),
                     other => anyhow::bail!("Unsupported arithmetic operation `{other}`"),
                 }
             } else {
@@ -59,6 +60,12 @@ impl Codegen for NativeArith {
                     "sub" => LLVMBuildSub(ctx.builder, left, right, ctx.empty.as_ptr()),
                     "mul" => LLVMBuildMul(ctx.builder, left, right, ctx.empty.as_ptr()),
                     "div" => LLVMBuildSDiv(ctx.builder, left, right, ctx.empty.as_ptr()),
+                    "rem" => LLVMBuildSRem(ctx.builder, left, right, ctx.empty.as_ptr()),
+                    "and" => LLVMBuildAnd(ctx.builder, left, right, ctx.empty.as_ptr()),
+                    "or" => LLVMBuildOr(ctx.builder, left, right, ctx.empty.as_ptr()),
+                    "xor" => LLVMBuildXor(ctx.builder, left, right, ctx.empty.as_ptr()),
+                    "shl" => LLVMBuildShl(ctx.builder, left, right, ctx.empty.as_ptr()),
+                    "shr" => LLVMBuildAShr(ctx.builder, left, right, ctx.empty.as_ptr()),
                     other => anyhow::bail!("Unsupported arithmetic operation `{other}`"),
                 }
             };

@@ -314,7 +314,7 @@ impl<'a> Lowerer<'a> {
                 emit::if_const(&mut self.state.output, folded.unwrap_or_default())
             }
             _ if self.begin_state_check(condition) => {}
-            Expr::Compare { left, op, right } => {
+            Expr::Compare { left, op, right } if Self::is_plain_comparison(left, right) => {
                 self.begin_comparison(MessageTag::IfBegin, "if", left, *op, right)?;
             }
             Expr::Literal(Literal::Bool(flag)) => emit::if_const(&mut self.state.output, *flag),
@@ -322,9 +322,10 @@ impl<'a> Lowerer<'a> {
                 emit::if_const(&mut self.state.output, *number == 1)
             }
             other => {
-                return Err(format!(
-                    "Unsupported if condition in function body: `{other}`"
-                ));
+                self.begin_boolean_branch(MessageTag::IfBegin, other)
+                    .map_err(|message| {
+                        format!("Unsupported if condition in function body: {message}")
+                    })?;
             }
         }
         self.inline_block(then_body, depth, returned)?;

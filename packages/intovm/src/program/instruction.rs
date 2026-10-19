@@ -1,4 +1,6 @@
-use native::{Comparison, LinkCall, NativeArg, Operand, OwnershipChange, StateCheck};
+use native::{
+    CompareAssign, Comparison, LinkCall, NativeArg, Operand, OwnershipChange, StateCheck,
+};
 use std::collections::HashMap;
 
 use crate::value::ClassDef;
@@ -29,6 +31,7 @@ pub enum Instr {
         operand: Operand,
         ty: String,
     },
+    Compare(CompareAssign),
     Print {
         variable: String,
         ty: String,

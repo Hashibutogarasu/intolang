@@ -4,6 +4,18 @@ pub enum ArithmeticOperator {
     Sub,
     Mul,
     Div,
+    Rem,
+    BitAnd,
+    BitOr,
+    BitXor,
+    ShiftLeft,
+    ShiftRight,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LogicalOperator {
+    And,
+    Or,
 }
 
 /// An operator written with two adjacent symbols.

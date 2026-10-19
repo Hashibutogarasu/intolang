@@ -1,7 +1,7 @@
 use anyhow::{Error, Result, bail};
 use std::fmt;
 use std::str::FromStr;
-use types::{ArithmeticOperator, ComparisonOperator, CompoundOperator};
+use types::{ArithmeticOperator, ComparisonOperator, CompoundOperator, LogicalOperator};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ArithmeticLexeme(ArithmeticOperator);
@@ -15,6 +15,12 @@ impl FromStr for ArithmeticLexeme {
             "-" | "sub" => ArithmeticOperator::Sub,
             "*" | "mul" => ArithmeticOperator::Mul,
             "/" | "div" => ArithmeticOperator::Div,
+            "%" | "rem" => ArithmeticOperator::Rem,
+            "&" | "and" => ArithmeticOperator::BitAnd,
+            "|" | "or" => ArithmeticOperator::BitOr,
+            "^" | "xor" => ArithmeticOperator::BitXor,
+            "<<" | "shl" => ArithmeticOperator::ShiftLeft,
+            ">>" | "shr" => ArithmeticOperator::ShiftRight,
             other => bail!("Unsupported arithmetic operator `{other}`"),
         }))
     }
@@ -28,6 +34,12 @@ impl ArithmeticLexeme {
             ArithmeticOperator::Sub => "sub",
             ArithmeticOperator::Mul => "mul",
             ArithmeticOperator::Div => "div",
+            ArithmeticOperator::Rem => "rem",
+            ArithmeticOperator::BitAnd => "and",
+            ArithmeticOperator::BitOr => "or",
+            ArithmeticOperator::BitXor => "xor",
+            ArithmeticOperator::ShiftLeft => "shl",
+            ArithmeticOperator::ShiftRight => "shr",
         }
     }
 }
@@ -59,6 +71,48 @@ impl fmt::Display for ArithmeticLexeme {
             ArithmeticOperator::Sub => "-",
             ArithmeticOperator::Mul => "*",
             ArithmeticOperator::Div => "/",
+            ArithmeticOperator::Rem => "%",
+            ArithmeticOperator::BitAnd => "&",
+            ArithmeticOperator::BitOr => "|",
+            ArithmeticOperator::BitXor => "^",
+            ArithmeticOperator::ShiftLeft => "<<",
+            ArithmeticOperator::ShiftRight => ">>",
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LogicalLexeme(LogicalOperator);
+
+impl FromStr for LogicalLexeme {
+    type Err = Error;
+
+    fn from_str(text: &str) -> Result<Self> {
+        Ok(Self(match text {
+            "&&" => LogicalOperator::And,
+            "||" => LogicalOperator::Or,
+            other => bail!("`{other}` is not a logical operator"),
+        }))
+    }
+}
+
+impl From<LogicalLexeme> for LogicalOperator {
+    fn from(lexeme: LogicalLexeme) -> Self {
+        lexeme.0
+    }
+}
+
+impl From<LogicalOperator> for LogicalLexeme {
+    fn from(operator: LogicalOperator) -> Self {
+        Self(operator)
+    }
+}
+
+impl fmt::Display for LogicalLexeme {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self.0 {
+            LogicalOperator::And => "&&",
+            LogicalOperator::Or => "||",
         })
     }
 }

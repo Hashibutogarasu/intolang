@@ -35,6 +35,7 @@ pub fn operate(ty: &str, operation: &str, left: &Value, right: &Value) -> Result
             "sub" => a - b,
             "mul" => a * b,
             "div" => a / b,
+            "rem" => a % b,
             other => bail!("Unsupported arithmetic operation `{other}`"),
         };
         return Ok(Value::Float(if ty == "Float32" {
@@ -56,6 +57,17 @@ pub fn operate(ty: &str, operation: &str, left: &Value, right: &Value) -> Result
             }
             a.wrapping_div(b)
         }
+        "rem" => {
+            if b == 0 {
+                bail!("Division by zero");
+            }
+            a.wrapping_rem(b)
+        }
+        "and" => a & b,
+        "or" => a | b,
+        "xor" => a ^ b,
+        "shl" => a.wrapping_shl(u32::try_from(b).unwrap_or(u32::MAX)),
+        "shr" => a.wrapping_shr(u32::try_from(b).unwrap_or(u32::MAX)),
         other => bail!("Unsupported arithmetic operation `{other}`"),
     };
     Ok(Value::Int(wrap(ty, result)))

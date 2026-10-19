@@ -65,7 +65,9 @@ fn collect_expression(expression: &Expr, names: &mut BTreeSet<String>) {
             names.insert(callee.first().to_owned());
             args.iter().for_each(|arg| collect_expression(arg, names));
         }
-        Expr::Binary { left, right, .. } | Expr::Compare { left, right, .. } => {
+        Expr::Binary { left, right, .. }
+        | Expr::Logical { left, right, .. }
+        | Expr::Compare { left, right, .. } => {
             collect_expression(left, names);
             collect_expression(right, names);
         }

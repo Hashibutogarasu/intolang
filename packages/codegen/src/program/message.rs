@@ -4,11 +4,11 @@ use types::MessageTag;
 
 use crate::native::{
     Class, NativeAlias, NativeArith, NativeAssign, NativeAwait, NativeBreak, NativeCall,
-    NativeConstruct, NativeCopy, NativeEmit, NativeEventDestroy, NativeEventOff, NativeEventOn,
-    NativeFieldPrint, NativeHandlerBegin, NativeHandlerEnd, NativeIfBegin, NativeIfCall,
-    NativeIfConst, NativeIfElse, NativeIfEnd, NativeIfState, NativeLinkAssign, NativeLoopBegin,
-    NativeLoopEnd, NativeModule, NativeOwnership, NativePrint, NativePrintConst, NativeThreadRun,
-    NativeThrow, NativeWhileBegin,
+    NativeCompare, NativeConstruct, NativeCopy, NativeEmit, NativeEventDestroy, NativeEventOff,
+    NativeEventOn, NativeFieldPrint, NativeHandlerBegin, NativeHandlerEnd, NativeIfBegin,
+    NativeIfCall, NativeIfConst, NativeIfElse, NativeIfEnd, NativeIfState, NativeLinkAssign,
+    NativeLoopBegin, NativeLoopEnd, NativeModule, NativeOwnership, NativePrint, NativePrintConst,
+    NativeThreadRun, NativeThrow, NativeWhileBegin,
 };
 use crate::{Codegen, Text};
 
@@ -37,6 +37,7 @@ pub(crate) fn parse(message: &str) -> Result<Program> {
             MessageTag::Native => Box::new(NativeCall::try_from(&record)?),
             MessageTag::Assign => Box::new(NativeAssign::try_from(&record)?),
             MessageTag::Arith => Box::new(NativeArith::try_from(&record)?),
+            MessageTag::Compare => Box::new(NativeCompare::try_from(&record)?),
             MessageTag::Print => Box::new(NativePrint::try_from(&record)?),
             MessageTag::PrintConst => Box::new(NativePrintConst::try_from(&record)?),
             MessageTag::FieldPrint => Box::new(NativeFieldPrint::try_from(&record)?),

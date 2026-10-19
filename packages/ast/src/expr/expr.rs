@@ -1,8 +1,10 @@
 use anyhow::Result;
-use parser::{ArithmeticLexeme, ComparisonLexeme};
+use parser::{ArithmeticLexeme, ComparisonLexeme, LogicalLexeme};
 use std::fmt;
 use std::str::FromStr;
-use types::{ArithmeticOperator, ComparisonOperator, Keyword, Literal, Punct, TokenKind};
+use types::{
+    ArithmeticOperator, ComparisonOperator, Keyword, Literal, LogicalOperator, Punct, TokenKind,
+};
 
 use super::path::Path;
 use crate::stmt::{Scope, parse_block};
@@ -27,6 +29,11 @@ pub enum Expr {
     Binary {
         left: Box<Expr>,
         op: ArithmeticOperator,
+        right: Box<Expr>,
+    },
+    Logical {
+        left: Box<Expr>,
+        op: LogicalOperator,
         right: Box<Expr>,
     },
     Compare {
@@ -94,6 +101,11 @@ impl Expr {
                 args: args.iter().map(|arg| arg.substitute(bindings)).collect(),
             },
             Expr::Binary { left, op, right } => Expr::Binary {
+                left: Box::new(left.substitute(bindings)),
+                op: *op,
+                right: Box::new(right.substitute(bindings)),
+            },
+            Expr::Logical { left, op, right } => Expr::Logical {
                 left: Box::new(left.substitute(bindings)),
                 op: *op,
                 right: Box::new(right.substitute(bindings)),
@@ -174,6 +186,9 @@ impl fmt::Display for Expr {
             Expr::Binary { left, op, right } => {
                 write!(f, "{left} {} {right}", ArithmeticLexeme::from(*op))
             }
+            Expr::Logical { left, op, right } => {
+                write!(f, "{left} {} {right}", LogicalLexeme::from(*op))
+            }
             Expr::Compare { left, op, right } => {
                 write!(f, "{left} {} {right}", ComparisonLexeme::from(*op))
             }
@@ -200,21 +215,53 @@ impl TryFrom<&mut Cursor<'_>> for Expr {
     type Error = anyhow::Error;
 
     fn try_from(cursor: &mut Cursor<'_>) -> Result<Self> {
-        let left = additive(cursor)?;
-        match comparison_operator(cursor) {
-            Some((op, width)) => {
-                for _ in 0..width {
-                    cursor.bump();
-                }
-                let right = additive(cursor)?;
-                Ok(Expr::Compare {
-                    left: Box::new(left),
-                    op,
-                    right: Box::new(right),
-                })
+        logical(cursor, LogicalOperator::Or)
+    }
+}
+
+fn logical(cursor: &mut Cursor<'_>, level: LogicalOperator) -> Result<Expr> {
+    let operand = |cursor: &mut Cursor<'_>| match level {
+        LogicalOperator::Or => logical(cursor, LogicalOperator::And),
+        LogicalOperator::And => comparison(cursor),
+    };
+    let mut left = operand(cursor)?;
+    while logical_operator(cursor) == Some(level) {
+        cursor.bump();
+        cursor.bump();
+        let right = operand(cursor)?;
+        left = Expr::Logical {
+            left: Box::new(left),
+            op: level,
+            right: Box::new(right),
+        };
+    }
+    Ok(left)
+}
+
+fn logical_operator(cursor: &Cursor<'_>) -> Option<LogicalOperator> {
+    let first = cursor.peek_symbol(0)?;
+    let second = cursor.peek_symbol(1).filter(|_| cursor.adjacent(1))?;
+    format!("{first}{second}")
+        .parse::<LogicalLexeme>()
+        .ok()
+        .map(Into::into)
+}
+
+fn comparison(cursor: &mut Cursor<'_>) -> Result<Expr> {
+    let left = binary(cursor, 0)?;
+    match comparison_operator(cursor) {
+        Some((op, width)) => {
+            for _ in 0..width {
+                cursor.bump();
             }
-            None => Ok(left),
+            let right = binary(cursor, 0)?;
+            Ok(Expr::Compare {
+                left: Box::new(left),
+                op,
+                right: Box::new(right),
+            })
         }
+        None => Ok(left),
     }
 }
 
@@ -233,16 +280,49 @@ fn comparison_operator(cursor: &Cursor<'_>) -> Option<(ComparisonOperator, usize
         .map(|lexeme| (lexeme.into(), 1))
 }
 
-fn arithmetic_operator(cursor: &Cursor<'_>) -> Option<ArithmeticOperator> {
-    let symbol = cursor.peek_symbol(0)?;
-    ArithmeticLexeme::try_from(symbol).ok().map(Into::into)
+/// The binary operators from the loosest binding to the tightest.
+const LEVELS: [&[ArithmeticOperator]; 6] = [
+    &[ArithmeticOperator::BitOr],
+    &[ArithmeticOperator::BitXor],
+    &[ArithmeticOperator::BitAnd],
+    &[
+        ArithmeticOperator::ShiftLeft,
+        ArithmeticOperator::ShiftRight,
+    ],
+    &[ArithmeticOperator::Add, ArithmeticOperator::Sub],
+    &[
+        ArithmeticOperator::Mul,
+        ArithmeticOperator::Div,
+        ArithmeticOperator::Rem,
+    ],
+];
+
+/// The operator at the cursor when it belongs to `level`, and how many symbols
+/// it is written with. `&&`, `||` and the comparisons are not arithmetic.
+fn arithmetic_operator(cursor: &Cursor<'_>, level: usize) -> Option<(ArithmeticOperator, usize)> {
+    let first = cursor.peek_symbol(0)?;
+    let second = cursor.peek_symbol(1).filter(|_| cursor.adjacent(1));
+    let (operator, width) = match (first, second) {
+        ('<', Some('<')) => (ArithmeticOperator::ShiftLeft, 2),
+        ('>', Some('>')) => (ArithmeticOperator::ShiftRight, 2),
+        ('&', Some('&')) | ('|', Some('|')) | ('<' | '>', _) => return None,
+        (symbol, _) => (ArithmeticLexeme::try_from(symbol).ok()?.into(), 1),
+    };
+    LEVELS[level]
+        .contains(&operator)
+        .then_some((operator, width))
 }
 
-fn additive(cursor: &mut Cursor<'_>) -> Result<Expr> {
-    let mut left = unary(cursor)?;
-    while let Some(op) = arithmetic_operator(cursor) {
-        cursor.bump();
-        let right = unary(cursor)?;
+fn binary(cursor: &mut Cursor<'_>, level: usize) -> Result<Expr> {
+    if level == LEVELS.len() {
+        return unary(cursor);
+    }
+    let mut left = binary(cursor, level + 1)?;
+    while let Some((op, width)) = arithmetic_operator(cursor, level) {
+        for _ in 0..width {
+            cursor.bump();
+        }
+        let right = binary(cursor, level + 1)?;
         left = Expr::Binary {
             left: Box::new(left),
             op,

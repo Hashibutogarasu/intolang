@@ -4,7 +4,9 @@ mod meta;
 mod token;
 mod value;
 
-pub use grammar::{ArithmeticLexeme, ComparisonLexeme, CompoundLexeme, KeywordLexeme, PunctLexeme};
+pub use grammar::{
+    ArithmeticLexeme, ComparisonLexeme, CompoundLexeme, KeywordLexeme, LogicalLexeme, PunctLexeme,
+};
 pub use message::{Record, TagLexeme};
 pub use meta::{LanguageLexeme, TypeLexeme};
 pub use token::{CommentLexeme, IdentLexeme, NumberLexeme, StringLexeme, SymbolLexeme};
