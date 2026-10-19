@@ -65,6 +65,9 @@ fn collect_calls_in_expression(expression: &Expr, calls: &mut Vec<Path>) {
         Expr::Array(items) => items
             .iter()
             .for_each(|item| collect_calls_in_expression(item, calls)),
+        Expr::Object(entries) => entries
+            .iter()
+            .for_each(|(_, value)| collect_calls_in_expression(value, calls)),
         Expr::Literal(_) | Expr::Path(_) => {}
         Expr::Call { callee, args } => {
             calls.push(callee.clone());
@@ -201,5 +204,8 @@ fn collect_expression(expression: &Expr, names: &mut BTreeSet<String>) {
         Expr::Array(items) => items
             .iter()
             .for_each(|item| collect_expression(item, names)),
+        Expr::Object(entries) => entries
+            .iter()
+            .for_each(|(_, value)| collect_expression(value, names)),
     }
 }

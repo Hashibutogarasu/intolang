@@ -10,6 +10,7 @@ mod inline;
 mod lists;
 mod member_events;
 mod numeric;
+mod objects;
 mod operand;
 mod ownership;
 mod print_value;

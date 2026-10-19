@@ -130,6 +130,14 @@ impl<'a> Lowerer<'a> {
             Expr::Await(_) => {
                 return Err("`await` can only be used as a statement".into());
             }
+            Expr::Object(entries) => {
+                let object = self.lower_object(entries, assigned_to)?;
+                let ty = match annotation {
+                    Some(annotation) => resolve_annotation(object, Some(annotation))?,
+                    None => object,
+                };
+                return Ok((ty.name(), ty, true));
+            }
             Expr::Array(items) => {
                 let list = self.lower_array(items, annotation.as_ref(), assigned_to)?;
                 let ty = resolve_annotation(list, annotation)?;

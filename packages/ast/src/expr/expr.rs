@@ -48,6 +48,8 @@ pub enum Expr {
     },
     /// An array literal, `[1, 2, 3]`.
     Array(Vec<Expr>),
+    /// An object literal, `{ "name": value }`.
+    Object(Vec<(String, Expr)>),
 }
 
 impl Expr {
@@ -129,6 +131,12 @@ impl Expr {
             Expr::Array(items) => {
                 Expr::Array(items.iter().map(|item| item.substitute(bindings)).collect())
             }
+            Expr::Object(entries) => Expr::Object(
+                entries
+                    .iter()
+                    .map(|(key, value)| (key.clone(), value.substitute(bindings)))
+                    .collect(),
+            ),
         }
     }
 }
@@ -223,6 +231,23 @@ impl fmt::Display for Expr {
                     write!(f, "{item}")?;
                 }
                 f.write_str("]")
+            }
+            Expr::Object(entries) => {
+                f.write_str("{")?;
+                for (index, (key, value)) in entries.iter().enumerate() {
+                    if index > 0 {
+                        f.write_str(",")?;
+                    }
+                    write!(
+                        f,
+                        " {}: {value}",
+                        literal_text(&Literal::String(key.clone()))
+                    )?;
+                }
+                if !entries.is_empty() {
+                    f.write_str(" ")?;
+                }
+                f.write_str("}")
             }
         }
     }
@@ -462,6 +487,7 @@ fn primary(cursor: &mut Cursor<'_>) -> Result<Expr> {
             }
         }
         TokenKind::Symbol('[') => array(cursor),
+        TokenKind::Symbol('{') => object(cursor),
         TokenKind::Symbol('(') if lambda_ahead(cursor) => lambda(cursor),
         TokenKind::Symbol('(') => {
             cursor.bump();
@@ -534,6 +560,25 @@ fn array(cursor: &mut Cursor<'_>) -> Result<Expr> {
         }
         cursor.bump();
         return Ok(Expr::Array(items));
+    }
+}
+
+fn object(cursor: &mut Cursor<'_>) -> Result<Expr> {
+    cursor.bump();
+    let mut entries = Vec::new();
+    loop {
+        if cursor.eat_punct(Punct::RightBrace) {
+            return Ok(Expr::Object(entries));
+        }
+        let Some(key) = cursor.peek_string(0).map(str::to_owned) else {
+            return Err(cursor.error("Expected a text key or `}` in the object"));
+        };
+        cursor.bump();
+        cursor.expect_punct(Punct::Colon, "`:` after the key")?;
+        entries.push((key, Expr::try_from(&mut *cursor)?));
+        if !cursor.eat_punct(Punct::Comma) && !cursor.is_punct(Punct::RightBrace) {
+            return Err(cursor.error("Expected `,` or `}` in the object"));
+        }
     }
 }
 

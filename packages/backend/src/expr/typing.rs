@@ -48,6 +48,7 @@ impl Lowerer<'_> {
             }
             Expr::Cast { ty, .. } => Ok(spelled(ty.as_str())),
             Expr::Array(items) => self.array_type(items),
+            Expr::Object(_) => Ok(Type::Named("Json".to_owned())),
             Expr::Compare { .. } | Expr::Logical { .. } | Expr::Not(_) => Ok(Type::Boolean),
             Expr::Thread { .. } => Ok(Type::Named(THREAD.to_owned())),
             Expr::Lambda { .. } => Err("A lambda has no type here".to_owned()),
