@@ -83,9 +83,15 @@ impl Lowerer<'_> {
             self.print_literal(literal, newline);
             return Ok(());
         }
-        if let Expr::Call { callee, .. } = argument
-            && callee.is_member()
-        {
+        if matches!(
+            argument,
+            Expr::Call { .. }
+                | Expr::Binary { .. }
+                | Expr::Cast { .. }
+                | Expr::Compare { .. }
+                | Expr::Logical { .. }
+                | Expr::Not(_)
+        ) {
             let temporary = format!("__print{}", self.state.temp_counter);
             self.state.temp_counter += 1;
             let (value, ty, native) = self

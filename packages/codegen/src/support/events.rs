@@ -157,6 +157,7 @@ impl CodegenContext {
         name: &str,
         params: &[(String, String)],
         captures: &[String],
+        return_type: Option<&str>,
     ) -> Result<()> {
         unsafe {
             self.flush_text()?;
@@ -165,8 +166,12 @@ impl CodegenContext {
             }
             let mut types: Vec<*mut LLVMType> =
                 params.iter().map(|(_, ty)| self.into_type(ty)).collect();
+            let returns = return_type
+                .filter(|ty| !matches!(*ty, "" | "Void"))
+                .map(|ty| self.into_type(ty));
+            self.returns.push(returns);
             let function_type = LLVMFunctionType(
-                LLVMVoidTypeInContext(self.context),
+                returns.unwrap_or_else(|| LLVMVoidTypeInContext(self.context)),
                 types.as_mut_ptr(),
                 types.len() as u32,
                 0,
@@ -207,7 +212,10 @@ impl CodegenContext {
     pub(crate) unsafe fn end_function(&mut self) -> Result<()> {
         unsafe {
             self.flush_text()?;
-            LLVMBuildRetVoid(self.builder);
+            match self.returns.pop().flatten() {
+                Some(ty) => LLVMBuildRet(self.builder, LLVMConstNull(ty)),
+                None => LLVMBuildRetVoid(self.builder),
+            };
             let saved = self
                 .functions
                 .pop()

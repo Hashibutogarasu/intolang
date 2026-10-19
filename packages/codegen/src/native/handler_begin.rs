@@ -45,7 +45,7 @@ impl TryFrom<&Record> for NativeHandlerBegin {
 impl Codegen for NativeHandlerBegin {
     fn generate(&self, ctx: &mut CodegenContext) -> Result<CodegenResult> {
         unsafe {
-            ctx.begin_function(&self.name, &self.params, &self.captures)?;
+            ctx.begin_function(&self.name, &self.params, &self.captures, None)?;
         }
         Ok(CodegenResult::unit())
     }

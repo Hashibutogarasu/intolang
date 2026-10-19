@@ -19,6 +19,8 @@ pub struct Env {
     pub class_fields: ClassFields,
     pub classes: Classes,
     pub user_functions: HashMap<String, UserFunction>,
+    /// The keys of the functions that are called at run time.
+    pub runtime_functions: HashSet<String>,
     pub consuming: HashMap<String, Ownership>,
     pub events: HashMap<String, EventInfo>,
     pub type_params: HashSet<String>,

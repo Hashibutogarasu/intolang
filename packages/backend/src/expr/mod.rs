@@ -4,6 +4,7 @@ mod casts;
 mod condition;
 mod events;
 mod fields;
+mod functions;
 mod inline;
 mod numeric;
 mod operand;
@@ -18,6 +19,7 @@ mod type_name;
 mod typing;
 mod value;
 
+pub use captures::{called_paths, returns_early};
 pub use events::RuntimeCall;
 pub use numeric::Kind;
 pub use ownership::{DESTROY, MOVE};

@@ -198,7 +198,9 @@ impl Lowerer<'_> {
         let frames = mem::take(&mut self.state.frames);
         self.state.scopes.push(Vec::new());
 
+        self.state.returning.push(Type::Void);
         let lowered = self.lower_block(body).map_err(|error| error.to_string());
+        self.state.returning.pop();
         let owned = self.state.scopes.pop().unwrap_or_default();
         lowered?;
         self.release_scope(&owned, None)?;

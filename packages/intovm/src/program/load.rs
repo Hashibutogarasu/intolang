@@ -1,7 +1,7 @@
 use anyhow::{Result, anyhow, bail};
 use native::{
-    CastAssign, CompareAssign, Comparison, FieldAssign, FieldLoad, LinkCall, OwnershipChange,
-    StateCheck,
+    CastAssign, CompareAssign, Comparison, FieldAssign, FieldLoad, FunctionCall,
+    FunctionDefinition, FunctionReturn, LinkCall, OwnershipChange, StateCheck,
 };
 use parser::{Hex, Record};
 use types::MessageTag;
@@ -239,6 +239,30 @@ impl Program {
                 );
                 open.push(Open::Handler { skip });
             }
+            MessageTag::FunctionBegin => {
+                let definition = FunctionDefinition::try_from(record)?;
+                let skip = self.here();
+                self.instructions.push(Instr::Jump(0));
+                self.functions.insert(
+                    definition.name,
+                    Function {
+                        entry: self.here(),
+                        params: definition
+                            .params
+                            .into_iter()
+                            .map(|(name, _)| name)
+                            .collect(),
+                        captures: Vec::new(),
+                    },
+                );
+                open.push(Open::Handler { skip });
+            }
+            MessageTag::CallFn => self
+                .instructions
+                .push(Instr::CallFn(FunctionCall::try_from(record)?)),
+            MessageTag::Return => self
+                .instructions
+                .push(Instr::ReturnValue(FunctionReturn::try_from(record)?)),
             MessageTag::HandlerEnd => {
                 let Some(Open::Handler { skip }) = open.pop() else {
                     bail!("NATIVE_HANDLER_END has no matching handler");

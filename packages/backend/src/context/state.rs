@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use types::Type;
 
 use super::variable::{Tracking, Variable};
 
@@ -29,6 +30,10 @@ pub struct State {
     /// The inlined function calls being lowered, innermost last.
     pub frames: Vec<InlineFrame>,
     pub destroyed_events: HashSet<String>,
+    /// The functions called at run time whose definition is in the output.
+    pub defined_functions: HashSet<String>,
+    /// The types the run time functions being lowered return, innermost last.
+    pub returning: Vec<Type>,
 }
 
 impl State {

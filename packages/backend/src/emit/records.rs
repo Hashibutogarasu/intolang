@@ -1,8 +1,8 @@
 use ast::Expr;
 use moduler::Module;
 use native::{
-    CastAssign, CompareAssign, Comparison, FieldAssign, FieldLoad, NativeArg, Operand,
-    OwnershipChange, StateCheck,
+    CastAssign, CompareAssign, Comparison, FieldAssign, FieldLoad, FunctionCall,
+    FunctionDefinition, FunctionReturn, NativeArg, Operand, OwnershipChange, StateCheck,
 };
 use parser::{Hex, Record};
 use types::{ComparisonOperator, Literal, MessageTag, Type};
@@ -200,6 +200,19 @@ pub fn event_on(output: &mut String, event: &str, listener: &str, handler: &str)
             .field(listener)
             .field(handler),
     );
+}
+
+/// Open the function `definition`; `NATIVE_HANDLER_END` closes it.
+pub fn function_begin(output: &mut String, definition: &FunctionDefinition) {
+    push(output, definition.to_record());
+}
+
+pub fn function_call(output: &mut String, call: &FunctionCall) {
+    push(output, call.to_record());
+}
+
+pub fn function_return(output: &mut String, result: &FunctionReturn) {
+    push(output, result.to_record());
 }
 
 pub fn event_emit(output: &mut String, event: &str, args: &[NativeArg]) {

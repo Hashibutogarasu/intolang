@@ -41,7 +41,9 @@ impl Lowerer<'_> {
                 self.lower_throw(message);
                 Ok(())
             }
-            StmtKind::Return(_) => Ok(()),
+            StmtKind::Return(value) => self
+                .lower_function_return(value.as_ref())
+                .map_err(|message| self.diagnostic(line, &message)),
         }
     }
 }

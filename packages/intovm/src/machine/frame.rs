@@ -10,6 +10,8 @@ pub struct Frame {
     pub locals: HashMap<String, Value>,
     pub captures: Vec<String>,
     pub main: bool,
+    /// The slot of the caller that receives the value this frame returns.
+    pub returns_to: Option<String>,
 }
 
 impl Frame {
@@ -19,6 +21,7 @@ impl Frame {
             locals: HashMap::new(),
             captures: Vec::new(),
             main: true,
+            returns_to: None,
         }
     }
 
@@ -34,6 +37,7 @@ impl Frame {
             locals,
             captures,
             main: false,
+            returns_to: None,
         }
     }
 }

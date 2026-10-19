@@ -20,6 +20,9 @@ use crate::value::{Instance, Value};
 /// because the virtual threads only switch at points like this one.
 const SLEEP: &str = "standard_sleep";
 
+/// How many frames may be open at once before a call fails.
+const MAX_CALL_DEPTH: usize = 100_000;
+
 /// A native function the VM runs instead of calling the C symbol.
 pub type Intrinsic = Rc<dyn Fn(&mut Vm, &[Value]) -> Result<Value>>;
 
@@ -387,7 +390,45 @@ impl Vm {
                 return Ok(());
             }
             Instr::Return => {
-                self.frames.pop();
+                if let Some(frame) = self.frames.pop()
+                    && let Some(target) = frame.returns_to
+                {
+                    self.store(&target, Value::Int(0));
+                }
+                return Ok(());
+            }
+            Instr::CallFn(call) => {
+                if self.frames.len() >= MAX_CALL_DEPTH {
+                    bail!("Stack overflow in `{}`", call.name);
+                }
+                let function = program
+                    .functions
+                    .get(&call.name)
+                    .ok_or_else(|| anyhow!("Call of the undefined function `{}`", call.name))?;
+                let values = call
+                    .args
+                    .iter()
+                    .map(|arg| self.argument(arg))
+                    .collect::<Result<Vec<_>>>()?;
+                let locals = function.params.iter().cloned().zip(values).collect();
+                self.advance();
+                let mut frame = Frame::function(function.entry, locals, Vec::new());
+                if !call.target.is_empty() {
+                    frame.returns_to = Some(call.target.clone());
+                }
+                self.frames.push(frame);
+                return Ok(());
+            }
+            Instr::ReturnValue(result) => {
+                let value = match &result.operand {
+                    Some(operand) => Some(self.operand(operand, &result.ty)?),
+                    None => None,
+                };
+                if let Some(frame) = self.frames.pop()
+                    && let (Some(target), Some(value)) = (frame.returns_to, value)
+                {
+                    self.store(&target, value);
+                }
                 return Ok(());
             }
         }

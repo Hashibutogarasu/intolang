@@ -25,6 +25,9 @@ impl<'a> Lowerer<'a> {
         args: &[Expr],
         depth: usize,
     ) -> Result<Returned, String> {
+        if self.is_runtime_function(function) {
+            return self.call_runtime_function(function, receiver, args);
+        }
         if depth > MAX_INLINE_DEPTH {
             return Err(format!(
                 "Recursive call to `{}` is not supported",
@@ -348,7 +351,15 @@ impl<'a> Lowerer<'a> {
             return Ok(());
         }
         if matches!(argument, Expr::Path(path) if path.is_member())
-            || matches!(argument, Expr::Call { callee, .. } if callee.is_member())
+            || matches!(
+                argument,
+                Expr::Call { .. }
+                    | Expr::Binary { .. }
+                    | Expr::Cast { .. }
+                    | Expr::Compare { .. }
+                    | Expr::Logical { .. }
+                    | Expr::Not(_)
+            )
         {
             return self
                 .lower_print(0, newline, args)

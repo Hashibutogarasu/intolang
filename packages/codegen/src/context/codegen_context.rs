@@ -59,6 +59,7 @@ pub struct CodegenContext {
     pub events: HashMap<String, EventTable>,
     pub globals: HashSet<String>,
     pub functions: Vec<SavedFunction>,
+    pub returns: Vec<Option<*mut LLVMType>>,
     pub labels: usize,
 }
 
@@ -107,6 +108,7 @@ impl CodegenContext {
                 events: HashMap::new(),
                 globals: HashSet::new(),
                 functions: Vec::new(),
+                returns: Vec::new(),
                 labels: 0,
             })
         }
