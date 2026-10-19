@@ -49,9 +49,10 @@ fn collect(
     Ok(())
 }
 
-/// The module every program imports without naming it: the native members of
-/// `Object`.
-const IMPLICIT_IMPORTS: &str = "import \"intolang://builtin/object\";";
+/// The modules every program imports without naming them: the native members
+/// of `Object` and of `String`.
+const IMPLICIT_IMPORTS: &str =
+    "import \"intolang://builtin/object\";\nimport \"intolang://builtin/string\";";
 const IMPLICIT_MODULE_FILE: &str = "src/main/object.into";
 
 /// Follow the imports reachable from `program`, returning every module.

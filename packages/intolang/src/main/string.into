@@ -1,0 +1,34 @@
+pub String() {
+    #[link("c", "src/ffi/string.c", "into_string_concat")]
+    pub static fun concat(left: String, right: String): String;
+
+    #[link("c", "src/ffi/string.c", "into_string_from_char")]
+    pub static fun fromChar(value: Char): String;
+
+    #[link("c", "src/ffi/string.c", "into_string_equals")]
+    pub static fun equals(left: String, right: String): Boolean;
+
+    #[link("c", "src/ffi/string.c", "into_string_length")]
+    pub fun length(): Int32;
+
+    #[link("c", "src/ffi/string.c", "into_string_at")]
+    pub fun at(index: Int32): Char;
+
+    #[link("c", "src/ffi/string.c", "into_string_substring")]
+    pub fun subString(start: Int32, end: Int32): String;
+
+    #[link("c", "src/ffi/string.c", "into_string_index_of")]
+    pub fun indexOf(needle: String): Int32;
+
+    #[link("c", "src/ffi/string.c", "into_string_starts_with")]
+    pub fun startsWith(prefix: String): Boolean;
+
+    #[link("c", "src/ffi/string.c", "into_string_ends_with")]
+    pub fun endsWith(suffix: String): Boolean;
+
+    #[link("c", "src/ffi/string.c", "into_string_to_lower")]
+    pub fun toLower(): String;
+
+    #[link("c", "src/ffi/string.c", "into_string_to_upper")]
+    pub fun toUpper(): String;
+}

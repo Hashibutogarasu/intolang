@@ -5,6 +5,7 @@ mod memory;
 mod native;
 mod operand;
 mod process;
+mod text;
 mod threads;
 mod trace;
 mod vm;

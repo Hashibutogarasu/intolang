@@ -63,6 +63,6 @@ fn rejects_non_numeric_conditions() {
     assert!(
         error
             .to_string()
-            .contains("if condition requires an integer or float value")
+            .contains("A text can only be compared with a text, not `1`")
     );
 }

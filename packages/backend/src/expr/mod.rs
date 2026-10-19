@@ -11,6 +11,7 @@ mod print_value;
 mod resolve;
 mod signals;
 mod state_check;
+mod text;
 mod threads;
 mod type_name;
 mod typing;

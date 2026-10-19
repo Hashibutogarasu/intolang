@@ -7,6 +7,7 @@ use super::annotation::resolve_annotation;
 use super::events::{RuntimeCall, event_value, listener_value};
 use super::numeric::Kind;
 use super::ownership::{BORROW, DESTROY};
+use super::text::Text;
 use super::threads::{task_value, thread_value};
 use super::type_name::{base_type_name, parse_type};
 use crate::context::{Lowerer, Tracking, UserFunction};
@@ -33,6 +34,21 @@ impl<'a> Lowerer<'a> {
                 if let Some(bound) = bound {
                     return Ok(bound);
                 }
+            }
+            Expr::Binary {
+                op: types::ArithmeticOperator::Add,
+                ..
+            } if self.is_text(rhs) => {
+                let ty = resolve_annotation(Type::String, annotation)?;
+                return match self.lower_text(rhs, Some(assigned_to))? {
+                    Text::Const(value) => Ok((value, ty, false)),
+                    Text::Slot(slot) => {
+                        if slot != assigned_to {
+                            emit::assign(&mut self.state.output, assigned_to, &ty, "p", &slot);
+                        }
+                        Ok((ty.name(), ty, true))
+                    }
+                };
             }
             Expr::Binary { left, op, right } => {
                 return self.arithmetic_value(left, *op, right, annotation, assigned_to);

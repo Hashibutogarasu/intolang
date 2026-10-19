@@ -9,7 +9,8 @@
   "nativeDependencies": {
     "src/ffi/dummy-process.c": [],
     "src/ffi/list.c": [],
-    "src/ffi/object.c": []
+    "src/ffi/object.c": [],
+    "src/ffi/string.c": []
   },
   "supported-platforms": ["linux", "windows", "macos", "android"]
 }

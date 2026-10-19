@@ -314,7 +314,7 @@ impl<'a> Lowerer<'a> {
                 emit::if_const(&mut self.state.output, folded.unwrap_or_default())
             }
             _ if self.begin_state_check(condition) => {}
-            Expr::Compare { left, op, right } if Self::is_plain_comparison(left, right) => {
+            Expr::Compare { left, op, right } if self.is_plain_comparison(left, right) => {
                 self.begin_comparison(MessageTag::IfBegin, "if", left, *op, right)?;
             }
             Expr::Literal(Literal::Bool(flag)) => emit::if_const(&mut self.state.output, *flag),

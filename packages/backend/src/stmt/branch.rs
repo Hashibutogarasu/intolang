@@ -65,11 +65,15 @@ impl Lowerer<'_> {
 
     /// Whether a comparison names a variable and a literal or another
     /// variable, which a comparison record can express directly.
-    pub(crate) fn is_plain_comparison(left: &Expr, right: &Expr) -> bool {
+    pub(crate) fn is_plain_comparison(&self, left: &Expr, right: &Expr) -> bool {
         let simple = |expression: &Expr| {
             expression.as_ident().is_some() || matches!(expression, Expr::Literal(_))
         };
-        simple(left) && simple(right) && (left.as_ident().is_some() || right.as_ident().is_some())
+        simple(left)
+            && simple(right)
+            && (left.as_ident().is_some() || right.as_ident().is_some())
+            && !self.is_text(left)
+            && !self.is_text(right)
     }
 
     /// Whether the condition has to be computed into a `Boolean` slot first.
@@ -78,7 +82,7 @@ impl Lowerer<'_> {
             return false;
         }
         match condition {
-            Expr::Compare { left, right, .. } => !Self::is_plain_comparison(left, right),
+            Expr::Compare { left, right, .. } => !self.is_plain_comparison(left, right),
             Expr::Call { .. } => false,
             _ => true,
         }
@@ -98,7 +102,7 @@ impl Lowerer<'_> {
         let env = self.env;
         match condition {
             _ if self.begin_state_check(condition) => Ok(()),
-            Expr::Compare { left, op, right } if Self::is_plain_comparison(left, right) => self
+            Expr::Compare { left, op, right } if self.is_plain_comparison(left, right) => self
                 .begin_comparison(compare_tag, label, left, *op, right)
                 .map_err(|message| self.diagnostic(line, &message)),
             Expr::Call { callee, args } => {

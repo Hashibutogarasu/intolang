@@ -27,8 +27,15 @@ impl Lowerer<'_> {
             Expr::Literal(literal) => Ok(literal_type(literal)),
             Expr::Path(path) => self.path_type(path),
             Expr::Call { callee, .. } => self.call_type(callee),
-            Expr::Binary { left, right, .. } => {
+            Expr::Binary { left, op, right } => {
                 let (left, right) = (self.type_of(left)?, self.type_of(right)?);
+                if *op == types::ArithmeticOperator::Add
+                    && (left == Type::String || right == Type::String)
+                    && matches!(left, Type::String | Type::Char)
+                    && matches!(right, Type::String | Type::Char)
+                {
+                    return Ok(Type::String);
+                }
                 match (left.is_numeric(), right.is_numeric()) {
                     (true, true) if left.is_float() || !right.is_float() => Ok(left),
                     (true, true) => Ok(right),

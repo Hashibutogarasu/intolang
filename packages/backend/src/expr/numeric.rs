@@ -35,7 +35,7 @@ fn integer_only(operator: ArithmeticOperator) -> bool {
 }
 
 impl Lowerer<'_> {
-    fn fresh_slot(&mut self, ty: &Type) -> String {
+    pub(super) fn fresh_slot(&mut self, ty: &Type) -> String {
         let name = format!("__value{}", self.state.temp_counter);
         self.state.temp_counter += 1;
         self.state
@@ -272,6 +272,9 @@ impl Lowerer<'_> {
                 self.emit_compare(&target, &value, ComparisonOperator::Equal, "0");
                 Ok(target)
             }
+            Expr::Compare { left, op, right } if self.is_text(left) || self.is_text(right) => {
+                self.lower_text_comparison(left, *op, right)
+            }
             Expr::Compare { left, op, right } => {
                 let left = self.lower_numeric(left)?;
                 let right = self.lower_numeric(right)?;
@@ -334,7 +337,7 @@ impl Lowerer<'_> {
         }
     }
 
-    fn emit_compare(
+    pub(super) fn emit_compare(
         &mut self,
         target: &str,
         left: &str,

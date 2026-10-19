@@ -71,6 +71,9 @@ impl Lowerer<'_> {
                 .map(NativeArg::Int)
                 .map_err(|_| format!("Unsupported native argument `{arg}`")),
             Expr::Literal(Literal::Bool(flag)) => Ok(NativeArg::Int(i32::from(*flag))),
+            Expr::Literal(Literal::Char(value)) => i32::try_from(u32::from(*value))
+                .map(NativeArg::Int)
+                .map_err(|_| format!("Unsupported native argument `{arg}`")),
             Expr::Path(path) if path.is_member() => {
                 if let Some(field) = self.static_field(path) {
                     return match field.default_literal() {

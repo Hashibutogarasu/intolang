@@ -98,6 +98,7 @@ impl Vm {
         };
         let real_processes = vm.options.real_processes;
         install(&mut vm, real_processes);
+        super::text::install(&mut vm);
         vm
     }
 
