@@ -71,7 +71,7 @@ pub struct Vm {
     pub(super) retained_strings: Vec<std::ffi::CString>,
     pub(super) lists: Vec<Vec<Value>>,
     pub(super) allocations: HashMap<usize, std::alloc::Layout>,
-    pub(super) assets: Option<std::path::PathBuf>,
+    pub(super) assets: Option<Rc<bundle::Bundle>>,
     options: VmOptions,
     stdout: Vec<u8>,
     stdin_position: usize,
@@ -225,7 +225,7 @@ impl Vm {
             self.native = Some(Rc::new(native_call::load(inex)?));
         }
         if !native::required_assets(message)?.is_empty() {
-            self.assets = Some(super::assets::unpack_assets(inex)?);
+            self.assets = Some(Rc::new(inex.bundle.clone()));
         }
         Ok(())
     }

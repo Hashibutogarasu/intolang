@@ -5,9 +5,9 @@ use types::Language;
 use super::compile::toolchain;
 
 /// Compile an object next to `output` that holds `contents` as the symbols
-/// `into_bundle_data` and `into_bundle_size`, and `digest` as the text
-/// `into_bundle_digest`, which the asset functions of a program read.
-pub fn embed_bundle(contents: &[u8], digest: &str, output: &Path) -> Result<PathBuf> {
+/// `into_bundle_data` and `into_bundle_size`, which the asset functions of a
+/// program read.
+pub fn embed_bundle(contents: &[u8], output: &Path) -> Result<PathBuf> {
     let identifier = std::process::id();
     let data = output.with_file_name(format!(".intolang-bundle-{identifier}.bin"));
     let assembly = output.with_file_name(format!(".intolang-bundle-{identifier}.S"));
@@ -15,7 +15,7 @@ pub fn embed_bundle(contents: &[u8], digest: &str, output: &Path) -> Result<Path
     std::fs::write(&data, contents)
         .with_context(|| format!("Could not write {}", data.display()))?;
     let source = format!(
-        "    .section .rodata\n    .balign 16\n    .global into_bundle_data\ninto_bundle_data:\n    .incbin \"{}\"\n    .balign 8\n    .global into_bundle_size\ninto_bundle_size:\n    .quad {}\n    .global into_bundle_digest\ninto_bundle_digest:\n    .asciz \"{digest}\"\n    .section .note.GNU-stack,\"\",@progbits\n",
+        "    .section .rodata\n    .balign 16\n    .global into_bundle_data\ninto_bundle_data:\n    .incbin \"{}\"\n    .balign 8\n    .global into_bundle_size\ninto_bundle_size:\n    .quad {}\n    .section .note.GNU-stack,\"\",@progbits\n",
         data.display(),
         contents.len()
     );

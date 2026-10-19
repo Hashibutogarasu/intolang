@@ -329,18 +329,21 @@ has a test in the `tests/` directory of the crate that implements it.
 
 ### Assets
 
-- `import "asset://require";` gives `require(directory)` and `asset(path)`.
-  `require("res");` names a directory of the package to bundle: every
-  `require` call of the lowered message (the native function `asset_require`)
-  adds that directory, below the same path, to the bundle of the `.inex` file or
-  of the native executable; a directory the package lacks is an error.
-- `asset("res/a.txt")` is the `Path` of the file unpacked from the bundle, and
-  an error when the file is not in it. The VM unpacks the bundle under its cache
-  by the digest of the tree. A native executable carries the bundle in the
-  object `into_bundle_data` (written by `native::embed_bundle` with `.incbin`) and
-  unpacks it on the first call to a directory `<executable>.assets/` next to the
-  file, unpacking again when the digest of the bundle differs from the one
-  recorded there. Embedding needs a GNU compatible assembler and an ELF target.
+- `import "asset://require";` gives `require(directory)`, `asset(path)` and the
+  class `Assets`. `require("res");` and `asset("res/a.txt")` name what to
+  bundle: a directory of the package, or one file of it. Every such call with a
+  literal path in the lowered message (the native functions `asset_require` and
+  `asset_path`) adds that directory or file, below the same path, to the bundle
+  of the `.inex` file or of the native executable; a path the package lacks is
+  an error. `asset` gives its path back, so `Assets.read(asset("res/a.txt"))`
+  bundles the file and reads it.
+- `Assets.read(path)` returns the contents of a file of the bundle as a
+  `Binary`, and fails with `The asset ... is not in the bundle` when the bundle
+  lacks it. Nothing is unpacked: the VM reads the bundle it holds in memory, and
+  a native executable carries the bundle as the object `into_bundle_data`
+  (written by `native::embed_bundle` with `.incbin`) and copies the contents of
+  the file out of it. Embedding needs a GNU compatible assembler and an ELF
+  target.
 
 ## Packages and the CLI
 

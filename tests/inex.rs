@@ -115,7 +115,7 @@ fn a_required_directory_travels_with_the_inex_file() {
 import "asset://require";
 
 require("res");
-now into data = Binary.read(asset("res/a.txt"));
+now into data = Assets.read("res/a.txt");
 println(data.text());
 "#,
     );
@@ -154,8 +154,11 @@ fn a_native_executable_carries_the_required_directory() {
 import "asset://require";
 
 require("res");
-now into data = Binary.read(asset("res/a.txt"));
+now into data = Assets.read("res/a.txt");
 println(data.text());
+now into raw = Assets.read("res/inner/b.bin");
+println(raw.length());
+println(raw.at(1));
 "#,
     );
     std::fs::create_dir_all(project.root.join("res/inner")).unwrap();
@@ -171,26 +174,98 @@ println(data.text());
     let elsewhere = directory.join("hello");
     std::fs::copy(project.executable("hello"), &elsewhere).unwrap();
     drop(project);
-    let first = Command::new(&elsewhere).output().unwrap();
+    let ran = Command::new(&elsewhere).output().unwrap();
     assert_eq!(
-        String::from_utf8_lossy(&first.stdout),
+        String::from_utf8_lossy(&ran.stdout),
         r#"asset text
+3
+255
 "#,
-        "{first:?}"
+        "{ran:?}"
     );
-    assert_eq!(
-        std::fs::read(directory.join("hello.assets/res/inner/b.bin")).unwrap(),
-        [0u8, 255, 1]
-    );
-    std::fs::write(directory.join("hello.assets/res/a.txt"), "changed on disk").unwrap();
-    let second = Command::new(&elsewhere).output().unwrap();
-    assert_eq!(
-        String::from_utf8_lossy(&second.stdout),
-        r#"changed on disk
-"#,
-        "{second:?}"
-    );
+    let left: Vec<_> = std::fs::read_dir(&directory)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect();
+    assert_eq!(left, ["hello"]);
     std::fs::remove_dir_all(&directory).ok();
+}
+
+#[test]
+fn a_file_named_by_asset_travels_alone_in_both_executables() {
+    let project = Project::new(
+        "asset-file",
+        &manifest("hello", r#""runs":"src/main/hello.into""#),
+        r#"import "intolang://builtin/std";
+import "asset://require";
+
+now into data = Assets.read(asset("res/a.txt"));
+println(data.text());
+"#,
+    );
+    std::fs::create_dir_all(project.root.join("res")).unwrap();
+    std::fs::write(project.root.join("res/a.txt"), "asset text").unwrap();
+    std::fs::write(project.root.join("res/other.txt"), "left out").unwrap();
+    let built = into(&[Path::new("build"), Path::new("--vm"), &project.root]);
+    assert!(built.status.success(), "{built:?}");
+    let bytes = std::fs::read(project.inex("hello")).unwrap();
+    let inex = intovm::Inex::try_from(bytes.as_slice()).unwrap();
+    assert_eq!(inex.bundle.read("res/a.txt"), Some(&b"asset text"[..]));
+    assert!(inex.bundle.get("res/other.txt").is_none());
+    let built = into(&[Path::new("build"), &project.root]);
+    assert!(built.status.success(), "{built:?}");
+    let directory = std::env::temp_dir().join(format!(
+        "intolang-inex-test-{}-asset-file-copy",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&directory).unwrap();
+    let inex_copy = directory.join("hello.inex");
+    let native_copy = directory.join("hello");
+    std::fs::copy(project.inex("hello"), &inex_copy).unwrap();
+    std::fs::copy(project.executable("hello"), &native_copy).unwrap();
+    drop(project);
+    let in_vm = into(&[Path::new("run"), &inex_copy]);
+    let native = Command::new(&native_copy).output().unwrap();
+    for ran in [in_vm, native] {
+        assert_eq!(
+            String::from_utf8_lossy(&ran.stdout),
+            r#"asset text
+"#,
+            "{ran:?}"
+        );
+    }
+    std::fs::remove_dir_all(&directory).ok();
+}
+
+#[test]
+fn a_missing_asset_is_an_error_in_the_vm_and_in_a_native_executable() {
+    let project = Project::new(
+        "missing-asset",
+        &manifest("hello", r#""runs":"src/main/hello.into""#),
+        r#"import "intolang://builtin/std";
+import "asset://require";
+
+require("res");
+now into data = Assets.read("res/missing.txt");
+println(data.text());
+"#,
+    );
+    std::fs::create_dir_all(project.root.join("res")).unwrap();
+    std::fs::write(project.root.join("res/a.txt"), "asset text").unwrap();
+    let ran = into(&[Path::new("run"), Path::new("--vm"), &project.root]);
+    assert!(!ran.status.success());
+    assert!(
+        String::from_utf8_lossy(&ran.stderr).contains("is not in the bundle"),
+        "{ran:?}"
+    );
+    let built = into(&[Path::new("build"), &project.root]);
+    assert!(built.status.success(), "{built:?}");
+    let native = Command::new(project.executable("hello")).output().unwrap();
+    assert!(!native.status.success());
+    assert!(
+        String::from_utf8_lossy(&native.stderr).contains("is not in the bundle"),
+        "{native:?}"
+    );
 }
 
 #[test]
@@ -207,7 +282,7 @@ require("res");
     let built = into(&[Path::new("build"), Path::new("--vm"), &project.root]);
     assert!(!built.status.success());
     assert!(
-        String::from_utf8_lossy(&built.stderr).contains("names the directory `res`"),
+        String::from_utf8_lossy(&built.stderr).contains("`res` is named to be bundled"),
         "{built:?}"
     );
 }

@@ -16,8 +16,7 @@ const LIBRARY_NAME: &str = "libinex-native.so";
 /// bundle.
 const PACKAGES: &str = ".into/packages";
 
-/// The directory the VM keeps what it builds and unpacks for programs.
-pub(crate) fn cache_root() -> Result<PathBuf> {
+fn cache_root() -> Result<PathBuf> {
     if let Some(directory) = std::env::var_os("INTO_CACHE_DIR") {
         return Ok(PathBuf::from(directory));
     }

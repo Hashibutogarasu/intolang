@@ -45,7 +45,13 @@ fn contents<'a>(binary: *mut Binary) -> &'a [u8] {
     }
 }
 
-fn make(bytes: &[u8]) -> *mut Binary {
+/// A `Binary` that holds a copy of `bytes`, or a null pointer when there is no
+/// memory for it.
+pub(super) fn make(bytes: &[u8]) -> *mut c_void {
+    make_binary(bytes) as *mut c_void
+}
+
+fn make_binary(bytes: &[u8]) -> *mut Binary {
     unsafe {
         let binary = calloc(1, std::mem::size_of::<Binary>()) as *mut Binary;
         if binary.is_null() {
@@ -71,8 +77,8 @@ pub(crate) fn install(vm: &mut Vm) {
     vm.register(
         "into_binary_read",
         Rc::new(|_, args| {
-            let pointer =
-                std::fs::read(path(args, 0)?).map_or(std::ptr::null_mut(), |bytes| make(&bytes));
+            let pointer = std::fs::read(path(args, 0)?)
+                .map_or(std::ptr::null_mut(), |bytes| make_binary(&bytes));
             Ok(Value::Int(pointer as i64))
         }),
     );

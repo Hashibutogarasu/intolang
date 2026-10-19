@@ -17,20 +17,13 @@ pub fn compile_with_packages(message: &str, output: &Path, packages_dir: &Path) 
     compile_with_assets(message, output, packages_dir, None)
 }
 
-/// The bundle a program carries for its asset functions: its serialized
-/// bytes and the digest of its contents.
-pub struct Assets<'a> {
-    pub contents: &'a [u8],
-    pub digest: &'a str,
-}
-
-/// Compile using a package directory, with the bundle embedded in the
-/// executable.
+/// Compile using a package directory, with the serialized bundle `assets`, if
+/// any, embedded in the executable for its asset functions to read.
 pub fn compile_with_assets(
     message: &str,
     output: &Path,
     packages_dir: &Path,
-    assets: Option<Assets>,
+    assets: Option<&[u8]>,
 ) -> Result<()> {
     unsafe {
         let context = llvm::core::LLVMContextCreate();
@@ -54,11 +47,7 @@ pub fn compile_with_assets(
     let object_path = output.with_extension("o");
     let mut native = native::compile_sources(message, output, packages_dir)?;
     if let Some(assets) = assets {
-        native.objects.push(native::embed_bundle(
-            assets.contents,
-            assets.digest,
-            output,
-        )?);
+        native.objects.push(native::embed_bundle(assets, output)?);
     }
     lld::link_objects(
         &object_path,

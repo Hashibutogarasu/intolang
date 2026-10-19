@@ -4,14 +4,11 @@ import "vulkan://core";
 import "ffmpeg://decoder";
 import "ffmpeg://audio";
 import "sdl2://audio";
-import "fs://file";
 import "path://std";
 import "cpp://standard/time";
 import "ps://process";
 import "ps://events";
 import "asset://require";
-
-require("res");
 
 pub event audioReady(sampleRate: Int32, channels: Int32) {}
 
@@ -63,10 +60,10 @@ now into vulkan = Vulkan();
 wayland.setRenderer(vulkan);
 
 now into ffmpeg = FFmpeg();
-now into video = ffmpeg.read(asset("res/badapple.mp4"));
+now into videoBytes = Assets.read(asset("res/badapple.mp4"));
+now into video = ffmpeg.openBuffer(videoBytes.move());
 
-now into soundFile = File();
-now into soundBytes = soundFile.read(asset("res/badapple.mp4"));
+now into soundBytes = Assets.read(asset("res/badapple.mp4"));
 now into audio = openAudioBuffer(soundBytes);
 
 now into output = SDL2Audio();

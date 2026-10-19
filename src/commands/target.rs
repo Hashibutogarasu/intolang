@@ -35,20 +35,14 @@ impl Target for NativeTarget {
             generator: format!("into {}", env!("CARGO_PKG_VERSION")),
             bundle: inex::resources(project.directory, &message)?,
         };
-        let assets = if carried.bundle.entries().next().is_some() {
-            Some((Vec::from(&carried), carried.bundle.digest()))
-        } else {
-            None
-        };
-        compiler::compile_with_assets(
-            &message,
-            output,
-            project.packages,
-            assets
-                .as_ref()
-                .map(|(contents, digest)| compiler::Assets { contents, digest }),
-        )
-        .context("Compilation failed")
+        let assets = carried
+            .bundle
+            .entries()
+            .next()
+            .is_some()
+            .then(|| Vec::from(&carried));
+        compiler::compile_with_assets(&message, output, project.packages, assets.as_deref())
+            .context("Compilation failed")
     }
 
     fn run(&self, project: &Project, output: &Path) -> Result<()> {

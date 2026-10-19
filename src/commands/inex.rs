@@ -17,16 +17,22 @@ pub(super) fn is_inex(path: &Path) -> bool {
         .is_some_and(|extension| extension == EXTENSION)
 }
 
-/// The directories of the project in `directory` that the `require` calls of
-/// the lowered `message` name.
+/// The directories and files of the project in `directory` that the `require`
+/// and `asset` calls of the lowered `message` name.
 pub(super) fn resources(directory: &Path, message: &str) -> Result<Bundle> {
     let mut bundle = Bundle::new();
     for required in native::required_assets(message)? {
-        let resources = directory.join(&required);
-        if !resources.is_dir() {
-            anyhow::bail!("`require` names the directory `{required}`, which the package lacks");
+        if bundle.get(&required).is_some() {
+            continue;
         }
-        bundle.add_tree(&resources, &required)?;
+        let resources = directory.join(&required);
+        if resources.is_dir() {
+            bundle.add_tree(&resources, &required)?;
+        } else if resources.is_file() {
+            add_file(&mut bundle, &required, &resources)?;
+        } else {
+            anyhow::bail!("`{required}` is named to be bundled, but the package lacks it");
+        }
     }
     Ok(bundle)
 }

@@ -3,3 +3,8 @@ pub c fun require(directory: String): Void;
 
 #[link("c", "src/ffi/asset/asset.c", "asset_path")]
 pub c fun asset(path: Path): Path;
+
+pub Assets() {
+    #[link("c", "src/ffi/asset/asset.c", "asset_read")]
+    pub static fun read(path: Path): Binary;
+}
