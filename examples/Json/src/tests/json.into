@@ -1,0 +1,24 @@
+import "intolang://builtin/tests/macros/test";
+import "intolang://builtin/tests/assert";
+
+#[entrypoint]
+pub JsonTest() {
+    #[test]
+    pub fun anObjectLiteralTakesAVariableOfAnotherIntegerType() {
+        now into value = 7;
+        into body: Json = { "example": value };
+        assertEquals("{\"example\":7}", body.toString());
+    }
+
+    #[test]
+    pub fun aValueIsPrintedAsText() {
+        into body: Json = { "a": "b", "n": 1, "ok": true };
+        assertEquals("{\"a\":\"b\",\"n\":1,\"ok\":true}", body.toString());
+    }
+
+    #[test]
+    pub fun textIsParsedAndWrittenAgain() {
+        into body = Json.parse("{ \"list\": [1, 2.5, \"x\"], \"none\": null }");
+        assertEquals("{\"list\":[1,2.5,\"x\"],\"none\":null}", body.toString());
+    }
+}

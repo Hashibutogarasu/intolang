@@ -7,6 +7,8 @@
     "dist": "./dist"
   },
   "nativeDependencies": {
+    "src/ffi/binary.c": [],
+    "src/ffi/console.c": [],
     "src/ffi/dummy-process.c": [],
     "src/ffi/list.c": [],
     "src/ffi/memory.c": [],

@@ -15,3 +15,9 @@ pub fun assertEquals(expected: Int32, actual: Int32) {
         throw "values are not equal";
     }
 }
+
+pub fun assertEquals(expected: String, actual: String) {
+    if expected != actual {
+        throw "texts are not equal";
+    }
+}

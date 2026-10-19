@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "LICENCE": "MIT",
   "packages": {
-    "system": "0.1.0"
+    "system": "0.1.0",
+    "net": "0.1.0"
   },
   "nativeDependencies": {
     "src/ffi/wayland/window.cpp": ["wayland-client"]

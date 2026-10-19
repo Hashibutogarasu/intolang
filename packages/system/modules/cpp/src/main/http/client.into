@@ -1,10 +1,232 @@
-enum Method {
-    GET,
+import "net://socket";
+
+pub abstract Method() {
+    pub abstract fun verb(): String;
+    pub abstract fun headers(body: String): String;
+    pub abstract fun payload(body: String): String;
+}
+
+pub Get(): Method {
+    pub override fun verb(): String {
+        return "GET";
+    }
+
+    pub override fun headers(body: String): String {
+        return "";
+    }
+
+    pub override fun payload(body: String): String {
+        return "";
+    }
+}
+
+pub Post(): Method {
+    pub override fun verb(): String {
+        return "POST";
+    }
+
+    pub override fun headers(body: String): String {
+        return "Content-Type: application/json\r\nContent-Length: " + String.ofInt(body.length()) + "\r\n";
+    }
+
+    pub override fun payload(body: String): String {
+        return body;
+    }
 }
 
 pub HttpResponse() {
     pub into: String html = "";
+    pub into: Int32 status = 0;
 }
 
-#[link("cpp", "src/ffi/http/client.cpp", "http")]
-pub cpp fun http(method: Method, url: String): HttpResponse;
+pub HttpProgress() {
+    pub into: Int32 progress = 0;
+}
+
+pub HttpEvents() {
+    pub event response(ctx: HttpResponse) {}
+    pub event progress(ctx: HttpProgress) {}
+}
+
+pub Http() {
+    pub into on = HttpEvents();
+
+    pub static fun hostOf(url: String): String {
+        into rest = url.subString(7, url.length());
+        into slash = rest.indexOf("/");
+        into authority = rest;
+        if (slash >= 0) {
+            authority = rest.subString(0, slash);
+        }
+        into colon = authority.indexOf(":");
+        if (colon >= 0) {
+            authority = authority.subString(0, colon);
+        }
+        return authority;
+    }
+
+    pub static fun portOf(url: String): Int32 {
+        into rest = url.subString(7, url.length());
+        into slash = rest.indexOf("/");
+        into authority = rest;
+        if (slash >= 0) {
+            authority = rest.subString(0, slash);
+        }
+        into colon = authority.indexOf(":");
+        into port: Int32 = 80;
+        if (colon >= 0) {
+            into digits = authority.subString(colon + 1, authority.length());
+            port = digits.toInt() as Int32;
+        }
+        return port;
+    }
+
+    pub static fun pathOf(url: String): String {
+        into rest = url.subString(7, url.length());
+        into slash = rest.indexOf("/");
+        into path = "/";
+        if (slash >= 0) {
+            path = rest.subString(slash, rest.length());
+        }
+        return path;
+    }
+
+    pub static fun requestText(method: Method, host: String, path: String, body: String): String {
+        into verb = method.verb();
+        into headers = method.headers(body);
+        into payload = method.payload(body);
+        return verb + " " + path + " HTTP/1.1\r\nHost: " + host + "\r\nUser-Agent: Into/0.1\r\nConnection: close\r\n" + headers + "\r\n" + payload;
+    }
+
+    pub static fun contentLength(raw: String): Int32 {
+        into headerEnd = raw.indexOf("\r\n\r\n");
+        into expected: Int32 = 0 - 1;
+        if (headerEnd >= 0) {
+            into head = raw.subString(0, headerEnd);
+            into lowered = head.toLower();
+            into at = lowered.indexOf("content-length:");
+            if (at >= 0) {
+                into tail = lowered.subString(at + 15, lowered.length());
+                into eol = tail.indexOf("\r\n");
+                if (eol >= 0) {
+                    tail = tail.subString(0, eol);
+                }
+                expected = tail.toInt() as Int32;
+            }
+        }
+        return expected;
+    }
+
+    pub static fun hexValue(text: String): Int32 {
+        into total: Int32 = 0;
+        into i: Int32 = 0;
+        while (i < text.length()) {
+            into code: Int32 = text.at(i) as Int32;
+            into digit: Int32 = 0;
+            if (code >= 97 && code <= 102) {
+                digit = code - 87;
+            } else if (code >= 65 && code <= 70) {
+                digit = code - 55;
+            } else if (code >= 48 && code <= 57) {
+                digit = code - 48;
+            } else {
+                return total;
+            }
+            total = total * 16 + digit;
+            i = i + 1;
+        }
+        return total;
+    }
+
+    pub static fun decodeChunked(text: String): String {
+        into result = "";
+        into at: Int32 = 0;
+        while (at < text.length()) {
+            into rest = text.subString(at, text.length());
+            into eol = rest.indexOf("\r\n");
+            if (eol < 0) {
+                return result;
+            }
+            into size = Http.hexValue(rest.subString(0, eol));
+            if (size == 0) {
+                return result;
+            }
+            into start = at + eol + 2;
+            result = result + text.subString(start, start + size);
+            at = start + size + 2;
+        }
+        return result;
+    }
+
+    pub static fun parse(raw: String): HttpResponse {
+        into response = HttpResponse();
+        into headerEnd = raw.indexOf("\r\n\r\n");
+        if (headerEnd < 0) {
+            response.html = "Malformed HTTP response";
+        } else {
+            into firstEnd = raw.indexOf("\r\n");
+            into line = raw.subString(0, firstEnd);
+            into space = line.indexOf(" ");
+            into code = line.subString(space + 1, line.length());
+            response.status = code.toInt() as Int32;
+            into head = raw.subString(0, headerEnd);
+            into headers = head.toLower();
+            into content = raw.subString(headerEnd + 4, raw.length());
+            if (headers.indexOf("transfer-encoding: chunked") >= 0) {
+                content = Http.decodeChunked(content);
+            }
+            response.html = content;
+        }
+        return response;
+    }
+
+    pub fun call(method: Method, url: String): HttpResponse {
+        into done = this.send(method, url, "");
+        return done;
+    }
+
+    pub fun call(method: Method, url: String, body: Json): HttpResponse {
+        into done = this.send(method, url, body.toString());
+        return done;
+    }
+
+    pub fun send(method: Method, url: String, body: String): HttpResponse {
+        into started = HttpProgress();
+        started.progress = 0;
+        this.on.progress.emit(started);
+        into host = Http.hostOf(url);
+        into socket = Socket.connect(host, Http.portOf(url));
+        into raw = "";
+        if (socket.isOpen()) {
+            socket.send(Http.requestText(method, host, Http.pathOf(url), body));
+            into headerEnd: Int32 = 0 - 1;
+            into expected: Int32 = 0 - 1;
+            into chunk = socket.receive();
+            while (chunk.length() > 0) {
+                raw = raw + chunk;
+                if (headerEnd < 0) {
+                    headerEnd = raw.indexOf("\r\n\r\n");
+                    expected = Http.contentLength(raw);
+                }
+                if (headerEnd >= 0 && expected > 0) {
+                    into percent: Int32 = ((raw.length() - headerEnd - 4) * 100) / expected;
+                    if (percent < 100) {
+                        into step = HttpProgress();
+                        step.progress = percent;
+                        this.on.progress.emit(step);
+                    }
+                }
+                chunk = socket.receive();
+            }
+        }
+        into response = Http.parse(raw);
+        if (!socket.isOpen()) {
+            response.html = "Could not connect to " + host;
+        }
+        into finished = HttpProgress();
+        finished.progress = 100;
+        this.on.progress.emit(finished);
+        this.on.response.emit(response);
+        return response;
+    }
+}

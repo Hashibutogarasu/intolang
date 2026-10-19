@@ -1,8 +1,21 @@
 import "cpp://http/client";
 import "intolang://builtin/std";
 
-into res = http(Method.GET, "http://example.com");
-
 init {
-    print(res.html);
+    now into http = Http();
+    http.on.response((ctx) => {
+        println(ctx.status);
+    });
+    http.on.progress((ctx) => {
+        println(ctx.progress);
+    });
+
+    into res = http(Get(), "http://example.com");
+    println(res.html);
+
+    now into value = 0;
+    into posted = http(Post(), "http://example.com", {
+        "example": value
+    });
+    println(posted.status);
 }

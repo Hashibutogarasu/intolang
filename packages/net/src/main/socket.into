@@ -1,0 +1,25 @@
+pub Socket() {
+    #[link("c", "src/ffi/net/socket.c", "net_listen")]
+    pub static fun listen(port: Int32): Socket;
+
+    #[link("c", "src/ffi/net/socket.c", "net_connect")]
+    pub static fun connect(host: String, port: Int32): Socket;
+
+    #[link("c", "src/ffi/net/socket.c", "net_accept")]
+    pub fun accept(): Socket;
+
+    #[link("c", "src/ffi/net/socket.c", "net_send")]
+    pub fun send(text: String): Int32;
+
+    #[link("c", "src/ffi/net/socket.c", "net_receive")]
+    pub fun receive(): String;
+
+    #[link("c", "src/ffi/net/socket.c", "net_port")]
+    pub fun port(): Int32;
+
+    #[link("c", "src/ffi/net/socket.c", "net_is_open")]
+    pub fun isOpen(): Boolean;
+
+    #[link("c", "src/ffi/net/socket.c", "net_destroy")]
+    pub override fun destroy(): Void;
+}

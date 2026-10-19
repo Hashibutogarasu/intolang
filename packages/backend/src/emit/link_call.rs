@@ -54,6 +54,7 @@ impl Lowerer<'_> {
                     | Expr::Compare { .. }
                     | Expr::Logical { .. }
                     | Expr::Not(_)
+                    | Expr::Call { .. }
             );
             let param = position
                 .checked_sub(receivers)

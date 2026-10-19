@@ -1,0 +1,61 @@
+import "intolang://builtin/tests/macros/test";
+import "intolang://builtin/tests/assert";
+import "cpp://http/client";
+
+#[entrypoint]
+pub HttpTest() {
+    #[test]
+    pub fun theUrlIsSplitIntoHostPortAndPath() {
+        assertEquals("example.com", Http.hostOf("http://example.com"));
+        assertEquals(80, Http.portOf("http://example.com"));
+        assertEquals("/", Http.pathOf("http://example.com"));
+        assertEquals("127.0.0.1", Http.hostOf("http://127.0.0.1:8080/items?id=1"));
+        assertEquals(8080, Http.portOf("http://127.0.0.1:8080/items?id=1"));
+        assertEquals("/items?id=1", Http.pathOf("http://127.0.0.1:8080/items?id=1"));
+    }
+
+    #[test]
+    pub fun aGetRequestHasNoBody() {
+        assertEquals("GET /a HTTP/1.1\r\nHost: h\r\nUser-Agent: Into/0.1\r\nConnection: close\r\n\r\n", Http.requestText(Get(), "h", "/a", ""));
+    }
+
+    #[test]
+    pub fun aPostRequestCarriesTheJson() {
+        assertEquals("POST /a HTTP/1.1\r\nHost: h\r\nUser-Agent: Into/0.1\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: 13\r\n\r\n{\"example\":7}", Http.requestText(Post(), "h", "/a", "{\"example\":7}"));
+    }
+
+    #[test]
+    pub fun theStatusAndTheBodyAreSplit() {
+        into response = Http.parse("HTTP/1.1 201 Created\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok");
+        assertEquals(201, response.status);
+        assertEquals("ok", response.html);
+    }
+
+    #[test]
+    pub fun aChunkedBodyIsJoined() {
+        into response = Http.parse("HTTP/1.1 404 Not Found\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nnone\r\n3\r\n!!!\r\n0\r\n\r\n");
+        assertEquals(404, response.status);
+        assertEquals("none!!!", response.html);
+    }
+
+    #[test]
+    pub fun aResponseWithoutHeadersIsMalformed() {
+        into response = Http.parse("nothing");
+        assertEquals(0, response.status);
+        assertEquals("Malformed HTTP response", response.html);
+    }
+
+    #[test]
+    pub fun theContentLengthIsRead() {
+        assertEquals(2, Http.contentLength("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"));
+        assertEquals(0 - 1, Http.contentLength("HTTP/1.1 200 OK\r\n\r\nok"));
+        assertEquals(0 - 1, Http.contentLength("HTTP/1.1 200 OK\r\nContent-Length: 2"));
+    }
+
+    #[test]
+    pub fun hexadecimalSizesAreRead() {
+        assertEquals(255, Http.hexValue("ff"));
+        assertEquals(16, Http.hexValue("10"));
+        assertEquals(10, Http.hexValue("A"));
+    }
+}

@@ -201,27 +201,6 @@ pub Json() {
         return value;
     }
 
-    pub static fun formatInt(value: Int64): String {
-        if (value == 0) {
-            return "0";
-        }
-        into negative = value < 0;
-        into rest: Int64 = value;
-        if (negative) {
-            rest = 0 - rest;
-        }
-        into digits = "";
-        while (rest > 0) {
-            into digit: Int32 = (rest % 10) as Int32;
-            digits = (('0' as Int32) + digit) as Char + digits;
-            rest = rest / 10;
-        }
-        if (negative) {
-            return "-" + digits;
-        }
-        return digits;
-    }
-
     pub static fun formatFloat(value: Float64): String {
         into negative = value < 0.0;
         into rest: Float64 = value;
@@ -235,9 +214,9 @@ pub Json() {
             whole = whole + 1;
             scaled = scaled - 1000000;
         }
-        into text = Json.formatInt(whole);
+        into text = String.ofInt(whole);
         if (scaled > 0) {
-            into digits = Json.formatInt(scaled);
+            into digits = String.ofInt(scaled);
             while (digits.length() < 6) {
                 digits = "0" + digits;
             }
@@ -287,7 +266,7 @@ pub Json() {
             return "false";
         }
         if (this.kind == 2) {
-            return Json.formatInt(this.integer);
+            return String.ofInt(this.integer);
         }
         if (this.kind == 3) {
             return Json.formatFloat(this.real);

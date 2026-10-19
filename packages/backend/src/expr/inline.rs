@@ -3,6 +3,7 @@ use native::OwnershipChange;
 use std::collections::{HashMap, HashSet};
 use types::{Literal, MessageTag, Storage, Type};
 
+use super::captures::called_paths;
 use super::condition::fold_comparison;
 use super::events::RuntimeCall;
 use super::ownership::{BORROW, COPY, DESTROY, MOVE};
@@ -105,7 +106,8 @@ impl<'a> Lowerer<'a> {
         returned: &mut Returned,
     ) -> Result<(), String> {
         for (param, argument) in function.params.iter().zip(arguments) {
-            let argument = self.evaluate_argument(argument)?;
+            let argument = self.convert_argument(argument, param);
+            let argument = self.evaluate_argument(argument, &param.name, &function.body)?;
             let argument = if function.inspects {
                 argument
             } else {
@@ -136,10 +138,50 @@ impl<'a> Lowerer<'a> {
             .try_for_each(|stmt| self.lower_inline_statement(&stmt, depth, returned))
     }
 
+    /// The argument converted to the number type of its parameter, when it has
+    /// another number type that converts: a value passed to an `Int64`
+    /// parameter is an `Int64` in the body.
+    fn convert_argument(&self, argument: Expr, param: &Param) -> Expr {
+        let Some(written) = param.ty.as_ref() else {
+            return argument;
+        };
+        if matches!(argument, Expr::Literal(_)) {
+            return argument;
+        }
+        let Ok(expected) = parse_type(written.as_str(), &self.env.type_params) else {
+            return argument;
+        };
+        match self.type_of(&argument) {
+            Ok(actual)
+                if actual.is_numeric()
+                    && expected.is_numeric()
+                    && actual != expected
+                    && actual.is_assignable_to(&expected) =>
+            {
+                Expr::Cast {
+                    value: Box::new(argument),
+                    ty: written.clone(),
+                }
+            }
+            _ => argument,
+        }
+    }
+
     /// Compute an argument that is not a name or a literal once, into a slot,
     /// because the body of the function mentions its parameter where the
     /// argument would otherwise be computed again for each mention.
-    fn evaluate_argument(&mut self, argument: Expr) -> Result<Expr, String> {
+    fn evaluate_argument(
+        &mut self,
+        argument: Expr,
+        param: &str,
+        body: &[Stmt],
+    ) -> Result<Expr, String> {
+        let receiver = called_paths(body)
+            .iter()
+            .any(|path| path.is_member() && path.first() == param);
+        if let (true, Expr::Literal(Literal::String(text))) = (receiver, &argument) {
+            return Ok(self.bind_text(text));
+        }
         let computed = match &argument {
             Expr::Binary { .. }
             | Expr::Cast { .. }
@@ -168,9 +210,34 @@ impl<'a> Lowerer<'a> {
             return Ok(Expr::ident(slot));
         }
         if ty == Type::String {
+            if receiver {
+                return Ok(self.bind_text(&value));
+            }
             return Ok(Expr::Literal(Literal::String(value)));
         }
         Err(format!("Unsupported argument `{argument}`"))
+    }
+
+    /// A name for text known while lowering, so that the body of a function
+    /// can call methods on it.
+    fn bind_text(&mut self, text: &str) -> Expr {
+        let name = format!("__argument{}", self.state.temp_counter);
+        self.state.temp_counter += 1;
+        self.state.values.insert(
+            name.clone(),
+            Variable {
+                value: text.to_owned(),
+                ty: Type::String,
+                memory_backed: false,
+                allocated: true,
+                lazy: false,
+                unloaded: false,
+                declared_in_init: false,
+                native: false,
+                tracking: Tracking::default(),
+            },
+        );
+        Expr::ident(name)
     }
 
     /// Turn `x.copy()`, `x.move()` and `x.borrow()` arguments into bindings of
