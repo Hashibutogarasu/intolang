@@ -1,15 +1,17 @@
 use anyhow::{Result, anyhow, bail};
 use native::LinkCall;
 use std::collections::HashMap;
+use std::io::Write;
 use std::rc::Rc;
 
 use super::arith::{compare, constant, is_float, operate};
 use super::events::EventTable;
 use super::frame::Frame;
 use super::memory::Binding;
-use super::process::{ChildBehavior, ProcessTable, install};
+use super::process::{ChildBehavior, ProcessState, ProcessTable, install};
 use super::threads::Thread;
 use super::trace::TraceEntry;
+use crate::inex::Inex;
 use crate::program::{Cond, Instr, Program};
 use crate::value::{Instance, Value};
 
@@ -27,6 +29,9 @@ pub struct VmOptions {
     /// listed behaves as `true`, `false` or `sleep` when it names one of
     /// them and as a program that exits at once with 0 otherwise.
     pub programs: HashMap<String, ChildBehavior>,
+    /// Whether the program output also goes to the standard output of the
+    /// process the VM runs in as the program prints it.
+    pub echo_stdout: bool,
 }
 
 impl Default for VmOptions {
@@ -35,6 +40,7 @@ impl Default for VmOptions {
             current_pid: 4242,
             clock_ms: 0,
             programs: HashMap::new(),
+            echo_stdout: false,
         }
     }
 }
@@ -117,6 +123,11 @@ impl Vm {
 
     pub fn write(&mut self, bytes: &[u8]) {
         self.stdout.extend_from_slice(bytes);
+        if self.options.echo_stdout {
+            let mut out = std::io::stdout().lock();
+            out.write_all(bytes).ok();
+            out.flush().ok();
+        }
     }
 
     pub fn instance(&self, reference: usize) -> Result<&Instance> {
@@ -143,6 +154,24 @@ impl Vm {
                 continue;
             };
             self.step(&program, instr)?;
+        }
+    }
+
+    /// Load the program of an `.inex` file.
+    pub fn load_inex(&mut self, inex: &Inex) -> Result<()> {
+        self.load(&inex.message)
+    }
+
+    /// The code the program would have ended the operating system process
+    /// with: its exit code, or 128 plus the number of the signal that ended it.
+    pub fn exit_status(&self) -> i32 {
+        match self.processes.get(self.processes.current_pid()) {
+            Some(process) => match process.state {
+                ProcessState::Exited(code) => code,
+                ProcessState::Signaled(signal) => 128 + signal,
+                ProcessState::Running => 0,
+            },
+            None => 0,
         }
     }
 

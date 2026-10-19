@@ -11,6 +11,10 @@ use crate::call::LinkCall;
 pub struct NativeSource {
     pub path: PathBuf,
     pub package: PathBuf,
+    /// The alias of the package that owns the source.
+    pub alias: String,
+    /// The path of the source relative to its package.
+    pub relative: String,
     pub language: Language,
 }
 
@@ -36,6 +40,8 @@ pub fn collect_sources(message: &str, packages_dir: &Path) -> Result<Vec<NativeS
             sources.push(NativeSource {
                 path,
                 package,
+                alias: call.package_alias,
+                relative: call.source_path,
                 language: call.language,
             });
         }

@@ -5,10 +5,13 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::commands::command::Command;
+use crate::commands::inex;
 
 #[derive(Deserialize)]
 struct Package {
     name: String,
+    #[serde(default)]
+    version: String,
     #[serde(default)]
     alias: Option<String>,
     #[serde(rename = "builtConfig", default)]
@@ -37,7 +40,15 @@ impl Default for BuildConfig {
     }
 }
 
-pub(super) fn run(package_path: PathBuf, test_mode: bool, run_after_build: bool) -> Result<()> {
+pub(super) fn run(
+    package_path: PathBuf,
+    test_mode: bool,
+    run_after_build: bool,
+    vm_output: bool,
+) -> Result<()> {
+    if inex::is_inex(&package_path) {
+        return inex::run_file(&package_path);
+    }
     let manifest = if package_path.is_dir() {
         package_path.join("into-package.json")
     } else {
@@ -57,6 +68,9 @@ pub(super) fn run(package_path: PathBuf, test_mode: bool, run_after_build: bool)
     if test_mode {
         return run_tests(package_dir, &embedded_packages);
     }
+    if vm_output && package.library.is_some() {
+        anyhow::bail!("`--vm` builds executables; a library package has no .inex form");
+    }
     let package_environment =
         prepare_package_environment(package_dir, &embedded_packages, &package.packages)?;
 
@@ -75,6 +89,28 @@ pub(super) fn run(package_path: PathBuf, test_mode: bool, run_after_build: bool)
         .as_deref()
         .unwrap_or(&package.name)
         .replace(' ', "-");
+    if vm_output {
+        let output = output_dir.join(format!("{executable}.{}", inex::EXTENSION));
+        if output.exists() {
+            std::fs::remove_file(&output)?;
+        }
+        let message = backend::lower_file(&source, &entry, Some(package_environment.path()))
+            .context("Could not compile Into entry point")?;
+        let header = intovm::InexHeader {
+            name: package.name.clone(),
+            alias: package.alias.clone().unwrap_or_else(|| executable.clone()),
+            version: package.version.clone(),
+            generator: format!("into {}", env!("CARGO_PKG_VERSION")),
+        };
+        let program = inex::assemble(header, message, package_environment.path())?;
+        std::fs::create_dir_all(&output_dir)?;
+        inex::write(&program, &output)?;
+        println!("Built {}", output.display());
+        if run_after_build {
+            inex::execute(&program)?;
+        }
+        return Ok(());
+    }
     #[cfg(windows)]
     let executable = format!("{executable}.exe");
     let output = output_dir.join(executable);
@@ -106,6 +142,9 @@ struct BuildArgs {
     package: PathBuf,
     #[arg(long = "test")]
     test: bool,
+    /// Write an .inex file for the Into VM instead of a native executable
+    #[arg(long = "vm")]
+    vm: bool,
 }
 
 pub(super) struct Build;
@@ -121,14 +160,18 @@ impl Command for Build {
 
     fn execute(&self, matches: &ArgMatches) -> Result<()> {
         let args = BuildArgs::from_arg_matches(matches)?;
-        run(args.package, args.test, false)
+        run(args.package, args.test, false, args.vm)
     }
 }
 
 #[derive(Args)]
 struct RunArgs {
+    /// Package directory, its into-package.json or an .inex file
     #[arg(default_value = ".")]
     package: PathBuf,
+    /// Build an .inex file and run it in the Into VM
+    #[arg(long = "vm")]
+    vm: bool,
 }
 
 pub(super) struct Run;
@@ -144,7 +187,7 @@ impl Command for Run {
 
     fn execute(&self, matches: &ArgMatches) -> Result<()> {
         let args = RunArgs::from_arg_matches(matches)?;
-        run(args.package, false, true)
+        run(args.package, false, true, args.vm)
     }
 }
 

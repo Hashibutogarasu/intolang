@@ -16,12 +16,15 @@ struct RootArgs {
     test: bool,
     #[arg(long = "run")]
     run: bool,
+    /// Write an .inex file for the Into VM instead of a native executable
+    #[arg(long = "vm")]
+    vm: bool,
     #[arg(long = "format")]
     format: bool,
     /// Maximum directory depth to search in format mode (0 means this directory only)
     #[arg(long = "depth", requires = "format")]
     depth: Option<usize>,
-    /// Package directory or path to its into-package.json
+    /// Package directory, path to its into-package.json or an .inex file to run
     #[arg(default_value = ".")]
     package: PathBuf,
 }
@@ -62,7 +65,7 @@ impl Command for Root {
         if args.format {
             return format::run(args.package, args.depth);
         }
-        build::run(args.package, args.test, args.run)
+        build::run(args.package, args.test, args.run, args.vm)
     }
 }
 
