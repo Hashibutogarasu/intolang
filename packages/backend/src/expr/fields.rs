@@ -39,7 +39,11 @@ impl Lowerer<'_> {
 
     /// Read the member `name` that the dynamic value in `holder` does not
     /// declare, with its `get` method.
-    fn read_dynamic_member(&mut self, holder: &str, name: &str) -> Result<(String, Type), String> {
+    pub(crate) fn read_dynamic_member(
+        &mut self,
+        holder: &str,
+        name: &str,
+    ) -> Result<(String, Type), String> {
         let call = Expr::Call {
             callee: Path::from(vec![holder.to_owned(), "get".to_owned()]),
             args: vec![Expr::Literal(Literal::String(name.to_owned()))],

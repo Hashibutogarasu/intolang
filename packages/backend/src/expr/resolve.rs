@@ -155,6 +155,14 @@ impl<'a> Lowerer<'a> {
                 continue;
             }
             let key = self.method_key(base_type_name(&current_type.name()), segment);
+            if !env.native_links.contains_key(&key)
+                && self.is_dynamic(base_type_name(&current_type.name()))
+            {
+                let (slot, ty) = self.read_dynamic_member(&current, segment)?;
+                current = slot;
+                current_type = ty;
+                continue;
+            }
             let link = env.native_links.get(&key).ok_or_else(|| {
                 format!("Undefined member `{segment}` on `{}`", current_type.name())
             })?;

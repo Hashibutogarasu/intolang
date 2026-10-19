@@ -264,7 +264,7 @@ impl Lowerer<'_> {
         let env = self.env;
         let (_, ty, native) =
             self.declaration_value(expression, None, &env.type_params, &target)?;
-        if !native || !(ty.is_numeric() || ty == Type::Boolean) {
+        if !native || !(ty.is_numeric() || matches!(ty, Type::Boolean | Type::Char)) {
             return Err(format!("Unsupported arithmetic operand `{expression}`"));
         }
         self.state

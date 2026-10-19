@@ -1,0 +1,572 @@
+pub JsonField() {
+    pub into name = "";
+    pub into: Json value;
+}
+
+pub JsonObject() {
+}
+
+#[dynamic]
+pub Json() {
+    pub into kind = 0;
+    pub into boolean = false;
+    pub into: Int64 integer = 0;
+    pub into: Float64 real = 0.0;
+    pub into text = "";
+    pub into: [Json] items = [];
+    pub into: [JsonField] fields = [];
+    pub into: Type type;
+
+    pub static fun typeNamed(name: String): Type {
+        into made = Type();
+        made.name = name;
+        return made;
+    }
+
+    pub static fun blank(kind: Int32, typeName: String): Json {
+        into made = Json();
+        made.kind = kind;
+        made.items = [];
+        made.fields = [];
+        made.type = Json.typeNamed(typeName);
+        return made;
+    }
+
+    pub static fun null(): Json {
+        return Json.blank(0, "Void");
+    }
+
+    pub static fun ofBool(value: Boolean): Json {
+        into made = Json.blank(1, "Boolean");
+        made.boolean = value;
+        return made;
+    }
+
+    pub static fun ofInt(value: Int64): Json {
+        into made = Json.blank(2, "Int64");
+        into low: Int64 = 0 - 2147483647;
+        into high: Int64 = 2147483647;
+        if (value >= low - 1 && value <= high) {
+            made.type = Json.typeNamed("Int32");
+        }
+        made.integer = value;
+        return made;
+    }
+
+    pub static fun ofFloat(value: Float64): Json {
+        into made = Json.blank(3, "Float64");
+        made.real = value;
+        return made;
+    }
+
+    pub static fun ofString(value: String): Json {
+        into made = Json.blank(4, "String");
+        made.text = value;
+        return made;
+    }
+
+    pub static fun array(): Json {
+        return Json.blank(5, "[Json]");
+    }
+
+    pub static fun object(): Json {
+        return Json.blank(6, "Json<String, Object>");
+    }
+
+    pub fun length(): Int32 {
+        if (this.kind == 5) {
+            return this.items.length();
+        }
+        if (this.kind == 6) {
+            return this.fields.length();
+        }
+        return 0;
+    }
+
+    pub fun indexOf(key: String): Int32 {
+        into i: Int32 = 0;
+        while (i < this.fields.length()) {
+            into field = this.fields.get(i);
+            if (field.name == key) {
+                return i;
+            }
+            i = i + 1;
+        }
+        return 0 - 1;
+    }
+
+    pub fun has(key: String): Boolean {
+        return this.indexOf(key) >= 0;
+    }
+
+    pub fun get(key: String): Json {
+        into at = this.indexOf(key);
+        if (at < 0) {
+            return Json.null();
+        }
+        into field = this.fields.get(at);
+        return field.value;
+    }
+
+    pub fun at(index: Int32): Json {
+        if (index < 0 || index >= this.items.length()) {
+            return Json.null();
+        }
+        return this.items.get(index);
+    }
+
+    pub fun setJson(key: String, value: Json) {
+        into at = this.indexOf(key);
+        if (at >= 0) {
+            into existing = this.fields.get(at);
+            existing.value = value;
+            return;
+        }
+        into field = JsonField();
+        field.name = key;
+        field.value = value;
+        this.fields.push(field);
+    }
+
+    pub fun setString(key: String, value: String) {
+        this.setJson(key, Json.ofString(value));
+    }
+
+    pub fun setInt(key: String, value: Int64) {
+        this.setJson(key, Json.ofInt(value));
+    }
+
+    pub fun setFloat(key: String, value: Float64) {
+        this.setJson(key, Json.ofFloat(value));
+    }
+
+    pub fun setBool(key: String, value: Boolean) {
+        this.setJson(key, Json.ofBool(value));
+    }
+
+    pub fun push(value: Json) {
+        this.items.push(value);
+    }
+
+    pub fun forEach(action: BiCallback<String, Json>) {
+        into i: Int32 = 0;
+        while (i < this.fields.length()) {
+            into field = this.fields.get(i);
+            action(field.name, field.value);
+            i = i + 1;
+        }
+    }
+
+    pub static fun read(path: String): Json {
+        into binary = Binary.read(path);
+        into text = binary.text();
+        return Json.parse(text);
+    }
+
+    pub static fun parse(source: String): Json {
+        into parser = JsonParser();
+        parser.source = source;
+        into value = parser.parseValue();
+        parser.skipSpace();
+        if (parser.failed || parser.pos < source.length()) {
+            return Json.null();
+        }
+        return value;
+    }
+
+    pub static fun formatInt(value: Int64): String {
+        if (value == 0) {
+            return "0";
+        }
+        into negative = value < 0;
+        into rest: Int64 = value;
+        if (negative) {
+            rest = 0 - rest;
+        }
+        into digits = "";
+        while (rest > 0) {
+            into digit: Int32 = (rest % 10) as Int32;
+            digits = (('0' as Int32) + digit) as Char + digits;
+            rest = rest / 10;
+        }
+        if (negative) {
+            return "-" + digits;
+        }
+        return digits;
+    }
+
+    pub static fun formatFloat(value: Float64): String {
+        into negative = value < 0.0;
+        into rest: Float64 = value;
+        if (negative) {
+            rest = 0.0 - rest;
+        }
+        into whole: Int64 = rest as Int64;
+        into fraction: Float64 = rest - (whole as Float64);
+        into scaled: Int64 = (fraction * 1000000.0 + 0.5) as Int64;
+        if (scaled >= 1000000) {
+            whole = whole + 1;
+            scaled = scaled - 1000000;
+        }
+        into text = Json.formatInt(whole);
+        if (scaled > 0) {
+            into digits = Json.formatInt(scaled);
+            while (digits.length() < 6) {
+                digits = "0" + digits;
+            }
+            into end = digits.length();
+            while (end > 0 && digits.at(end - 1) == '0') {
+                end = end - 1;
+            }
+            text = text + "." + digits.subString(0, end);
+        }
+        if (negative) {
+            text = "-" + text;
+        }
+        return text;
+    }
+
+    pub static fun quote(value: String): String {
+        into result = "\"";
+        into i: Int32 = 0;
+        while (i < value.length()) {
+            into ch = value.at(i);
+            if (ch == '"') {
+                result = result + "\\\"";
+            } else if (ch == '\\') {
+                result = result + "\\\\";
+            } else if (ch == '\n') {
+                result = result + "\\n";
+            } else if (ch == '\r') {
+                result = result + "\\r";
+            } else if (ch == '\t') {
+                result = result + "\\t";
+            } else {
+                result = result + value.subString(i, i + 1);
+            }
+            i = i + 1;
+        }
+        return result + "\"";
+    }
+
+    pub fun stringify(): String {
+        if (this.kind == 0) {
+            return "null";
+        }
+        if (this.kind == 1) {
+            if (this.boolean) {
+                return "true";
+            }
+            return "false";
+        }
+        if (this.kind == 2) {
+            return Json.formatInt(this.integer);
+        }
+        if (this.kind == 3) {
+            return Json.formatFloat(this.real);
+        }
+        if (this.kind == 4) {
+            return Json.quote(this.text);
+        }
+        into out = "";
+        into i: Int32 = 0;
+        if (this.kind == 5) {
+            out = "[";
+            while (i < this.items.length()) {
+                if (i > 0) {
+                    out = out + ",";
+                }
+                into item = this.items.get(i);
+                out = out + item.stringify();
+                i = i + 1;
+            }
+            return out + "]";
+        }
+        out = "{";
+        while (i < this.fields.length()) {
+            if (i > 0) {
+                out = out + ",";
+            }
+            into field = this.fields.get(i);
+            into inner = field.value;
+            out = out + Json.quote(field.name) + ":" + inner.stringify();
+            i = i + 1;
+        }
+        return out + "}";
+    }
+
+    pub override fun toString(): String {
+        if (this.kind == 4) {
+            return this.text;
+        }
+        return this.stringify();
+    }
+}
+
+pub JsonParser() {
+    pub into source = "";
+    pub into: Int32 pos = 0;
+    pub into failed = false;
+
+    pub fun skipSpace() {
+        while (this.pos < this.source.length()) {
+            into ch = this.source.at(this.pos);
+            if (ch == ' ' || ch == '\n' || ch == '\r' || ch == '\t') {
+                this.pos = this.pos + 1;
+            } else {
+                return;
+            }
+        }
+    }
+
+    pub fun hasWord(word: String): Boolean {
+        if (this.pos + word.length() > this.source.length()) {
+            return false;
+        }
+        if (this.source.subString(this.pos, this.pos + word.length()) == word) {
+            this.pos = this.pos + word.length();
+            return true;
+        }
+        return false;
+    }
+
+    pub fun hexDigit(ch: Char): Int32 {
+        into code: Int32 = ch as Int32;
+        if (code >= 48 && code <= 57) {
+            return code - 48;
+        }
+        if (code >= 97 && code <= 102) {
+            return code - 87;
+        }
+        if (code >= 65 && code <= 70) {
+            return code - 55;
+        }
+        this.failed = true;
+        return 0;
+    }
+
+    pub fun parseUnicode(): String {
+        into code: Int32 = 0;
+        into i: Int32 = 0;
+        while (i < 4) {
+            if (this.pos >= this.source.length()) {
+                this.failed = true;
+                return "";
+            }
+            code = code * 16 + this.hexDigit(this.source.at(this.pos));
+            this.pos = this.pos + 1;
+            i = i + 1;
+        }
+        return "" + (code as Char);
+    }
+
+    pub fun parseString(): String {
+        this.pos = this.pos + 1;
+        into result = "";
+        while (this.pos < this.source.length()) {
+            into ch = this.source.at(this.pos);
+            this.pos = this.pos + 1;
+            if (ch == '"') {
+                return result;
+            }
+            if (ch != '\\') {
+                result = result + ch;
+            } else {
+                if (this.pos >= this.source.length()) {
+                    this.failed = true;
+                    return result;
+                }
+                into escape = this.source.at(this.pos);
+                this.pos = this.pos + 1;
+                if (escape == 'n') {
+                    result = result + '\n';
+                } else if (escape == 'r') {
+                    result = result + '\r';
+                } else if (escape == 't') {
+                    result = result + '\t';
+                } else if (escape == 'b') {
+                    result = result + (8 as Char);
+                } else if (escape == 'f') {
+                    result = result + (12 as Char);
+                } else if (escape == 'u') {
+                    result = result + this.parseUnicode();
+                } else {
+                    result = result + escape;
+                }
+            }
+        }
+        this.failed = true;
+        return result;
+    }
+
+    pub fun isDigit(): Boolean {
+        if (this.pos >= this.source.length()) {
+            return false;
+        }
+        into ch = this.source.at(this.pos);
+        return ch >= '0' && ch <= '9';
+    }
+
+    pub fun parseNumber(): Json {
+        into negative = false;
+        if (this.source.at(this.pos) == '-') {
+            negative = true;
+            this.pos = this.pos + 1;
+        }
+        into whole: Int64 = 0;
+        into real: Float64 = 0.0;
+        into isFloat = false;
+        into digits: Int32 = 0;
+        while (this.isDigit()) {
+            into digit: Int32 = (this.source.at(this.pos) as Int32) - 48;
+            into wide: Int64 = digit;
+            whole = whole * 10 + wide;
+            real = real * 10.0 + (digit as Float64);
+            digits = digits + 1;
+            this.pos = this.pos + 1;
+        }
+        if (digits == 0) {
+            this.failed = true;
+            return Json.null();
+        }
+        if (this.pos < this.source.length() && this.source.at(this.pos) == '.') {
+            isFloat = true;
+            this.pos = this.pos + 1;
+            into scale: Float64 = 0.1;
+            while (this.isDigit()) {
+                into digit: Int32 = (this.source.at(this.pos) as Int32) - 48;
+                real = real + (digit as Float64) * scale;
+                scale = scale / 10.0;
+                this.pos = this.pos + 1;
+            }
+        }
+        if (this.pos < this.source.length() && (this.source.at(this.pos) == 'e' || this.source.at(this.pos) == 'E')) {
+            isFloat = true;
+            this.pos = this.pos + 1;
+            into exponentNegative = false;
+            if (this.pos < this.source.length() && this.source.at(this.pos) == '-') {
+                exponentNegative = true;
+                this.pos = this.pos + 1;
+            } else if (this.pos < this.source.length() && this.source.at(this.pos) == '+') {
+                this.pos = this.pos + 1;
+            }
+            into exponent: Int32 = 0;
+            while (this.isDigit()) {
+                exponent = exponent * 10 + ((this.source.at(this.pos) as Int32) - 48);
+                this.pos = this.pos + 1;
+            }
+            while (exponent > 0) {
+                if (exponentNegative) {
+                    real = real / 10.0;
+                } else {
+                    real = real * 10.0;
+                }
+                exponent = exponent - 1;
+            }
+        }
+        if (isFloat) {
+            if (negative) {
+                real = 0.0 - real;
+            }
+            return Json.ofFloat(real);
+        }
+        if (negative) {
+            whole = 0 - whole;
+        }
+        return Json.ofInt(whole);
+    }
+
+    pub fun parseArray(): Json {
+        this.pos = this.pos + 1;
+        into list = Json.array();
+        this.skipSpace();
+        if (this.pos < this.source.length() && this.source.at(this.pos) == ']') {
+            this.pos = this.pos + 1;
+            return list;
+        }
+        while (!this.failed) {
+            list.push(this.parseValue());
+            this.skipSpace();
+            if (this.pos >= this.source.length()) {
+                this.failed = true;
+                return list;
+            }
+            into ch = this.source.at(this.pos);
+            this.pos = this.pos + 1;
+            if (ch == ']') {
+                return list;
+            }
+            if (ch != ',') {
+                this.failed = true;
+            }
+        }
+        return list;
+    }
+
+    pub fun parseObject(): Json {
+        this.pos = this.pos + 1;
+        into object = Json.object();
+        this.skipSpace();
+        if (this.pos < this.source.length() && this.source.at(this.pos) == '}') {
+            this.pos = this.pos + 1;
+            return object;
+        }
+        while (!this.failed) {
+            this.skipSpace();
+            if (this.pos >= this.source.length() || this.source.at(this.pos) != '"') {
+                this.failed = true;
+                return object;
+            }
+            into key = this.parseString();
+            this.skipSpace();
+            if (this.pos >= this.source.length() || this.source.at(this.pos) != ':') {
+                this.failed = true;
+                return object;
+            }
+            this.pos = this.pos + 1;
+            object.setJson(key, this.parseValue());
+            this.skipSpace();
+            if (this.pos >= this.source.length()) {
+                this.failed = true;
+                return object;
+            }
+            into ch = this.source.at(this.pos);
+            this.pos = this.pos + 1;
+            if (ch == '}') {
+                return object;
+            }
+            if (ch != ',') {
+                this.failed = true;
+            }
+        }
+        return object;
+    }
+
+    pub fun parseValue(): Json {
+        this.skipSpace();
+        if (this.pos >= this.source.length()) {
+            this.failed = true;
+            return Json.null();
+        }
+        into ch = this.source.at(this.pos);
+        if (ch == '{') {
+            return this.parseObject();
+        }
+        if (ch == '[') {
+            return this.parseArray();
+        }
+        if (ch == '"') {
+            return Json.ofString(this.parseString());
+        }
+        if (this.hasWord("true")) {
+            return Json.ofBool(true);
+        }
+        if (this.hasWord("false")) {
+            return Json.ofBool(false);
+        }
+        if (this.hasWord("null")) {
+            return Json.null();
+        }
+        return this.parseNumber();
+    }
+}

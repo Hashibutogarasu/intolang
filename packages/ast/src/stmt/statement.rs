@@ -105,6 +105,68 @@ impl Stmt {
 }
 
 impl Stmt {
+    /// The names `body` declares, in order, with those of the statements
+    /// nested in branches and loops.
+    pub fn declared_names(body: &[Stmt]) -> Vec<String> {
+        let mut names = Vec::new();
+        for stmt in body {
+            match &stmt.kind {
+                StmtKind::Declaration(declaration) => names.push(declaration.name.clone()),
+                StmtKind::If {
+                    then_body,
+                    else_body,
+                    ..
+                } => {
+                    names.extend(Stmt::declared_names(then_body));
+                    names.extend(Stmt::declared_names(
+                        else_body.as_deref().unwrap_or_default(),
+                    ));
+                }
+                StmtKind::While { body, .. } | StmtKind::Init(body) => {
+                    names.extend(Stmt::declared_names(body));
+                }
+                _ => {}
+            }
+        }
+        names
+    }
+
+    /// Give the declarations in the statement, and in the statements nested in
+    /// it, the names `rename` chooses; names it does not know stay.
+    pub fn rename_declared(&self, rename: &dyn Fn(&str) -> Option<String>) -> Stmt {
+        let nested = |stmts: &[Stmt]| -> Vec<Stmt> {
+            stmts
+                .iter()
+                .map(|stmt| stmt.rename_declared(rename))
+                .collect()
+        };
+        let kind = match &self.kind {
+            StmtKind::Declaration(declaration) => StmtKind::Declaration(Declaration {
+                name: rename(&declaration.name).unwrap_or_else(|| declaration.name.clone()),
+                ..declaration.clone()
+            }),
+            StmtKind::If {
+                condition,
+                then_body,
+                else_body,
+            } => StmtKind::If {
+                condition: condition.clone(),
+                then_body: nested(then_body),
+                else_body: else_body.as_deref().map(nested),
+            },
+            StmtKind::While { condition, body } => StmtKind::While {
+                condition: condition.clone(),
+                body: nested(body),
+            },
+            StmtKind::Init(body) => StmtKind::Init(nested(body)),
+            other => other.clone(),
+        };
+        Stmt {
+            line: self.line,
+            kind,
+        }
+    }
+
     /// Replace bound names by expressions throughout the statement, as when
     /// a function body is inlined at a call site. Declared names are kept.
     pub fn substitute(&self, bindings: &[(String, Expr)]) -> Stmt {

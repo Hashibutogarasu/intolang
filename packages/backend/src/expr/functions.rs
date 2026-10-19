@@ -137,7 +137,26 @@ impl Lowerer<'_> {
                 Text::Slot(slot) => NativeArg::Slot(slot),
             });
         }
-        self.native_arg(argument)
+        if matches!(argument, Expr::Literal(_)) || argument.as_ident().is_some() {
+            return self.native_arg(argument);
+        }
+        if let Ok(direct) = self.native_arg(argument) {
+            return Ok(direct);
+        }
+        let env = self.env;
+        let slot = self.fresh_slot(ty);
+        let (_, built, native) =
+            self.declaration_value(argument, Some(ty.clone()), &env.type_params, &slot)?;
+        if !native {
+            return Err(format!(
+                "Expected a `{}` argument but received `{argument}`",
+                ty.name()
+            ));
+        }
+        self.state
+            .values
+            .insert(slot.clone(), Variable::temporary(built));
+        Ok(NativeArg::Slot(slot))
     }
 
     /// The slot that holds `value` converted to the scalar type `ty`.

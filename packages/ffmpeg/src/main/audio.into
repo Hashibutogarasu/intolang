@@ -40,7 +40,7 @@ pub Audio() {
 pub cpp fun openAudioPath(path: Path): Audio;
 
 #[link("cpp", "src/ffi/ffmpeg/audio.cpp", "ffmpeg_media_open_buffer")]
-pub cpp fun openAudioBuffer(data: Bytes): Audio;
+pub cpp fun openAudioBuffer(data: Binary): Audio;
 
 #[link("cpp", "src/ffi/ffmpeg/audio.cpp", "av_read_frame")]
 pub cpp fun readAudioFrame(format: Pointer, packet: Pointer): Int32;

@@ -1,6 +1,6 @@
 use ast::{Expr, Param, Path, Stmt, StmtKind};
 use native::OwnershipChange;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use types::{Literal, MessageTag, Storage, Type};
 
 use super::condition::fold_comparison;
@@ -105,6 +105,7 @@ impl<'a> Lowerer<'a> {
         returned: &mut Returned,
     ) -> Result<(), String> {
         for (param, argument) in function.params.iter().zip(arguments) {
+            let argument = self.evaluate_argument(argument)?;
             let argument = if function.inspects {
                 argument
             } else {
@@ -112,11 +113,64 @@ impl<'a> Lowerer<'a> {
             };
             substitutions.push((param.name.clone(), argument));
         }
+        let unique = self.state.temp_counter;
+        self.state.temp_counter += 1;
+        let renamed: HashMap<String, String> = Stmt::declared_names(&function.body)
+            .into_iter()
+            .filter(|name| function.params.iter().all(|param| param.name != *name))
+            .map(|name| {
+                let fresh = format!("{name}__{unique}");
+                (name, fresh)
+            })
+            .collect();
+        for (name, fresh) in &renamed {
+            substitutions.push((name.clone(), Expr::ident(fresh.clone())));
+        }
         function
             .body
             .iter()
-            .map(|stmt| stmt.substitute(&substitutions))
+            .map(|stmt| {
+                stmt.substitute(&substitutions)
+                    .rename_declared(&|name| renamed.get(name).cloned())
+            })
             .try_for_each(|stmt| self.lower_inline_statement(&stmt, depth, returned))
+    }
+
+    /// Compute an argument that is not a name or a literal once, into a slot,
+    /// because the body of the function mentions its parameter where the
+    /// argument would otherwise be computed again for each mention.
+    fn evaluate_argument(&mut self, argument: Expr) -> Result<Expr, String> {
+        let computed = match &argument {
+            Expr::Binary { .. }
+            | Expr::Cast { .. }
+            | Expr::Compare { .. }
+            | Expr::Logical { .. }
+            | Expr::Not(_)
+            | Expr::Array(_)
+            | Expr::Object(_) => true,
+            Expr::Call { callee, args } => {
+                !(args.is_empty() && matches!(callee.last(), COPY | MOVE | BORROW))
+            }
+            _ => false,
+        };
+        if !computed {
+            return Ok(argument);
+        }
+        let env = self.env;
+        let slot = format!("__argument{}", self.state.temp_counter);
+        self.state.temp_counter += 1;
+        let (value, ty, native) =
+            self.declaration_value(&argument, None, &env.type_params, &slot)?;
+        if native {
+            self.state
+                .values
+                .insert(slot.clone(), Variable::temporary(ty));
+            return Ok(Expr::ident(slot));
+        }
+        if ty == Type::String {
+            return Ok(Expr::Literal(Literal::String(value)));
+        }
+        Err(format!("Unsupported argument `{argument}`"))
     }
 
     /// Turn `x.copy()`, `x.move()` and `x.borrow()` arguments into bindings of

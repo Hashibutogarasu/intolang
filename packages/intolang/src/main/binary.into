@@ -1,0 +1,19 @@
+pub Binary() {
+    #[link("c", "src/ffi/binary.c", "into_binary_read")]
+    pub static fun read(path: String): Binary;
+
+    #[link("c", "src/ffi/binary.c", "into_binary_write")]
+    pub fun write(path: String): Boolean;
+
+    #[link("c", "src/ffi/binary.c", "into_binary_length")]
+    pub fun length(): Int64;
+
+    #[link("c", "src/ffi/binary.c", "into_binary_at")]
+    pub fun at(index: Int64): Int32;
+
+    #[link("c", "src/ffi/binary.c", "into_binary_text")]
+    pub fun text(): String;
+
+    #[link("c", "src/ffi/binary.c", "into_binary_destroy")]
+    pub override fun destroy(): Void;
+}

@@ -118,6 +118,7 @@ impl Vm {
         install(&mut vm, real_processes);
         super::text::install(&mut vm);
         super::lists::install(&mut vm);
+        super::binary::install(&mut vm);
         super::memory_access::install(&mut vm);
         vm
     }

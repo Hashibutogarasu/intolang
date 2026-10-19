@@ -35,7 +35,11 @@ impl Lowerer<'_> {
             }
             if (path.segments().len() > 2
                 || self.is_type_property(path)
-                || self.is_dynamic_member(path))
+                || self.is_dynamic_member(path)
+                || (path.is_member()
+                    && self
+                        .type_of(argument)
+                        .is_ok_and(|ty| self.is_instance_type(&ty))))
                 && self.state.values.get(path.first()).is_some()
             {
                 let Some((slot, ty)) = self
@@ -117,6 +121,12 @@ impl Lowerer<'_> {
             let (value, ty, native) = self
                 .declaration_value(argument, None, &env.type_params, &temporary)
                 .map_err(|message| self.diagnostic(line, &message))?;
+            if native && self.is_instance_type(&ty) {
+                self.state
+                    .values
+                    .insert(temporary.clone(), crate::context::Variable::temporary(ty));
+                return self.print_instance(line, &temporary, newline);
+            }
             if native {
                 emit::print(&mut self.state.output, &temporary, &ty, newline);
             } else {

@@ -8,6 +8,8 @@ export "builtin://callback";
 export "builtin://type";
 export "builtin://memory";
 export "builtin://map";
+export "builtin://binary";
+export "builtin://json";
 export "builtin://tests/macros/test/test";
 export "builtin://tests/assert/assert";
 export "builtin://tests/assert/assertTrue";

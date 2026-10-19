@@ -1,5 +1,5 @@
 use ast::{Expr, Path};
-use native::{NativeLink, Operand};
+use native::{CastAssign, NativeLink, Operand};
 use std::collections::HashSet;
 use types::{Literal, MessageTag, Type};
 
@@ -104,6 +104,18 @@ impl<'a> Lowerer<'a> {
                                 reference: true,
                                 ..Tracking::default()
                             });
+                        }
+                        if source.ty.is_numeric() && ty.is_numeric() && source.ty != ty {
+                            emit::cast_assign(
+                                &mut self.state.output,
+                                &CastAssign {
+                                    target: assigned_to.to_owned(),
+                                    source: path.first().to_owned(),
+                                    from: source.ty.name(),
+                                    to: ty.name(),
+                                },
+                            );
+                            return Ok((ty.name(), ty, true));
                         }
                         emit::assign(&mut self.state.output, assigned_to, &ty, "p", path.first());
                         return Ok((ty.name(), ty, true));

@@ -5,14 +5,14 @@ pub FFmpeg() {
     pub cpp fun new(): FFmpeg;
 
     #[link("cpp", "src/ffi/ffmpeg/decoder.cpp", "ffmpeg_open_buffer")]
-    pub cpp fun openBuffer(data: Bytes): Video;
+    pub cpp fun openBuffer(data: Binary): Video;
 
     #[link("cpp", "src/ffi/ffmpeg/decoder.cpp", "ffmpeg_read")]
     pub cpp fun openPath(path: Path): Video;
 
     pub fun read(path: Path): Video {
         now into file: File = File();
-        late into data: Bytes = file.read(path);
+        late into data: Binary = file.read(path);
         now into video: Video = this.openBuffer(data.move());
         return video;
     }

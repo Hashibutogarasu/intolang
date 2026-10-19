@@ -1,7 +1,7 @@
 #![cfg(feature = "run")]
 
 use intovm::VmOptions;
-use testing::{eval_run, eval_vm_bundled};
+use testing::{eval_run, eval_vm, eval_vm_bundled};
 
 const PROGRAM: &str = "import \"intolang://builtin/std\";
 
@@ -66,8 +66,6 @@ fn compiled_code_builds_objects_like_the_vm() {
 fn an_object_literal_needs_the_json_class() {
     let program =
         "import \"intolang://builtin/std\";\n\ninit {\n    into value = { \"a\": 1 };\n}\n";
-    let message = eval_vm_bundled(program, VmOptions::default())
-        .unwrap_err()
-        .to_string();
+    let message = eval_vm(program).unwrap_err().to_string();
     assert!(message.contains("needs the class `Json`"), "{message}");
 }

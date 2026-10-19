@@ -8,7 +8,7 @@ use crate::value::Value;
 
 /// The address a value holds: a pointer a native call returned, or an
 /// integer.
-fn address_of(value: &Value) -> Result<usize> {
+pub(super) fn address_of(value: &Value) -> Result<usize> {
     match value {
         Value::Int(address) => Ok(*address as usize),
         Value::Native { ptr, .. } => Ok(*ptr),

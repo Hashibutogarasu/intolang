@@ -1,4 +1,5 @@
 mod arith;
+mod binary;
 mod events;
 mod frame;
 mod lists;

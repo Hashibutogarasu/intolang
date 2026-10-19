@@ -7,26 +7,14 @@ pub File() {
     #[link("c", "src/ffi/fs/file.c", "fs_file_new")]
     pub c fun new(): File;
 
-    #[link("c", "src/ffi/fs/file.c", "fs_file_read")]
-    pub c fun read(path: String): Bytes;
+    pub fun read(path: String): Binary {
+        return Binary.read(path);
+    }
 
-    #[link("c", "src/ffi/fs/file.c", "fs_file_write")]
-    pub c fun write(path: String, binary: Bytes, format: Format): Boolean;
+    pub fun write(path: String, binary: Binary, format: Format): Boolean {
+        return binary.write(path);
+    }
 
     #[link("c", "src/ffi/fs/file.c", "fs_file_destroy")]
-    pub override c fun destroy(): Void;
-}
-
-pub Bytes() {
-    #[link("c", "src/ffi/fs/file.c", "fs_bytes_length")]
-    pub c fun length(): Int64;
-
-    #[link("c", "src/ffi/fs/file.c", "fs_bytes_at")]
-    pub c fun at(index: Int64): Int32;
-
-    #[link("c", "src/ffi/fs/file.c", "fs_bytes_text")]
-    pub c fun text(): String;
-
-    #[link("c", "src/ffi/fs/file.c", "fs_bytes_destroy")]
     pub override c fun destroy(): Void;
 }
