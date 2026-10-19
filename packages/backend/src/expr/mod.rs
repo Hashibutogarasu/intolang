@@ -7,6 +7,7 @@ mod events;
 mod fields;
 mod functions;
 mod inline;
+mod lists;
 mod numeric;
 mod operand;
 mod ownership;

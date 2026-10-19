@@ -22,8 +22,17 @@ impl TypeRef {
     }
 
     fn parse(cursor: &mut Cursor<'_>, suffixes: bool) -> Result<Self> {
-        let (name, _) = cursor.expect_ident("a type name")?;
-        let mut text = name;
+        let mut text = if cursor.peek_symbol(0) == Some('[') {
+            cursor.bump();
+            let element = TypeRef::try_from(&mut *cursor)?;
+            if cursor.peek_symbol(0) != Some(']') {
+                return Err(cursor.error("Expected `]` to close the array type"));
+            }
+            cursor.bump();
+            format!("[{}]", element.0)
+        } else {
+            cursor.expect_ident("a type name")?.0
+        };
         if cursor.peek_symbol(0) == Some('<') {
             cursor.bump();
             text.push('<');

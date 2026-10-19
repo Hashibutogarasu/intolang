@@ -414,6 +414,12 @@ impl<'a> Lowerer<'a> {
             let (receiver, receiver_type) = self.resolve_receiver(callee)?;
             let class = base_type_name(&receiver_type.name()).to_owned();
             let method = callee.last();
+            if self
+                .lower_list_method(&receiver, &receiver_type, method, args, "")?
+                .is_some()
+            {
+                return Ok(());
+            }
             self.check_receiver_call(&receiver, method)?;
             if self.give_back_reference(&receiver, method) {
                 return Ok(());

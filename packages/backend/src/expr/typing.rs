@@ -47,6 +47,7 @@ impl Lowerer<'_> {
                 }
             }
             Expr::Cast { ty, .. } => Ok(spelled(ty.as_str())),
+            Expr::Array(items) => self.array_type(items),
             Expr::Compare { .. } | Expr::Logical { .. } | Expr::Not(_) => Ok(Type::Boolean),
             Expr::Thread { .. } => Ok(Type::Named(THREAD.to_owned())),
             Expr::Lambda { .. } => Err("A lambda has no type here".to_owned()),
@@ -109,6 +110,12 @@ impl Lowerer<'_> {
         for segment in &segments[1..] {
             let class = base_type_name(&current.name()).to_owned();
             if matches!(segment.as_str(), COPY | MOVE | BORROW) {
+                continue;
+            }
+            if let Type::List(element) = current.referent()
+                && segment == "get"
+            {
+                current = (**element).clone();
                 continue;
             }
             let result = self.function_type(&self.method_key(&class, segment))?;

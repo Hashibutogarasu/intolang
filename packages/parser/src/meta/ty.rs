@@ -32,6 +32,17 @@ impl TypeLexeme {
             return Ok(Self(Type::PointerTo(Box::new(inner.0))));
         }
         if let Some(inner) = text
+            .strip_prefix('[')
+            .and_then(|inner| inner.strip_suffix(']'))
+        {
+            let inner = inner.trim();
+            if inner.is_empty() {
+                bail!("Array type `[]` needs an element type");
+            }
+            let inner = Self::with_generics(inner, params)?;
+            return Ok(Self(Type::List(Box::new(inner.0))));
+        }
+        if let Some(inner) = text
             .strip_prefix("List<")
             .and_then(|inner| inner.strip_suffix('>'))
         {

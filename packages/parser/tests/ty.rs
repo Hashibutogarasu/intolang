@@ -25,6 +25,21 @@ fn parses_pointer_types() {
 }
 
 #[test]
+fn an_array_type_is_a_list_type() {
+    assert_eq!(parse("[Int32]"), Type::List(Box::new(Type::Int32)));
+    assert_eq!(parse("[Int32]").name(), "List<Int32>");
+    assert_eq!(
+        parse("[[String]]"),
+        Type::List(Box::new(Type::List(Box::new(Type::String))))
+    );
+    assert_eq!(
+        parse("[Item]&"),
+        Type::Reference(Box::new(Type::List(Box::new(Type::Named("Item".into())))))
+    );
+    assert!("[]".parse::<TypeLexeme>().is_err());
+}
+
+#[test]
 fn parses_reference_types() {
     let process = Type::Named("Process".into());
     assert_eq!(

@@ -1,19 +1,46 @@
-pub List() {
+pub List<T>() {
     #[link("c", "src/ffi/list.c", "into_list_new")]
-    pub c fun new(): Pointer;
+    pub static fun new(): Pointer;
 
-    #[link("c", "src/ffi/list.c", "into_list_push")]
-    pub c fun push(value: Pointer): Void;
+    #[link("c", "src/ffi/list.c", "into_list_push_int")]
+    pub fun pushInt(value: Int64): Void;
 
-    #[link("c", "src/ffi/list.c", "into_list_get")]
-    pub c fun get(index: Int32): Pointer;
+    #[link("c", "src/ffi/list.c", "into_list_get_int")]
+    pub fun getInt(index: Int32): Int64;
 
-    #[link("c", "src/ffi/list.c", "into_list_set")]
-    pub c fun set(index: Int32, value: Pointer): Void;
+    #[link("c", "src/ffi/list.c", "into_list_set_int")]
+    pub fun setInt(index: Int32, value: Int64): Void;
+
+    #[link("c", "src/ffi/list.c", "into_list_push_float")]
+    pub fun pushFloat(value: Float64): Void;
+
+    #[link("c", "src/ffi/list.c", "into_list_get_float")]
+    pub fun getFloat(index: Int32): Float64;
+
+    #[link("c", "src/ffi/list.c", "into_list_set_float")]
+    pub fun setFloat(index: Int32, value: Float64): Void;
+
+    #[link("c", "src/ffi/list.c", "into_list_push_pointer")]
+    pub fun pushString(value: String): Void;
+
+    #[link("c", "src/ffi/list.c", "into_list_get_pointer")]
+    pub fun getString(index: Int32): String;
+
+    #[link("c", "src/ffi/list.c", "into_list_set_pointer")]
+    pub fun setString(index: Int32, value: String): Void;
+
+    #[link("c", "src/ffi/list.c", "into_list_push_pointer")]
+    pub fun pushPointer(value: Pointer): Void;
+
+    #[link("c", "src/ffi/list.c", "into_list_get_pointer")]
+    pub fun getPointer(index: Int32): Pointer;
+
+    #[link("c", "src/ffi/list.c", "into_list_set_pointer")]
+    pub fun setPointer(index: Int32, value: Pointer): Void;
 
     #[link("c", "src/ffi/list.c", "into_list_length")]
-    pub c fun length(): Int32;
+    pub fun length(): Int32;
 
     #[link("c", "src/ffi/list.c", "into_list_free")]
-    pub c fun free(): Void;
+    pub fun free(): Void;
 }

@@ -123,6 +123,11 @@ impl<'a> Lowerer<'a> {
             Expr::Await(_) => {
                 return Err("`await` can only be used as a statement".into());
             }
+            Expr::Array(items) => {
+                let list = self.lower_array(items, annotation.as_ref(), assigned_to)?;
+                let ty = resolve_annotation(list, annotation)?;
+                return Ok((ty.name(), ty, true));
+            }
             Expr::Cast { value, ty } => {
                 let target =
                     parse_type(ty.as_str(), type_params).map_err(|error| error.to_string())?;
@@ -213,6 +218,13 @@ impl<'a> Lowerer<'a> {
             let (receiver, receiver_type) = self.resolve_receiver(callee)?;
             let class = base_type_name(&receiver_type.name()).to_owned();
             let method = callee.last();
+            if let Some(result) =
+                self.lower_list_method(&receiver, &receiver_type, method, args, assigned_to)?
+            {
+                let ty = result.ok_or_else(|| format!("`{callee}` does not return a value"))?;
+                let ty = resolve_annotation(ty, annotation)?;
+                return Ok(Some((ty.name(), ty, true)));
+            }
             if self.is_ownership_method(&class, method)
                 && matches!(method, "copy" | "move" | "borrow")
             {

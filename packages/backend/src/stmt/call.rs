@@ -89,6 +89,13 @@ impl Lowerer<'_> {
             .map_err(|message| fail(self, message))?;
         let class = base_type_name(&receiver_type.name()).to_owned();
         let method = callee.last();
+        if self
+            .lower_list_method(&receiver, &receiver_type, method, args, "")
+            .map_err(|message| fail(self, message))?
+            .is_some()
+        {
+            return Ok(());
+        }
         self.check_receiver_call(&receiver, method)
             .map_err(|message| fail(self, message))?;
         if self.give_back_reference(&receiver, method) {

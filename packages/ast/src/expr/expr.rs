@@ -46,6 +46,8 @@ pub enum Expr {
         value: Box<Expr>,
         ty: TypeRef,
     },
+    /// An array literal, `[1, 2, 3]`.
+    Array(Vec<Expr>),
 }
 
 impl Expr {
@@ -124,6 +126,9 @@ impl Expr {
                 value: Box::new(value.substitute(bindings)),
                 ty: ty.clone(),
             },
+            Expr::Array(items) => {
+                Expr::Array(items.iter().map(|item| item.substitute(bindings)).collect())
+            }
         }
     }
 }
@@ -209,6 +214,16 @@ impl fmt::Display for Expr {
             }
             Expr::Not(inner) => write!(f, "!{inner}"),
             Expr::Cast { value, ty } => write!(f, "{value} as {ty}"),
+            Expr::Array(items) => {
+                f.write_str("[")?;
+                for (index, item) in items.iter().enumerate() {
+                    if index > 0 {
+                        f.write_str(", ")?;
+                    }
+                    write!(f, "{item}")?;
+                }
+                f.write_str("]")
+            }
         }
     }
 }
@@ -446,6 +461,7 @@ fn primary(cursor: &mut Cursor<'_>) -> Result<Expr> {
                 Ok(Expr::Path(path))
             }
         }
+        TokenKind::Symbol('[') => array(cursor),
         TokenKind::Symbol('(') if lambda_ahead(cursor) => lambda(cursor),
         TokenKind::Symbol('(') => {
             cursor.bump();
@@ -495,6 +511,30 @@ fn lambda(cursor: &mut Cursor<'_>) -> Result<Expr> {
     cursor.bump();
     let body = parse_block(cursor, Scope::Function)?;
     Ok(Expr::Lambda { params, body })
+}
+
+fn array(cursor: &mut Cursor<'_>) -> Result<Expr> {
+    cursor.bump();
+    let mut items = Vec::new();
+    if cursor.peek_symbol(0) == Some(']') {
+        cursor.bump();
+        return Ok(Expr::Array(items));
+    }
+    loop {
+        items.push(Expr::try_from(&mut *cursor)?);
+        if cursor.eat_punct(Punct::Comma) {
+            if cursor.peek_symbol(0) == Some(']') {
+                cursor.bump();
+                return Ok(Expr::Array(items));
+            }
+            continue;
+        }
+        if cursor.peek_symbol(0) != Some(']') {
+            return Err(cursor.error("Expected `]` to close the array"));
+        }
+        cursor.bump();
+        return Ok(Expr::Array(items));
+    }
 }
 
 fn arguments(cursor: &mut Cursor<'_>) -> Result<Vec<Expr>> {

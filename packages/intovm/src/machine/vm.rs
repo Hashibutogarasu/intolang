@@ -73,6 +73,7 @@ pub struct Vm {
     pub(super) processes: ProcessTable,
     pub(super) native: Option<Rc<Library>>,
     pub(super) retained_strings: Vec<std::ffi::CString>,
+    pub(super) lists: Vec<Vec<Value>>,
     options: VmOptions,
     stdout: Vec<u8>,
 }
@@ -87,6 +88,7 @@ impl Vm {
             ),
             native: None,
             retained_strings: Vec::new(),
+            lists: Vec::new(),
             options,
             program: Rc::new(Program::default()),
             globals: HashMap::new(),
@@ -104,6 +106,7 @@ impl Vm {
         let real_processes = vm.options.real_processes;
         install(&mut vm, real_processes);
         super::text::install(&mut vm);
+        super::lists::install(&mut vm);
         vm
     }
 
@@ -115,6 +118,7 @@ impl Vm {
             self.options.programs.clone(),
         );
         self.heap.clear();
+        self.lists.clear();
         self.globals.clear();
         self.frames = vec![Frame::main()];
         self.threads = vec![Thread::default()];

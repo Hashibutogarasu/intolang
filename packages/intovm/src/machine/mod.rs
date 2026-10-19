@@ -1,6 +1,7 @@
 mod arith;
 mod events;
 mod frame;
+mod lists;
 mod memory;
 mod native;
 mod operand;
