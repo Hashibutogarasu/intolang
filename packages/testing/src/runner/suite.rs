@@ -1,15 +1,15 @@
 use anyhow::{Result, anyhow, bail};
 use ast::{Program, SyntaxError};
 use parser::PathLexeme;
-use std::collections::HashMap;
 use std::path::Path;
 
-use super::builtins::{ASSERTION, BUILTIN_ALIAS, HELPER_MODULES, TEST_MACRO};
-use super::discover::{find_tests, load_definitions, test_attribute};
-use super::interpreter::Interpreter;
+use super::builtins::{ASSERTION, BUILTIN_ALIAS, TEST_MACRO};
+use super::discover::{find_tests, test_attribute};
 use super::summary::TestSummary;
+use crate::eval::run_message;
 
-/// Run all `#[test]` functions in one Into source file.
+/// Run all `#[test]` functions in one Into source file. Each test body is
+/// lowered as a program of its own and run in the Into VM.
 pub fn run_tests(source: &str, path: &Path, packages_dir: &Path) -> Result<TestSummary> {
     let path_text = PathLexeme::from(path).to_string();
     let program =
@@ -28,14 +28,6 @@ pub fn run_tests(source: &str, path: &Path, packages_dir: &Path) -> Result<TestS
             ASSERTION.function
         );
     }
-    let mut functions = HashMap::new();
-    for module in HELPER_MODULES {
-        functions.extend(
-            load_definitions(&package, module)?
-                .into_iter()
-                .filter(|(name, _)| imported.contains(name)),
-        );
-    }
     if !imported.contains(TEST_MACRO.function) {
         bail!("{path_text}: test module must import the test macro");
     }
@@ -43,19 +35,16 @@ pub fn run_tests(source: &str, path: &Path, packages_dir: &Path) -> Result<TestS
 
     let mut summary = TestSummary::default();
     for test in find_tests(&program, &attribute) {
-        let interpreter = Interpreter {
-            functions: &functions,
-            path: &path_text,
-            test: &test.name,
-        };
-        match interpreter.run_test(&test.body) {
-            Ok(()) => {
+        let outcome = backend::lower_test(source, path, Some(packages_dir), &test.name)
+            .and_then(|message| run_message(&message));
+        match outcome {
+            Ok(_) => {
                 summary.passed += 1;
                 println!("test {} ... ok", test.name);
             }
             Err(error) => {
                 summary.failed += 1;
-                eprintln!("{error:#}");
+                eprintln!("test {} ... FAILED\n{error:#}", test.name);
             }
         }
     }

@@ -1,6 +1,5 @@
 mod builtins;
 mod discover;
-mod interpreter;
 mod suite;
 mod summary;
 

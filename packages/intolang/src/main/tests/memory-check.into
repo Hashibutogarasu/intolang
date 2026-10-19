@@ -1,9 +1,11 @@
+#[inspects]
 pub fun assertMemoryExists(value: Object) {
     if value.isInMemory == false {
         throw "memory does not exist";
     }
 }
 
+#[inspects]
 pub fun assertMemoryNotExists(value: Object) {
     if value.isInMemory == true {
         throw "memory exists";

@@ -8,6 +8,7 @@ use super::events::EventTable;
 use super::frame::Frame;
 use super::memory::Binding;
 use super::threads::Thread;
+use super::trace::TraceEntry;
 use crate::program::{Cond, Instr, Program};
 use crate::value::{Instance, Value};
 
@@ -29,6 +30,7 @@ pub struct Vm {
     pub(super) current: usize,
     pub(super) bindings: HashMap<String, Binding>,
     pub(super) in_init: bool,
+    pub(super) trace: Vec<TraceEntry>,
     stdout: Vec<u8>,
 }
 
@@ -45,6 +47,7 @@ impl Vm {
             current: 0,
             bindings: HashMap::new(),
             in_init: false,
+            trace: Vec::new(),
             stdout: Vec::new(),
         }
     }
@@ -57,7 +60,13 @@ impl Vm {
         self.events.clear();
         self.bindings.clear();
         self.in_init = false;
+        self.trace.clear();
         Ok(())
+    }
+
+    /// What the program did, in order: destructions and emitted events.
+    pub fn trace(&self) -> &[TraceEntry] {
+        &self.trace
     }
 
     pub fn register(&mut self, symbol: &str, intrinsic: Intrinsic) {

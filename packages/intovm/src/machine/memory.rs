@@ -2,6 +2,7 @@ use anyhow::{Result, anyhow};
 use native::{OwnershipChange, Property, StateCheck};
 use types::Storage;
 
+use super::trace::TraceEntry;
 use super::vm::Vm;
 
 /// What has happened to the instance a binding holds.
@@ -91,6 +92,7 @@ impl Vm {
                 binding.allocated = false;
             }
             OwnershipChange::Destroyed(name) => {
+                self.trace.push(TraceEntry::Destroyed(name.clone()));
                 let binding = self.binding_mut(name)?;
                 binding.state = State::Destroyed;
                 binding.allocated = false;

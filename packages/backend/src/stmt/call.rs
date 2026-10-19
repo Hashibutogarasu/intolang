@@ -47,6 +47,9 @@ impl Lowerer<'_> {
         if console {
             return self.lower_print(line, name == PRINTLN, args);
         }
+        if env.strict_calls {
+            return Err(self.diagnostic(line, &format!("Function `{name}` is not imported")));
+        }
         Ok(())
     }
 

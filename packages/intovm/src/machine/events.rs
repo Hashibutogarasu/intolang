@@ -3,6 +3,7 @@ use native::NativeArg;
 use std::collections::HashMap;
 
 use super::frame::Frame;
+use super::trace::TraceEntry;
 use super::vm::Vm;
 use crate::value::Value;
 
@@ -67,6 +68,7 @@ impl Vm {
             .iter()
             .map(|arg| self.argument(arg))
             .collect::<Result<Vec<_>>>()?;
+        self.trace.push(TraceEntry::Emitted(event.to_owned()));
         let handlers: Vec<String> = self
             .events
             .get(event)

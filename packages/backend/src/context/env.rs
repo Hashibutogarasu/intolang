@@ -23,6 +23,9 @@ pub struct Env {
     pub events: HashMap<String, EventInfo>,
     pub type_params: HashSet<String>,
     pub imported_functions: HashSet<String>,
+    /// Whether a call to a function that was never imported is an error
+    /// instead of producing no output.
+    pub strict_calls: bool,
 }
 
 impl Env {

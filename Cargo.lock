@@ -610,6 +610,7 @@ dependencies = [
  "ast",
  "backend",
  "compiler",
+ "intovm",
  "moduler",
  "parser",
  "types",

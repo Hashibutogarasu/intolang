@@ -1,5 +1,5 @@
-use anyhow::Result;
-use ast::{Item, Program};
+use anyhow::{Result, anyhow};
+use ast::{Item, Program, Stmt};
 use parser::PathLexeme;
 use std::path::Path;
 
@@ -32,11 +32,37 @@ pub fn lower_file(source: &str, source_path: &Path, packages_dir: Option<&Path>)
     )
 }
 
+/// Lower the body of the function `test` as the program itself, so that the
+/// VM can run it. Calls to functions the file did not import are errors.
+pub fn lower_test(
+    source: &str,
+    source_path: &Path,
+    packages_dir: Option<&Path>,
+    test: &str,
+) -> Result<String> {
+    lower_entry(
+        source,
+        packages_dir,
+        &PathLexeme::from(source_path).to_string(),
+        Some(test),
+    )
+}
+
 fn lower_named(source: &str, packages_dir: Option<&Path>, source_path: &str) -> Result<String> {
+    lower_entry(source, packages_dir, source_path, None)
+}
+
+fn lower_entry(
+    source: &str,
+    packages_dir: Option<&Path>,
+    source_path: &str,
+    test: Option<&str>,
+) -> Result<String> {
     let program = source
         .parse::<Program>()
         .map_err(|error| syntax_diagnostic(source_path, error))?;
-    let env = prepare(&program, packages_dir, source_path)?;
+    let mut env = prepare(&program, packages_dir, source_path)?;
+    env.strict_calls = test.is_some();
 
     let mut lowerer = Lowerer::new(&env);
     emit::module_classes(&mut lowerer.state.output);
@@ -52,16 +78,32 @@ fn lower_named(source: &str, packages_dir: Option<&Path>, source_path: &str) -> 
         match item {
             Item::Import(decl) => lowerer.lower_import(decl),
             Item::Export(decl) => lowerer.lower_export(decl),
-            Item::Stmt(stmt) => lowerer.lower_stmt(stmt)?,
-            Item::Enum(_)
+            Item::Stmt(stmt) if test.is_none() => lowerer.lower_stmt(stmt)?,
+            Item::Stmt(_)
+            | Item::Enum(_)
             | Item::Class(_)
             | Item::Function(_)
             | Item::Event(_)
             | Item::Macro(_) => {}
         }
     }
+    if let Some(name) = test {
+        let body = test_body(&program, name)
+            .ok_or_else(|| anyhow!("{source_path}: no function `{name}` to run as a test"))?;
+        lowerer.lower_block(body)?;
+    }
     lowerer.finish_program()?;
     Ok(lowerer.into_output())
+}
+
+/// The statements of the function or method called `name`.
+fn test_body<'a>(program: &'a Program, name: &str) -> Option<&'a [Stmt]> {
+    let methods = program.classes().flat_map(|class| class.methods.iter());
+    program
+        .functions()
+        .chain(methods)
+        .find(|function| function.name == name)
+        .and_then(|function| function.body.as_deref())
 }
 
 /// Collect everything lowering reads: the declarations of the entry file and

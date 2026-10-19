@@ -1,6 +1,5 @@
 use anyhow::{Context, Result, anyhow};
-use ast::{FunctionDecl, Program, Stmt};
-use std::collections::HashMap;
+use ast::Program;
 use std::path::Path;
 
 use super::builtins::{SOURCE_ROOT, TEST_MACRO};
@@ -8,7 +7,6 @@ use super::builtins::{SOURCE_ROOT, TEST_MACRO};
 /// A function marked with the test attribute.
 pub struct TestCase {
     pub name: String,
-    pub body: Vec<Stmt>,
     line: usize,
 }
 
@@ -32,15 +30,6 @@ pub fn test_attribute(package: &Path) -> Result<String> {
         .ok_or_else(|| anyhow!("test macro does not define the #[test] annotation"))
 }
 
-/// The public functions with bodies that the builtin `module` defines.
-pub fn load_definitions(package: &Path, module: &str) -> Result<HashMap<String, FunctionDecl>> {
-    Ok(parse_module(package, module)?
-        .functions()
-        .filter(|function| function.is_public && function.body.is_some())
-        .map(|function| (function.name.clone(), function.clone()))
-        .collect())
-}
-
 /// The functions of `program` carrying `attribute`, in source order.
 pub fn find_tests(program: &Program, attribute: &str) -> Vec<TestCase> {
     let methods = program.classes().flat_map(|class| class.methods.iter());
@@ -55,7 +44,6 @@ pub fn find_tests(program: &Program, attribute: &str) -> Vec<TestCase> {
         })
         .map(|function| TestCase {
             name: function.name.clone(),
-            body: function.body.clone().unwrap_or_default(),
             line: function.line,
         })
         .collect::<Vec<_>>();

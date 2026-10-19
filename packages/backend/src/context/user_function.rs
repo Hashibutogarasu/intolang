@@ -9,6 +9,9 @@ pub struct UserFunction {
     pub params: Vec<Param>,
     pub return_type: Option<String>,
     pub body: Vec<Stmt>,
+    /// Whether the function only reads the tracking state of its arguments,
+    /// so that it may be given a moved or destroyed binding.
+    pub inspects: bool,
 }
 
 impl UserFunction {

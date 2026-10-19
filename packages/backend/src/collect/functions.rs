@@ -5,6 +5,7 @@ use crate::context::{Ownership, UserFunction};
 
 const CONSUMES: &str = "consumes";
 const DETACHED: &str = "detached";
+const INSPECTS: &str = "inspects";
 
 /// Collect the Into-bodied, non-generic functions of `program`.
 ///
@@ -38,6 +39,10 @@ fn user_function(function: &FunctionDecl, class: Option<&str>) -> Option<UserFun
         params: function.params.clone(),
         return_type: function.return_type.as_ref().map(ToString::to_string),
         body,
+        inspects: function
+            .attributes
+            .iter()
+            .any(|attribute| attribute.name == INSPECTS),
     })
 }
 

@@ -3,6 +3,8 @@ use testing::{Package, Workspace, run_tests};
 
 const IMPORTS: &str = "import \"intolang://builtin/tests/macros/test\";\nimport \"intolang://builtin/tests/assert\";\nimport \"intolang://builtin/tests/memory-check\";\nimport \"intolang://builtin/tests/ownership-check\";\n";
 
+const DOG: &str = "pub Dog() {\n    pub into: Int32 age = 1;\n}\n";
+
 const CHECKS: [(&str, &str, bool); 10] = [
     ("assertOwned", "isOwned", false),
     ("assertNotOwned", "isOwned", true),
@@ -21,7 +23,7 @@ fn ownership_check() -> String {
         .iter()
         .map(|(name, property, fails_when)| {
             format!(
-                "pub fun {name}(value: Object) {{\n    if value.{property} == {fails_when} {{\n        throw \"{name} failed\";\n    }}\n}}\n\n"
+                "#[inspects]\npub fun {name}(value: Object) {{\n    if value.{property} == {fails_when} {{\n        throw \"{name} failed\";\n    }}\n}}\n\n"
             )
         })
         .collect()
@@ -39,18 +41,18 @@ fn builtin() -> Package {
     Package::new("builtin")
         .file("src/main/into-info.into", info)
         .file(
-            "src/main/builtin/tests/macros/test.into",
+            "src/main/tests/macros/test.into",
             "pub macro test {\n    #[test]\n}\n",
         )
         .file(
-            "src/main/builtin/tests/assert.into",
+            "src/main/tests/assert.into",
             "pub fun assert(condition: Boolean) {\n    if condition == false {\n        throw \"assertion failed\";\n    }\n}\n\npub fun assertTrue(condition: Boolean) {\n    if condition == false {\n        throw \"expected true\";\n    }\n}\n\npub fun assertEquals(expected: Int32, actual: Int32) {\n    if expected != actual {\n        throw \"values are not equal\";\n    }\n}\n",
         )
         .file(
-            "src/main/builtin/tests/memory-check.into",
-            "pub fun assertMemoryExists(value: Object) {\n    if value.isInMemory == false {\n        throw \"memory does not exist\";\n    }\n}\n\npub fun assertMemoryNotExists(value: Object) {\n    if value.isInMemory == true {\n        throw \"memory exists\";\n    }\n}\n",
+            "src/main/tests/memory-check.into",
+            "#[inspects]\npub fun assertMemoryExists(value: Object) {\n    if value.isInMemory == false {\n        throw \"memory does not exist\";\n    }\n}\n\n#[inspects]\npub fun assertMemoryNotExists(value: Object) {\n    if value.isInMemory == true {\n        throw \"memory exists\";\n    }\n}\n",
         )
-        .file("src/main/builtin/tests/ownership-check.into", ownership_check())
+        .file("src/main/tests/ownership-check.into", ownership_check())
 }
 
 fn run(source: &str) -> anyhow::Result<testing::TestSummary> {
@@ -59,7 +61,7 @@ fn run(source: &str) -> anyhow::Result<testing::TestSummary> {
 }
 
 fn outcome(body: &str) -> (usize, usize) {
-    let source = format!("{IMPORTS}\n#[test]\npub fun checked() {{\n{body}}}\n");
+    let source = format!("{IMPORTS}{DOG}\n#[test]\npub fun checked() {{\n{body}}}\n");
     let summary = run(&source).unwrap();
     (summary.passed, summary.failed)
 }
@@ -128,12 +130,12 @@ fn reports_syntax_errors_with_the_file_path() {
 fn fresh_bindings_are_owned() {
     assert_eq!(
         outcome(
-            "    now into dog = 1;\n    assertOwned(dog);\n    assertNotReference(dog);\n    assertNotBorrowed(dog);\n    assertNotMoved(dog);\n    assertNotDestroyed(dog);\n"
+            "    now into dog = Dog();\n    assertOwned(dog);\n    assertNotReference(dog);\n    assertNotBorrowed(dog);\n    assertNotMoved(dog);\n    assertNotDestroyed(dog);\n"
         ),
         (1, 0)
     );
     assert_eq!(
-        outcome("    now into dog = 1;\n    assertNotOwned(dog);\n"),
+        outcome("    now into dog = Dog();\n    assertNotOwned(dog);\n"),
         (0, 1)
     );
 }
@@ -142,7 +144,7 @@ fn fresh_bindings_are_owned() {
 fn move_hands_ownership_to_the_new_binding() {
     assert_eq!(
         outcome(
-            "    now into dog = 1;\n    now into moved = dog.move();\n    assertMoved(dog);\n    assertNotOwned(dog);\n    assertOwned(moved);\n    assertMemoryNotExists(dog);\n    assertMemoryExists(moved);\n"
+            "    now into dog = Dog();\n    now into moved = dog.move();\n    assertMoved(dog);\n    assertNotOwned(dog);\n    assertOwned(moved);\n    assertMemoryNotExists(dog);\n    assertMemoryExists(moved);\n"
         ),
         (1, 0)
     );
@@ -152,7 +154,7 @@ fn move_hands_ownership_to_the_new_binding() {
 fn copy_creates_an_independent_owner() {
     assert_eq!(
         outcome(
-            "    now into dog = 1;\n    now into twin = dog.copy();\n    assertOwned(dog);\n    assertOwned(twin);\n    twin.destroy();\n    assertDestroyed(twin);\n    assertNotDestroyed(dog);\n"
+            "    now into dog = Dog();\n    now into twin = dog.copy();\n    assertOwned(dog);\n    assertOwned(twin);\n    twin.destroy();\n    assertDestroyed(twin);\n    assertNotDestroyed(dog);\n"
         ),
         (1, 0)
     );
@@ -162,7 +164,7 @@ fn copy_creates_an_independent_owner() {
 fn borrow_gives_a_reference_that_owns_nothing() {
     assert_eq!(
         outcome(
-            "    now into dog = 1;\n    now into view = dog.borrow();\n    assertBorrowed(dog);\n    assertReference(view);\n    assertNotOwned(view);\n    assertOwned(dog);\n    view.destroy();\n    assertNotBorrowed(dog);\n    assertNotDestroyed(dog);\n"
+            "    now into dog = Dog();\n    now into view = dog.borrow();\n    assertBorrowed(dog);\n    assertReference(view);\n    assertNotOwned(view);\n    assertOwned(dog);\n    view.destroy();\n    assertNotBorrowed(dog);\n    assertNotDestroyed(dog);\n"
         ),
         (1, 0)
     );
@@ -172,7 +174,7 @@ fn borrow_gives_a_reference_that_owns_nothing() {
 fn destroy_removes_the_memory() {
     assert_eq!(
         outcome(
-            "    now into dog = 1;\n    dog.destroy();\n    assertDestroyed(dog);\n    assertMemoryNotExists(dog);\n    assertNotOwned(dog);\n"
+            "    now into dog = Dog();\n    dog.destroy();\n    assertDestroyed(dog);\n    assertMemoryNotExists(dog);\n    assertNotOwned(dog);\n"
         ),
         (1, 0)
     );
@@ -181,14 +183,14 @@ fn destroy_removes_the_memory() {
 #[test]
 fn each_ownership_assertion_fails_when_it_does_not_hold() {
     for body in [
-        "    now into dog = 1;\n    assertMoved(dog);\n",
-        "    now into dog = 1;\n    assertDestroyed(dog);\n",
-        "    now into dog = 1;\n    assertBorrowed(dog);\n",
-        "    now into dog = 1;\n    assertReference(dog);\n",
-        "    now into dog = 1;\n    now into moved = dog.move();\n    assertNotMoved(dog);\n",
-        "    now into dog = 1;\n    dog.destroy();\n    assertNotDestroyed(dog);\n",
-        "    now into dog = 1;\n    now into view = dog.borrow();\n    assertNotBorrowed(dog);\n",
-        "    now into dog = 1;\n    now into view = dog.borrow();\n    assertNotReference(view);\n",
+        "    now into dog = Dog();\n    assertMoved(dog);\n",
+        "    now into dog = Dog();\n    assertDestroyed(dog);\n",
+        "    now into dog = Dog();\n    assertBorrowed(dog);\n",
+        "    now into dog = Dog();\n    assertReference(dog);\n",
+        "    now into dog = Dog();\n    now into moved = dog.move();\n    assertNotMoved(dog);\n",
+        "    now into dog = Dog();\n    dog.destroy();\n    assertNotDestroyed(dog);\n",
+        "    now into dog = Dog();\n    now into view = dog.borrow();\n    assertNotBorrowed(dog);\n",
+        "    now into dog = Dog();\n    now into view = dog.borrow();\n    assertNotReference(view);\n",
     ] {
         assert_eq!(outcome(body), (0, 1), "{body}");
     }
@@ -198,13 +200,13 @@ fn each_ownership_assertion_fails_when_it_does_not_hold() {
 fn using_a_moved_binding_fails_the_test() {
     assert_eq!(
         outcome(
-            "    now into dog = 1;\n    now into moved = dog.move();\n    now into again = dog.move();\n"
+            "    now into dog = Dog();\n    now into moved = dog.move();\n    now into again = dog.move();\n"
         ),
         (0, 1)
     );
     assert_eq!(
         outcome(
-            "    now into dog = 1;\n    now into view = dog.borrow();\n    now into moved = dog.move();\n"
+            "    now into dog = Dog();\n    now into view = dog.borrow();\n    now into moved = dog.move();\n"
         ),
         (0, 1)
     );

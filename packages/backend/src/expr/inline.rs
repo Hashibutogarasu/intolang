@@ -3,6 +3,7 @@ use native::OwnershipChange;
 use std::collections::HashSet;
 use types::{Literal, MessageTag, Storage, Type};
 
+use super::condition::fold_comparison;
 use super::events::RuntimeCall;
 use super::ownership::{BORROW, COPY, DESTROY, MOVE};
 use super::type_name::{base_type_name, parse_type};
@@ -101,7 +102,11 @@ impl<'a> Lowerer<'a> {
         returned: &mut Returned,
     ) -> Result<(), String> {
         for (param, argument) in function.params.iter().zip(arguments) {
-            let argument = self.prepare_argument(param, argument, views)?;
+            let argument = if function.inspects {
+                argument
+            } else {
+                self.prepare_argument(param, argument, views)?
+            };
             substitutions.push((param.name.clone(), argument));
         }
         function
@@ -303,7 +308,11 @@ impl<'a> Lowerer<'a> {
         depth: usize,
         returned: &mut Returned,
     ) -> Result<(), String> {
+        let folded = fold_comparison(condition);
         match condition {
+            _ if folded.is_some() => {
+                emit::if_const(&mut self.state.output, folded.unwrap_or_default())
+            }
             _ if self.begin_state_check(condition) => {}
             Expr::Compare { left, op, right } => {
                 self.begin_comparison(MessageTag::IfBegin, "if", left, *op, right)?;
