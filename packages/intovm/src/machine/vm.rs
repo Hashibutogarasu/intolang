@@ -419,6 +419,38 @@ impl Vm {
                 self.frames.push(frame);
                 return Ok(());
             }
+            Instr::FunctionRef(reference) => {
+                self.store(
+                    &reference.target,
+                    Value::Str(reference.name.clone().into_bytes()),
+                );
+            }
+            Instr::CallIndirect(call) => {
+                if self.frames.len() >= MAX_CALL_DEPTH {
+                    bail!("Stack overflow in a call of `{}`", call.slot);
+                }
+                let reference = self.load_slot(&call.slot)?;
+                let Value::Str(bytes) = reference else {
+                    bail!("`{}` does not refer to a function", call.slot);
+                };
+                let name = String::from_utf8_lossy(&bytes).into_owned();
+                let function = program.functions.get(&name).ok_or_else(|| {
+                    anyhow!("`{}` refers to the unknown function `{name}`", call.slot)
+                })?;
+                let values = call
+                    .args
+                    .iter()
+                    .map(|arg| self.argument(arg))
+                    .collect::<Result<Vec<_>>>()?;
+                let locals = function.params.iter().cloned().zip(values).collect();
+                self.advance();
+                self.frames.push(Frame::function(
+                    function.entry,
+                    locals,
+                    function.captures.clone(),
+                ));
+                return Ok(());
+            }
             Instr::ReturnValue(result) => {
                 let value = match &result.operand {
                     Some(operand) => Some(self.operand(operand, &result.ty)?),

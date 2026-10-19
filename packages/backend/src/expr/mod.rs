@@ -1,4 +1,5 @@
 mod annotation;
+mod callbacks;
 mod captures;
 mod casts;
 mod condition;
@@ -19,6 +20,7 @@ mod type_name;
 mod typing;
 mod value;
 
+pub use callbacks::names_callback;
 pub use captures::{called_paths, returns_early};
 pub use events::RuntimeCall;
 pub use numeric::Kind;

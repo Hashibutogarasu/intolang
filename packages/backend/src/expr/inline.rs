@@ -438,6 +438,9 @@ impl<'a> Lowerer<'a> {
             return Ok(());
         }
         let name = callee.first();
+        if self.lower_indirect_call(name, args)? {
+            return Ok(());
+        }
         if let Some(inner) = env.user_functions.get(name) {
             return self
                 .inline_user_function(inner, None, args, depth + 1)

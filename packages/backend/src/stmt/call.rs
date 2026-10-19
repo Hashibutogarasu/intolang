@@ -28,6 +28,12 @@ impl Lowerer<'_> {
         let env = self.env;
         let name = callee.first();
         let console = name == PRINT || name == PRINTLN;
+        if self
+            .lower_indirect_call(name, args)
+            .map_err(|message| self.diagnostic(line, &message))?
+        {
+            return Ok(());
+        }
         if let Some(inner) = env.user_functions.get(name) {
             return self
                 .inline_user_function(inner, None, args, 0)

@@ -105,7 +105,22 @@ impl Lowerer<'_> {
     }
 
     /// The argument that passes `argument` to a parameter of type `ty`.
-    fn runtime_argument(&mut self, argument: &Expr, ty: &Type) -> Result<NativeArg, String> {
+    pub(crate) fn runtime_argument(
+        &mut self,
+        argument: &Expr,
+        ty: &Type,
+    ) -> Result<NativeArg, String> {
+        if let Expr::Lambda { params, body } = argument {
+            if !Self::is_function_type(ty) {
+                return Err(format!(
+                    "A lambda cannot stand where a `{}` is expected",
+                    ty.name()
+                ));
+            }
+            return Ok(NativeArg::Slot(
+                self.lower_lambda_value(params, body, ty, None)?,
+            ));
+        }
         if is_scalar(ty) {
             return Ok(NativeArg::Slot(self.scalar_slot(argument, ty)?));
         }

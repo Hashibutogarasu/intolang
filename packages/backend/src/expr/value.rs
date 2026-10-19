@@ -104,8 +104,15 @@ impl<'a> Lowerer<'a> {
                     return Ok((source.value.clone(), ty, false));
                 }
             }
-            Expr::Lambda { .. } => {
-                return Err("Lambda expressions are not supported in this position".into());
+            Expr::Lambda { params, body } => {
+                let Some(expected) = annotation.filter(Self::is_function_type) else {
+                    return Err(
+                        "A lambda needs a callback type; annotate the binding, such as `Callback<String>`"
+                            .into(),
+                    );
+                };
+                self.lower_lambda_value(params, body, &expected, Some(assigned_to))?;
+                return Ok((expected.name(), expected, true));
             }
             Expr::Thread { body } => {
                 let function = self.lower_thread_body(body)?;

@@ -1,6 +1,6 @@
 use native::{
-    CastAssign, CompareAssign, Comparison, FieldAssign, FieldLoad, FunctionCall, FunctionReturn,
-    LinkCall, NativeArg, Operand, OwnershipChange, StateCheck,
+    CastAssign, CompareAssign, Comparison, FieldAssign, FieldLoad, FunctionCall, FunctionRef,
+    FunctionReturn, IndirectCall, LinkCall, NativeArg, Operand, OwnershipChange, StateCheck,
 };
 use std::collections::HashMap;
 
@@ -101,6 +101,8 @@ pub enum Instr {
     Jump(usize),
     Return,
     CallFn(FunctionCall),
+    FunctionRef(FunctionRef),
+    CallIndirect(IndirectCall),
     ReturnValue(FunctionReturn),
     Nop,
 }

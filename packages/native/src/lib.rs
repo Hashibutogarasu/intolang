@@ -12,7 +12,7 @@ pub use build::{
     compile_sources, native_dependencies,
 };
 pub use call::LinkCall;
-pub use function::{FunctionCall, FunctionDefinition, FunctionReturn};
+pub use function::{FunctionCall, FunctionDefinition, FunctionRef, FunctionReturn, IndirectCall};
 pub use link::{NativeLink, is_vm_only};
 pub use operand::{CastAssign, CompareAssign, Comparison, FieldAssign, FieldLoad, Operand};
 pub use ownership::{OwnershipChange, Property, StateCheck};

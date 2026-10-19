@@ -2,7 +2,7 @@ use ast::Path;
 use std::collections::{HashMap, HashSet};
 
 use crate::context::UserFunction;
-use crate::expr::{called_paths, returns_early};
+use crate::expr::{called_paths, names_callback, returns_early};
 
 /// The functions that are called at run time instead of being inlined: the
 /// ones that can reach themselves through calls, and the ones that return
@@ -21,10 +21,22 @@ pub fn runtime_functions(functions: &HashMap<String, UserFunction>) -> HashSet<S
     functions
         .iter()
         .filter(|(key, function)| {
-            returns_early(&function.body) || reaches(&edges, key.as_str(), key.as_str())
+            takes_callback(function)
+                || returns_early(&function.body)
+                || reaches(&edges, key.as_str(), key.as_str())
         })
         .map(|(key, _)| key.clone())
         .collect()
+}
+
+/// Whether a parameter of the function is a function, so that a lambda can be
+/// passed to it.
+fn takes_callback(function: &UserFunction) -> bool {
+    function
+        .params
+        .iter()
+        .filter_map(|param| param.ty.as_ref())
+        .any(|ty| names_callback(ty.as_str()))
 }
 
 /// The functions a call from `caller` may run.

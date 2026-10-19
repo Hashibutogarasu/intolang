@@ -1,0 +1,5 @@
+pub Callback<T>() {
+}
+
+pub BiCallback<K, V>() {
+}

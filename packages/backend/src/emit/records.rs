@@ -2,7 +2,8 @@ use ast::Expr;
 use moduler::Module;
 use native::{
     CastAssign, CompareAssign, Comparison, FieldAssign, FieldLoad, FunctionCall,
-    FunctionDefinition, FunctionReturn, NativeArg, Operand, OwnershipChange, StateCheck,
+    FunctionDefinition, FunctionRef, FunctionReturn, IndirectCall, NativeArg, Operand,
+    OwnershipChange, StateCheck,
 };
 use parser::{Hex, Record};
 use types::{ComparisonOperator, Literal, MessageTag, Type};
@@ -213,6 +214,14 @@ pub fn function_call(output: &mut String, call: &FunctionCall) {
 
 pub fn function_return(output: &mut String, result: &FunctionReturn) {
     push(output, result.to_record());
+}
+
+pub fn function_ref(output: &mut String, reference: &FunctionRef) {
+    push(output, reference.to_record());
+}
+
+pub fn call_indirect(output: &mut String, call: &IndirectCall) {
+    push(output, call.to_record());
 }
 
 pub fn event_emit(output: &mut String, event: &str, args: &[NativeArg]) {
