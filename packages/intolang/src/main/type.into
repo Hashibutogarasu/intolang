@@ -1,0 +1,7 @@
+pub Type() {
+    pub into name = "";
+
+    pub override fun toString(): String {
+        return this.name;
+    }
+}

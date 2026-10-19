@@ -5,6 +5,7 @@ export "builtin://object";
 export "builtin://string";
 export "builtin://hex";
 export "builtin://callback";
+export "builtin://type";
 export "builtin://tests/macros/test/test";
 export "builtin://tests/assert/assert";
 export "builtin://tests/assert/assertTrue";

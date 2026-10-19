@@ -17,6 +17,9 @@ impl Lowerer<'_> {
         if fields.is_empty() {
             return Ok(None);
         }
+        if let Some(described) = self.lower_type_property(path)? {
+            return Ok(Some(described));
+        }
         let Some(variable) = self.state.values.get(holder) else {
             return Ok(None);
         };

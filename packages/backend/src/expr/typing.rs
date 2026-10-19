@@ -59,6 +59,9 @@ impl Lowerer<'_> {
         if let Some(field) = self.static_field(path) {
             return Ok(spelled(&field.ty));
         }
+        if self.is_type_property(path) {
+            return Ok(Type::Named(super::type_property::TYPE_CLASS.to_owned()));
+        }
         let first = path.first();
         if let Some(variable) = self.state.values.get(first) {
             let mut current = if variable.native {

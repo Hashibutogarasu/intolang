@@ -49,9 +49,10 @@ fn collect(
     Ok(())
 }
 
-/// The modules every program imports without naming them: the native members
-/// of `Object` and of `String`.
-const IMPLICIT_IMPORTS: &str = "import \"intolang://builtin/object\";\nimport \"intolang://builtin/string\";\nimport \"intolang://builtin/callback\";\nimport \"intolang://builtin/list\";";
+/// The modules of the builtin package every program imports without naming
+/// them: the members of `Object`, `String`, `List`, `Type` and the classes of
+/// functions.
+const IMPLICIT_MODULES: [&str; 5] = ["object", "string", "callback", "list", "type"];
 const IMPLICIT_MODULE_FILE: &str = "src/main/object.into";
 
 /// Follow the imports reachable from `program`, returning every module.
@@ -61,7 +62,11 @@ pub fn collect_modules(program: &Program, packages_dir: &Path) -> Result<Vec<Loa
     let provided = find_by_alias(packages_dir, BUILTIN_ALIAS)?
         .is_some_and(|root| root.join(IMPLICIT_MODULE_FILE).is_file());
     if provided {
-        let implicit = IMPLICIT_IMPORTS.parse::<Program>()?;
+        let imports: String = IMPLICIT_MODULES
+            .iter()
+            .map(|module| format!("import \"intolang://builtin/{module}\";\n"))
+            .collect();
+        let implicit = imports.parse::<Program>()?;
         collect(&implicit, packages_dir, &mut seen, &mut modules)?;
     }
     collect(program, packages_dir, &mut seen, &mut modules)?;

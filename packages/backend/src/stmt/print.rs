@@ -33,12 +33,8 @@ impl Lowerer<'_> {
                 self.print_literal(literal, newline);
                 return Ok(());
             }
-            if path.segments().len() > 2
-                && self
-                    .state
-                    .values
-                    .get(path.first())
-                    .is_some_and(|variable| variable.native)
+            if (path.segments().len() > 2 || self.is_type_property(path))
+                && self.state.values.get(path.first()).is_some()
             {
                 let Some((slot, ty)) = self
                     .lower_field_read(path)
@@ -46,6 +42,9 @@ impl Lowerer<'_> {
                 else {
                     return Err(self.diagnostic(line, &format!("Undefined variable `{argument}`")));
                 };
+                if self.is_instance_type(&ty) {
+                    return self.print_instance(line, &slot, newline);
+                }
                 emit::print(&mut self.state.output, &slot, &ty, newline);
                 return Ok(());
             }
@@ -93,6 +92,9 @@ impl Lowerer<'_> {
         {
             self.ensure_usable(name)
                 .map_err(|message| self.diagnostic(line, &message))?;
+            if variable.native && self.is_instance_type(&variable.ty) {
+                return self.print_instance(line, name, newline);
+            }
             return self.print_variable(line, name, &variable, newline);
         }
         if let Expr::Literal(literal) = argument {
@@ -121,6 +123,35 @@ impl Lowerer<'_> {
             return Ok(());
         }
         Err(self.diagnostic(line, &format!("Undefined variable `{argument}`")))
+    }
+
+    /// Whether values of the type are instances of a declared class, which
+    /// print through their `toString`.
+    fn is_instance_type(&self, ty: &types::Type) -> bool {
+        ty.referent().class_name().is_some_and(|name| {
+            self.env.class_fields.contains_key(name)
+                && !matches!(name, "String" | "List" | "Callback" | "BiCallback")
+        })
+    }
+
+    /// Print the text that `toString` of the instance in `slot` gives.
+    fn print_instance(&mut self, line: usize, slot: &str, newline: bool) -> Result<()> {
+        let env = self.env;
+        let call = Expr::Call {
+            callee: ast::Path::from(vec![slot.to_owned(), "toString".to_owned()]),
+            args: Vec::new(),
+        };
+        let temporary = format!("__print{}", self.state.temp_counter);
+        self.state.temp_counter += 1;
+        let (value, ty, native) = self
+            .declaration_value(&call, None, &env.type_params, &temporary)
+            .map_err(|message| self.diagnostic(line, &message))?;
+        if native {
+            emit::print(&mut self.state.output, &temporary, &ty, newline);
+        } else {
+            emit::text(&mut self.state.output, &value, newline);
+        }
+        Ok(())
     }
 
     fn print_variable(

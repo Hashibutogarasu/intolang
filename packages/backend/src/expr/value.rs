@@ -73,6 +73,13 @@ impl<'a> Lowerer<'a> {
                     let ty = resolve_annotation(ty, annotation)?;
                     return Ok((value, ty, native));
                 }
+                if path.is_member()
+                    && let Some((slot, ty)) = self.lower_field_read(path)?
+                {
+                    let ty = resolve_annotation(ty, annotation)?;
+                    emit::assign(&mut self.state.output, assigned_to, &ty, "p", &slot);
+                    return Ok((ty.name(), ty, true));
+                }
                 if let Some(name) = path.as_ident() {
                     self.ensure_usable(name)?;
                     if matches!(annotation, Some(Type::Reference(_)))

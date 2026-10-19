@@ -18,6 +18,7 @@ mod state_check;
 mod text;
 mod threads;
 mod type_name;
+mod type_property;
 mod typing;
 mod value;
 
