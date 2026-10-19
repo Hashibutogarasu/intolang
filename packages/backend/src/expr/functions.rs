@@ -126,7 +126,10 @@ impl Lowerer<'_> {
             return Ok(NativeArg::Slot(self.scalar_slot(argument, ty)?));
         }
         if matches!(ty, Type::String | Type::Path) {
-            if !self.is_text(argument) {
+            let actual = self.type_of(argument).ok();
+            let fits =
+                actual == Some(Type::String) || (*ty == Type::Path && actual == Some(Type::Path));
+            if !fits {
                 return Err(format!(
                     "Expected a `{}` argument but received `{argument}`",
                     ty.name()

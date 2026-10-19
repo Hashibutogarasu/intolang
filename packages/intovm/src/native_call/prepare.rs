@@ -16,7 +16,8 @@ const LIBRARY_NAME: &str = "libinex-native.so";
 /// bundle.
 const PACKAGES: &str = ".into/packages";
 
-fn cache_root() -> Result<PathBuf> {
+/// The directory the VM keeps what it builds and unpacks for programs.
+pub(crate) fn cache_root() -> Result<PathBuf> {
     if let Some(directory) = std::env::var_os("INTO_CACHE_DIR") {
         return Ok(PathBuf::from(directory));
     }
@@ -44,18 +45,7 @@ pub fn links(message: &str) -> bool {
 }
 
 fn compile(inex: &Inex, work: &Path) -> Result<PathBuf> {
-    for (path, entry) in inex.bundle.entries() {
-        let target = work.join(path.as_str());
-        if entry.is_directory() {
-            std::fs::create_dir_all(&target)?;
-            continue;
-        }
-        if let Some(parent) = target.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        std::fs::write(&target, inex.bundle.read(path.as_str()).unwrap_or_default())
-            .with_context(|| format!("Could not unpack {}", target.display()))?;
-    }
+    inex.unpack(work)?;
     let packages = work.join(PACKAGES);
     let mut sources = Vec::new();
     for source in native::collect_sources(inex.intoc()?, &packages)? {

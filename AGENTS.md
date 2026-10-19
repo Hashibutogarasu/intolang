@@ -327,6 +327,21 @@ has a test in the `tests/` directory of the crate that implements it.
   `assertNotMoved`, `assertDestroyed`, `assertNotDestroyed`. Their names start
   with `assert`.
 
+### Assets
+
+- `import "asset://require";` gives `require(directory)` and `asset(path)`.
+  `require("res");` names a directory of the package to bundle: every
+  `require` call of the lowered message (the native function `asset_require`)
+  adds that directory, below the same path, to the bundle of the `.inex` file or
+  of the native executable; a directory the package lacks is an error.
+- `asset("res/a.txt")` is the `Path` of the file unpacked from the bundle, and
+  an error when the file is not in it. The VM unpacks the bundle under its cache
+  by the digest of the tree. A native executable carries the bundle in the
+  object `into_bundle_data` (written by `native::embed_bundle` with `.incbin`) and
+  unpacks it on the first call to a directory `<executable>.assets/` next to the
+  file, unpacking again when the digest of the bundle differs from the one
+  recorded there. Embedding needs a GNU compatible assembler and an ELF target.
+
 ## Packages and the CLI
 
 - Commands: `new`, `install`, `uninstall` (`rm`), `build` (default), `run`,

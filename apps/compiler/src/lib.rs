@@ -14,6 +14,24 @@ pub fn compile(message: &str, output: &Path) -> Result<()> {
 
 /// Compile using a package directory assembled for the current project.
 pub fn compile_with_packages(message: &str, output: &Path, packages_dir: &Path) -> Result<()> {
+    compile_with_assets(message, output, packages_dir, None)
+}
+
+/// The bundle a program carries for its asset functions: its serialized
+/// bytes and the digest of its contents.
+pub struct Assets<'a> {
+    pub contents: &'a [u8],
+    pub digest: &'a str,
+}
+
+/// Compile using a package directory, with the bundle embedded in the
+/// executable.
+pub fn compile_with_assets(
+    message: &str,
+    output: &Path,
+    packages_dir: &Path,
+    assets: Option<Assets>,
+) -> Result<()> {
     unsafe {
         let context = llvm::core::LLVMContextCreate();
         let module_name = CString::new("intolang-module")?;
@@ -34,7 +52,14 @@ pub fn compile_with_packages(message: &str, output: &Path, packages_dir: &Path) 
     }
 
     let object_path = output.with_extension("o");
-    let native = native::compile_sources(message, output, packages_dir)?;
+    let mut native = native::compile_sources(message, output, packages_dir)?;
+    if let Some(assets) = assets {
+        native.objects.push(native::embed_bundle(
+            assets.contents,
+            assets.digest,
+            output,
+        )?);
+    }
     lld::link_objects(
         &object_path,
         &native.objects,

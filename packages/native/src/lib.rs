@@ -10,7 +10,7 @@ mod ownership;
 pub use arg::NativeArg;
 pub use build::{
     NativeBuild, NativeSource, SharedSource, collect_sources, compile_shared_library,
-    compile_sources, native_dependencies,
+    compile_sources, embed_bundle, native_dependencies, required_assets,
 };
 pub use call::LinkCall;
 pub use function::{FunctionCall, FunctionDefinition, FunctionRef, FunctionReturn, IndirectCall};

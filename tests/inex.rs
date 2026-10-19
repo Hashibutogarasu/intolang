@@ -19,11 +19,15 @@ impl Project {
     }
 
     fn inex(&self, name: &str) -> PathBuf {
+        self.executable(&format!("{name}.inex"))
+    }
+
+    fn executable(&self, name: &str) -> PathBuf {
         self.root
             .join("dist")
             .join(std::env::consts::OS)
             .join(std::env::consts::ARCH)
-            .join(format!("{name}.inex"))
+            .join(name)
     }
 }
 
@@ -99,6 +103,112 @@ println("Hello VM");
         String::from_utf8_lossy(&ran.stdout),
         r#"Hello VM
 "#
+    );
+}
+
+#[test]
+fn a_required_directory_travels_with_the_inex_file() {
+    let project = Project::new(
+        "assets",
+        &manifest("hello", r#""runs":"src/main/hello.into""#),
+        r#"import "intolang://builtin/std";
+import "asset://require";
+
+require("res");
+now into data = Binary.read(asset("res/a.txt"));
+println(data.text());
+"#,
+    );
+    std::fs::create_dir_all(project.root.join("res")).unwrap();
+    std::fs::write(project.root.join("res/a.txt"), "asset text").unwrap();
+    std::fs::create_dir_all(project.root.join("unused")).unwrap();
+    std::fs::write(project.root.join("unused/b.txt"), "left out").unwrap();
+    let built = into(&[Path::new("build"), Path::new("--vm"), &project.root]);
+    assert!(built.status.success(), "{built:?}");
+    let bytes = std::fs::read(project.inex("hello")).unwrap();
+    let inex = intovm::Inex::try_from(bytes.as_slice()).unwrap();
+    assert_eq!(inex.bundle.read("res/a.txt"), Some(&b"asset text"[..]));
+    assert!(inex.bundle.get("unused").is_none());
+    let elsewhere = std::env::temp_dir().join(format!(
+        "intolang-inex-test-{}-assets-copy.inex",
+        std::process::id()
+    ));
+    std::fs::copy(project.inex("hello"), &elsewhere).unwrap();
+    drop(project);
+    let ran = into(&[Path::new("run"), &elsewhere]);
+    std::fs::remove_file(&elsewhere).ok();
+    assert_eq!(
+        String::from_utf8_lossy(&ran.stdout),
+        r#"asset text
+"#,
+        "{ran:?}"
+    );
+}
+
+#[test]
+fn a_native_executable_carries_the_required_directory() {
+    let project = Project::new(
+        "native-assets",
+        &manifest("hello", r#""runs":"src/main/hello.into""#),
+        r#"import "intolang://builtin/std";
+import "asset://require";
+
+require("res");
+now into data = Binary.read(asset("res/a.txt"));
+println(data.text());
+"#,
+    );
+    std::fs::create_dir_all(project.root.join("res/inner")).unwrap();
+    std::fs::write(project.root.join("res/a.txt"), "asset text").unwrap();
+    std::fs::write(project.root.join("res/inner/b.bin"), [0u8, 255, 1]).unwrap();
+    let built = into(&[Path::new("build"), &project.root]);
+    assert!(built.status.success(), "{built:?}");
+    let directory = std::env::temp_dir().join(format!(
+        "intolang-inex-test-{}-native-assets-copy",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&directory).unwrap();
+    let elsewhere = directory.join("hello");
+    std::fs::copy(project.executable("hello"), &elsewhere).unwrap();
+    drop(project);
+    let first = Command::new(&elsewhere).output().unwrap();
+    assert_eq!(
+        String::from_utf8_lossy(&first.stdout),
+        r#"asset text
+"#,
+        "{first:?}"
+    );
+    assert_eq!(
+        std::fs::read(directory.join("hello.assets/res/inner/b.bin")).unwrap(),
+        [0u8, 255, 1]
+    );
+    std::fs::write(directory.join("hello.assets/res/a.txt"), "changed on disk").unwrap();
+    let second = Command::new(&elsewhere).output().unwrap();
+    assert_eq!(
+        String::from_utf8_lossy(&second.stdout),
+        r#"changed on disk
+"#,
+        "{second:?}"
+    );
+    std::fs::remove_dir_all(&directory).ok();
+}
+
+#[test]
+fn a_required_directory_that_does_not_exist_is_an_error() {
+    let project = Project::new(
+        "missing-assets",
+        &manifest("hello", r#""runs":"src/main/hello.into""#),
+        r#"import "intolang://builtin/std";
+import "asset://require";
+
+require("res");
+"#,
+    );
+    let built = into(&[Path::new("build"), Path::new("--vm"), &project.root]);
+    assert!(!built.status.success());
+    assert!(
+        String::from_utf8_lossy(&built.stderr).contains("names the directory `res`"),
+        "{built:?}"
     );
 }
 

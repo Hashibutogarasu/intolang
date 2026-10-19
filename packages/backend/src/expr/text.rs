@@ -108,7 +108,7 @@ impl<'a> Lowerer<'a> {
                 .ok_or_else(|| format!("Unknown name `{name}`"))?;
             return match (variable.native, &variable.ty) {
                 (false, _) => Ok(Text::Const(variable.value.clone())),
-                (true, Type::String) => Ok(Text::Slot(name.to_owned())),
+                (true, Type::String | Type::Path) => Ok(Text::Slot(name.to_owned())),
                 (true, Type::Char) => self.char_text(name),
                 (true, other) => Err(format!("`{name}` is a `{}`, not text", other.name())),
             };
@@ -140,8 +140,8 @@ impl<'a> Lowerer<'a> {
             let (value, ty, native) =
                 self.declaration_value(expression, None, &env.type_params, &temporary)?;
             return match (native, ty) {
-                (true, Type::String) => Ok(Text::Slot(temporary)),
-                (false, Type::String) => Ok(Text::Const(value)),
+                (true, Type::String | Type::Path) => Ok(Text::Slot(temporary)),
+                (false, Type::String | Type::Path) => Ok(Text::Const(value)),
                 (_, other) => Err(format!("`{expression}` is a `{}`, not text", other.name())),
             };
         }

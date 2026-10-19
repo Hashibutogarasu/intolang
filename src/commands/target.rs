@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use intovm::Inex;
 use std::path::{Path, PathBuf};
 
 use crate::commands::inex;
@@ -30,8 +31,24 @@ impl Target for NativeTarget {
     }
 
     fn build(&self, project: &Project, message: String, output: &Path) -> Result<()> {
-        compiler::compile_with_packages(&message, output, project.packages)
-            .context("Compilation failed")
+        let carried = Inex {
+            generator: format!("into {}", env!("CARGO_PKG_VERSION")),
+            bundle: inex::resources(project.directory, &message)?,
+        };
+        let assets = if carried.bundle.entries().next().is_some() {
+            Some((Vec::from(&carried), carried.bundle.digest()))
+        } else {
+            None
+        };
+        compiler::compile_with_assets(
+            &message,
+            output,
+            project.packages,
+            assets
+                .as_ref()
+                .map(|(contents, digest)| compiler::Assets { contents, digest }),
+        )
+        .context("Compilation failed")
     }
 
     fn run(&self, project: &Project, output: &Path) -> Result<()> {

@@ -17,27 +17,37 @@ pub(super) fn is_inex(path: &Path) -> bool {
         .is_some_and(|extension| extension == EXTENSION)
 }
 
+/// The directories of the project in `directory` that the `require` calls of
+/// the lowered `message` name.
+pub(super) fn resources(directory: &Path, message: &str) -> Result<Bundle> {
+    let mut bundle = Bundle::new();
+    for required in native::required_assets(message)? {
+        let resources = directory.join(&required);
+        if !resources.is_dir() {
+            anyhow::bail!("`require` names the directory `{required}`, which the package lacks");
+        }
+        bundle.add_tree(&resources, &required)?;
+    }
+    Ok(bundle)
+}
+
 /// Package the project in `directory` as an executable: its manifest, its
-/// sources and resources, the manifests and native sources of the packages
-/// the lowered `message` calls into, found in the package environment
-/// `packages`, and the message itself as `intoc`.
+/// sources, the directories its `require` calls name, the manifests and native
+/// sources of the packages the lowered `message` calls into, found in the
+/// package environment `packages`, and the message itself as `intoc`.
 pub(super) fn assemble(
     directory: &Path,
     packages: &Path,
     message: String,
     generator: String,
 ) -> Result<Inex> {
-    let mut bundle = Bundle::new();
+    let mut bundle = resources(directory, &message)?;
     add_file(&mut bundle, MANIFEST, &directory.join(MANIFEST))?;
     let sources = directory.join("src");
     if sources.is_dir() {
         bundle.add_tree_skipping(&sources, "src", &|relative| {
             relative == "rust" || relative.starts_with("rust/")
         })?;
-    }
-    let resources = directory.join("res");
-    if resources.is_dir() {
-        bundle.add_tree(&resources, "res")?;
     }
     let mut mounted = BTreeSet::new();
     for source in native::collect_sources(&message, packages)? {

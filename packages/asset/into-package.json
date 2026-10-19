@@ -1,0 +1,10 @@
+{
+  "name": "Into Asset Modules",
+  "alias": "asset",
+  "version": "0.1.0",
+  "LICENCE": "MIT",
+  "library": "src/main/lib.into",
+  "builtConfig": {
+    "dist": "./dist"
+  }
+}

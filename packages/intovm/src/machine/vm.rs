@@ -71,6 +71,7 @@ pub struct Vm {
     pub(super) retained_strings: Vec<std::ffi::CString>,
     pub(super) lists: Vec<Vec<Value>>,
     pub(super) allocations: HashMap<usize, std::alloc::Layout>,
+    pub(super) assets: Option<std::path::PathBuf>,
     options: VmOptions,
     stdout: Vec<u8>,
     stdin_position: usize,
@@ -94,6 +95,7 @@ impl Vm {
             retained_strings: Vec::new(),
             lists: Vec::new(),
             allocations: HashMap::new(),
+            assets: None,
             options,
             program: Rc::new(Program::default()),
             globals: HashMap::new(),
@@ -114,6 +116,7 @@ impl Vm {
         super::text::install(&mut vm);
         super::lists::install(&mut vm);
         super::binary::install(&mut vm);
+        super::assets::install(&mut vm);
         super::memory_access::install(&mut vm);
         vm
     }
@@ -220,6 +223,9 @@ impl Vm {
         self.load(message)?;
         if native_call::links(message) {
             self.native = Some(Rc::new(native_call::load(inex)?));
+        }
+        if !native::required_assets(message)?.is_empty() {
+            self.assets = Some(super::assets::unpack_assets(inex)?);
         }
         Ok(())
     }

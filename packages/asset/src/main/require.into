@@ -1,0 +1,5 @@
+#[link("c", "src/ffi/asset/asset.c", "asset_require")]
+pub c fun require(directory: String): Void;
+
+#[link("c", "src/ffi/asset/asset.c", "asset_path")]
+pub c fun asset(path: Path): Path;

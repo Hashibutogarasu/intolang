@@ -1,4 +1,5 @@
 mod arith;
+mod assets;
 mod binary;
 mod events;
 mod frame;
