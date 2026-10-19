@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use intovm::Inex;
+use progress::Progress;
 use std::path::{Path, PathBuf};
 
 use crate::commands::inex;
@@ -14,8 +15,15 @@ pub(super) struct Project<'a> {
 /// named, how it is made and how it runs.
 pub(super) trait Target {
     fn output(&self, directory: &Path, executable: &str) -> PathBuf;
+    fn steps(&self) -> u64;
 
-    fn build(&self, project: &Project, message: String, output: &Path) -> Result<()>;
+    fn build(
+        &self,
+        project: &Project,
+        message: String,
+        output: &Path,
+        progress: &Progress,
+    ) -> Result<()>;
 
     fn run(&self, project: &Project, output: &Path) -> Result<()>;
 }
@@ -30,7 +38,17 @@ impl Target for NativeTarget {
         directory.join(executable)
     }
 
-    fn build(&self, project: &Project, message: String, output: &Path) -> Result<()> {
+    fn steps(&self) -> u64 {
+        compiler::Stage::COUNT
+    }
+
+    fn build(
+        &self,
+        project: &Project,
+        message: String,
+        output: &Path,
+        progress: &Progress,
+    ) -> Result<()> {
         let carried = Inex {
             generator: format!("into {}", env!("CARGO_PKG_VERSION")),
             bundle: inex::resources(project.directory, &message)?,
@@ -41,8 +59,14 @@ impl Target for NativeTarget {
             .next()
             .is_some()
             .then(|| Vec::from(&carried));
-        compiler::compile_with_assets(&message, output, project.packages, assets.as_deref())
-            .context("Compilation failed")
+        compiler::compile_with_assets(
+            &message,
+            output,
+            project.packages,
+            assets.as_deref(),
+            &mut |stage| progress.step(stage.message()),
+        )
+        .context("Compilation failed")
     }
 
     fn run(&self, project: &Project, output: &Path) -> Result<()> {
@@ -65,7 +89,18 @@ impl Target for InexTarget {
         directory.join(format!("{executable}.{}", inex::EXTENSION))
     }
 
-    fn build(&self, project: &Project, message: String, output: &Path) -> Result<()> {
+    fn steps(&self) -> u64 {
+        1
+    }
+
+    fn build(
+        &self,
+        project: &Project,
+        message: String,
+        output: &Path,
+        progress: &Progress,
+    ) -> Result<()> {
+        progress.step("Bundling the project");
         let program = inex::assemble(
             project.directory,
             project.packages,

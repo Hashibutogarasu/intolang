@@ -2,7 +2,10 @@ extern crate llvm_sys as llvm;
 
 mod object;
 mod resources;
+mod stage;
 mod target;
+
+pub use stage::Stage;
 
 use anyhow::{Context, Result};
 use std::{ffi::CString, path::Path};
@@ -14,17 +17,20 @@ pub fn compile(message: &str, output: &Path) -> Result<()> {
 
 /// Compile using a package directory assembled for the current project.
 pub fn compile_with_packages(message: &str, output: &Path, packages_dir: &Path) -> Result<()> {
-    compile_with_assets(message, output, packages_dir, None)
+    compile_with_assets(message, output, packages_dir, None, &mut |_| {})
 }
 
 /// Compile using a package directory, with the serialized bundle `assets`, if
 /// any, embedded in the executable for its asset functions to read.
+/// `on_stage` is told when each stage starts.
 pub fn compile_with_assets(
     message: &str,
     output: &Path,
     packages_dir: &Path,
     assets: Option<&[u8]>,
+    on_stage: &mut dyn FnMut(Stage),
 ) -> Result<()> {
+    on_stage(Stage::Codegen);
     unsafe {
         let context = llvm::core::LLVMContextCreate();
         let module_name = CString::new("intolang-module")?;
@@ -45,10 +51,12 @@ pub fn compile_with_assets(
     }
 
     let object_path = output.with_extension("o");
+    on_stage(Stage::Native);
     let mut native = native::compile_sources(message, output, packages_dir)?;
     if let Some(assets) = assets {
         native.objects.push(native::embed_bundle(assets, output)?);
     }
+    on_stage(Stage::Link);
     lld::link_objects(
         &object_path,
         &native.objects,

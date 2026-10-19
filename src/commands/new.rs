@@ -72,7 +72,7 @@ fn create(args: NewArgs) -> Result<()> {
         &manifest_path,
         format!("{}\n", serde_json::to_string_pretty(&manifest)?),
     )?;
-    println!("Created project {}", args.path.display());
+    progress::report(&format!("Created project {}", args.path.display()));
     Ok(())
 }
 

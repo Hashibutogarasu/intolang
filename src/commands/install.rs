@@ -40,7 +40,7 @@ impl Command for Install {
                     _ => source,
                 };
                 let package = project.install(&source, &embedded)?;
-                println!("Installed {} {}", package.alias, package.version);
+                progress::report(&format!("Installed {} {}", package.alias, package.version));
             }
             None => {
                 for restoration in project.restore(&embedded)? {
@@ -49,10 +49,10 @@ impl Command for Install {
                     } else {
                         "Up to date"
                     };
-                    println!(
+                    progress::report(&format!(
                         "{status} {} {}",
                         restoration.package.alias, restoration.package.version
-                    );
+                    ));
                 }
             }
         }

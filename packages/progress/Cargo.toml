@@ -1,0 +1,9 @@
+[package]
+name = "progress"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+console = "0.16"
+indicatif = "0.18"

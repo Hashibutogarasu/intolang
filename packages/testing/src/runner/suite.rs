@@ -41,11 +41,11 @@ pub fn run_tests(source: &str, path: &Path, packages_dir: &Path) -> Result<TestS
         match outcome {
             Ok(_) => {
                 summary.passed += 1;
-                println!("test {} ... ok", test.name);
+                progress::report(&format!("test {} ... ok", test.name));
             }
             Err(error) => {
                 summary.failed += 1;
-                eprintln!("test {} ... FAILED\n{error:#}", test.name);
+                progress::report(&format!("test {} ... FAILED\n{error:#}", test.name));
             }
         }
     }

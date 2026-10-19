@@ -54,7 +54,7 @@ pub(super) fn run(path: PathBuf, max_depth: Option<usize>) -> Result<()> {
         std::fs::write(&file, formatted).with_context(|| {
             format!("Could not write formatted Into source: {}", file.display())
         })?;
-        println!("Formatted {}", file.display());
+        progress::report(&format!("Formatted {}", file.display()));
     }
     Ok(())
 }

@@ -17,6 +17,7 @@ testing = { version = "0.1.0", path = "packages/testing" }
 moduler = { version = "0.1.0", path = "packages/moduler" }
 intovm = { version = "0.1.0", path = "packages/intovm" }
 native = { version = "0.1.0", path = "packages/native" }
+progress = { version = "0.1.0", path = "packages/progress" }
 
 [workspace]
-members = ["apps/compiler", "packages/ast", "packages/backend", "packages/bundle", "packages/codegen", "packages/formatter", "packages/intovm", "packages/lld", "packages/moduler", "packages/native", "packages/parser", "packages/testing", "packages/tokenizer", "packages/types"]
+members = ["apps/compiler", "packages/ast", "packages/backend", "packages/bundle", "packages/codegen", "packages/formatter", "packages/intovm", "packages/lld", "packages/moduler", "packages/native", "packages/parser", "packages/progress", "packages/testing", "packages/tokenizer", "packages/types"]

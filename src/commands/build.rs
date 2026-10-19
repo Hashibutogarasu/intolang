@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use clap::{ArgMatches, Args, Command as ClapCommand, FromArgMatches};
+use progress::Progress;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -70,11 +71,28 @@ pub(super) fn run(
     if vm_output && package.library.is_some() {
         anyhow::bail!("`--vm` builds executables; a library package has no .inex form");
     }
+    let target: Box<dyn Target> = if vm_output {
+        Box::new(InexTarget)
+    } else {
+        Box::new(NativeTarget)
+    };
+    let steps = if package.library.is_some() {
+        2
+    } else {
+        1 + target.steps()
+    };
+    let progress = Progress::start("Preparing the packages", steps);
     let package_environment =
         prepare_package_environment(package_dir, &embedded_packages, &package.packages)?;
 
     if let Some(library) = package.library.as_deref() {
-        return build_library(package_dir, &package, &library, package_environment.path());
+        return build_library(
+            package_dir,
+            &package,
+            &library,
+            package_environment.path(),
+            progress,
+        );
     }
     let entry = package_dir.join(package.runs.expect("runs/library validation above"));
     let source = std::fs::read_to_string(&entry)
@@ -88,15 +106,11 @@ pub(super) fn run(
         .as_deref()
         .unwrap_or(&package.name)
         .replace(' ', "-");
-    let target: Box<dyn Target> = if vm_output {
-        Box::new(InexTarget)
-    } else {
-        Box::new(NativeTarget)
-    };
     let output = target.output(&output_dir, &executable);
     if output.exists() {
         std::fs::remove_file(&output)?;
     }
+    progress.step("Lowering the Into sources");
     let message = backend::lower_file(&source, &entry, Some(package_environment.path()))
         .context("Could not compile Into entry point")?;
     std::fs::create_dir_all(&output_dir)?;
@@ -104,8 +118,8 @@ pub(super) fn run(
         directory: package_dir,
         packages: package_environment.path(),
     };
-    target.build(&project, message, &output)?;
-    println!("Built {}", output.display());
+    target.build(&project, message, &output, &progress)?;
+    progress.finish(&progress::built(&executable, &output));
     if run_after_build {
         target.run(&project, &output)?;
     }
@@ -172,7 +186,9 @@ fn build_library(
     package: &Package,
     library: &str,
     package_environment: &Path,
+    progress: Progress,
 ) -> Result<()> {
+    progress.step("Lowering the library");
     let required_entry = package_dir.join("src/main/lib.into");
     let library_entry = package_dir.join(library);
     if library_entry != required_entry || !required_entry.is_file() {
@@ -203,8 +219,9 @@ fn build_library(
     let filename = format!("{basename}.dll");
     let output = output_dir.join(filename);
     std::fs::create_dir_all(&output_dir)?;
+    progress.step("Compiling the library");
     compiler::compile_library(&functions, &output).context("Native library compilation failed")?;
-    println!("Built {}", output.display());
+    progress.finish(&progress::built(&basename, &output));
     Ok(())
 }
 
@@ -312,10 +329,10 @@ fn run_tests(package_dir: &Path, embedded_packages: &Path) -> Result<()> {
         passed += result.passed;
         failed += result.failed;
     }
-    println!(
+    progress::report(&format!(
         "test result: {}. {passed} passed; {failed} failed",
         if failed == 0 { "ok" } else { "FAILED" }
-    );
+    ));
     if failed > 0 {
         anyhow::bail!("{failed} Into test(s) failed");
     }

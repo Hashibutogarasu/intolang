@@ -11,6 +11,7 @@ compiler = { version = "0.1.0", path = "../../apps/compiler", optional = true }
 intovm = { version = "0.1.0", path = "../intovm" }
 moduler = { version = "0.1.0", path = "../moduler" }
 parser = { version = "0.1.0", path = "../parser" }
+progress = { version = "0.1.0", path = "../progress" }
 types = { version = "0.1.0", path = "../types" }
 
 [features]

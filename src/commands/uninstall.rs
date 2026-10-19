@@ -31,7 +31,7 @@ impl Command for Uninstall {
         let project = Project::new(std::env::current_dir()?);
         for alias in &args.packages {
             let package = project.uninstall(alias)?;
-            println!("Removed {} {}", package.alias, package.version);
+            progress::report(&format!("Removed {} {}", package.alias, package.version));
         }
         Ok(())
     }
