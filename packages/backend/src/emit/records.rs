@@ -355,14 +355,18 @@ pub fn class(output: &mut String, name: &str, fields: &[FieldDef]) {
 
 /// Encode a class field default as `(kind, value)` for the compiler message.
 ///
-/// Kinds are `n` (numeric literal), `b` (boolean), `s` (hex-encoded string) and
-/// `-` (no default, zero-initialised).
+/// Kinds are `n` (numeric literal), `b` (boolean), `s` (hex-encoded string),
+/// `c` (a new instance of the named class) and `-` (no default,
+/// zero-initialised).
 fn encode_default(default: Option<&Expr>) -> (char, String) {
     match default {
         None => ('-', String::new()),
         Some(Expr::Literal(Literal::String(value))) => ('s', Hex::from(value.as_str()).to_string()),
         Some(Expr::Literal(Literal::Bool(value))) => ('b', flag(*value).to_owned()),
         Some(Expr::Literal(Literal::Char(value))) => ('n', u32::from(*value).to_string()),
+        Some(Expr::Call { callee, args }) if args.is_empty() && callee.as_ident().is_some() => {
+            ('c', callee.first().to_owned())
+        }
         Some(Expr::Literal(Literal::Int(value))) => ('n', value.to_string()),
         Some(Expr::Literal(Literal::Float(value))) => ('n', value.to_string()),
         Some(other) => ('n', other.to_string()),

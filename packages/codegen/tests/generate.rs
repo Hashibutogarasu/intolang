@@ -109,7 +109,7 @@ fn aliases_share_the_source_storage() {
     .concat();
     let ir = generate(&message).unwrap();
     assert!(ir.contains("%Config = type { i32 }"), "{ir}");
-    assert_eq!(ir.matches("alloca %Config").count(), 1, "{ir}");
+    assert_eq!(ir.matches("call ptr @malloc").count(), 1, "{ir}");
 }
 
 #[test]
@@ -125,7 +125,7 @@ fn copies_instances_into_new_storage() {
     ]
     .concat();
     let ir = generate(&message).unwrap();
-    assert_eq!(ir.matches("alloca %Config").count(), 2, "{ir}");
+    assert_eq!(ir.matches("call ptr @malloc").count(), 2, "{ir}");
 }
 
 fn handler(name: &str, captures: &str, params: &[&str], body: &[String]) -> String {

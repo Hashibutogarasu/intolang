@@ -33,6 +33,22 @@ impl Lowerer<'_> {
                 self.print_literal(literal, newline);
                 return Ok(());
             }
+            if path.segments().len() > 2
+                && self
+                    .state
+                    .values
+                    .get(path.first())
+                    .is_some_and(|variable| variable.native)
+            {
+                let Some((slot, ty)) = self
+                    .lower_field_read(path)
+                    .map_err(|message| self.diagnostic(line, &message))?
+                else {
+                    return Err(self.diagnostic(line, &format!("Undefined variable `{argument}`")));
+                };
+                emit::print(&mut self.state.output, &slot, &ty, newline);
+                return Ok(());
+            }
             if path.is_member()
                 && let Some(variable) = self.state.values.get(path.first()).cloned()
             {

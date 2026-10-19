@@ -35,8 +35,7 @@ impl Codegen for NativeCopy {
                 .ok_or_else(|| anyhow!("Unknown native class `{}`", self.class))?;
             let source = ctx.load_slot(&self.source)?;
             let instance = LLVMBuildLoad2(ctx.builder, struct_type, source, ctx.empty.as_ptr());
-            let storage_name = format!("__value_{}", self.target);
-            let storage = ctx.slot_ptr(&storage_name, struct_type);
+            let storage = ctx.allocate_instance(struct_type);
             LLVMBuildStore(ctx.builder, instance, storage);
             ctx.store_slot(&self.target, LLVMPointerType(struct_type, 0), storage);
             Ok(CodegenResult::unit())

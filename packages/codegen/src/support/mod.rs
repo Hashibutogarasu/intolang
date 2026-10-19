@@ -1,5 +1,6 @@
 mod calls;
 mod events;
+mod memory;
 mod slots;
 mod text;
 mod threads;

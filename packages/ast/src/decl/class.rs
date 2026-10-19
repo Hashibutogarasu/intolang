@@ -1,5 +1,5 @@
 use anyhow::Result;
-use types::{Keyword, Punct};
+use types::{Keyword, Literal, Punct};
 
 use super::attribute::Attribute;
 use super::event_decl::EventDecl;
@@ -154,6 +154,63 @@ impl TryFrom<&mut Cursor<'_>> for ClassDecl {
     }
 }
 
+/// `pub into name = value;`: the type of the field is the type of its value.
+fn inferred_field(
+    cursor: &mut Cursor<'_>,
+    class: &str,
+    line: usize,
+    is_static: bool,
+) -> Result<FieldDecl> {
+    let malformed = || {
+        SyntaxError::new(
+            line,
+            format!("Expected class field 'pub into <name> = <value>;' in `{class}`"),
+        )
+    };
+    let (name, _) = cursor
+        .expect_ident("a field name")
+        .map_err(|_| malformed())?;
+    if !cursor.eat_punct(Punct::Assign) {
+        return Err(SyntaxError::new(
+            line,
+            format!(
+                "The field `{name}` of `{class}` needs a type or a value to take its type from"
+            ),
+        )
+        .into());
+    }
+    let default = Expr::try_from(&mut *cursor).map_err(|_| malformed())?;
+    cursor.end_statement().map_err(|_| malformed())?;
+    let Some(written) = literal_type(&default) else {
+        return Err(SyntaxError::new(
+            line,
+            format!("The type of the field `{name}` of `{class}` cannot be inferred from `{default}`; write `pub into: <Type> {name}`"),
+        )
+        .into());
+    };
+    Ok(FieldDecl {
+        line,
+        name,
+        ty: TypeRef::from(written.as_str()),
+        default: Some(default),
+        is_static,
+    })
+}
+
+/// The type a field takes from the value it starts with: the type of a
+/// literal, or the class a constructor call builds.
+fn literal_type(value: &Expr) -> Option<String> {
+    match value {
+        Expr::Literal(Literal::Int(_)) => Some("Int32".to_owned()),
+        Expr::Literal(Literal::Float(_)) => Some("Float64".to_owned()),
+        Expr::Literal(Literal::String(_)) => Some("String".to_owned()),
+        Expr::Literal(Literal::Bool(_)) => Some("Boolean".to_owned()),
+        Expr::Literal(Literal::Char(_)) => Some("Char".to_owned()),
+        Expr::Call { callee, .. } => callee.as_ident().map(str::to_owned),
+        _ => None,
+    }
+}
+
 fn field(cursor: &mut Cursor<'_>, class: &str) -> Result<FieldDecl> {
     let line = cursor.line();
     let legacy = || {
@@ -168,7 +225,7 @@ fn field(cursor: &mut Cursor<'_>, class: &str) -> Result<FieldDecl> {
         return Err(legacy().into());
     }
     let is_static = cursor.eat_keyword(Keyword::Static);
-    if !(cursor.eat_keyword(Keyword::Into) && cursor.eat_punct(Punct::Colon)) {
+    if !cursor.eat_keyword(Keyword::Into) {
         return Err(legacy().into());
     }
     let malformed = || {
@@ -177,6 +234,9 @@ fn field(cursor: &mut Cursor<'_>, class: &str) -> Result<FieldDecl> {
             format!("Expected class field 'pub into: <Type> <name> = <default>;' in `{class}`"),
         )
     };
+    if !cursor.eat_punct(Punct::Colon) {
+        return inferred_field(cursor, class, line, is_static);
+    }
     let ty = TypeRef::try_from(&mut *cursor).map_err(|_| malformed())?;
     let (name, _) = cursor
         .expect_ident("a field name")

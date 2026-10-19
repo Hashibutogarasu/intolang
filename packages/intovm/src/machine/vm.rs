@@ -23,6 +23,9 @@ const SLEEP: &str = "standard_sleep";
 /// How many frames may be open at once before a call fails.
 const MAX_CALL_DEPTH: usize = 100_000;
 
+/// How deep the defaults of fields may build instances inside instances.
+const MAX_NESTED_DEFAULTS: usize = 16;
+
 /// A native function the VM runs instead of calling the C symbol.
 pub type Intrinsic = Rc<dyn Fn(&mut Vm, &[Value]) -> Result<Value>>;
 
@@ -540,22 +543,34 @@ impl Vm {
         Ok(())
     }
 
-    fn construct(&self, program: &Program, class: &str) -> Result<Instance> {
+    fn construct(&mut self, program: &Program, class: &str) -> Result<Instance> {
+        self.construct_at(program, class, 0)
+    }
+
+    /// Build an instance of `class` with its defaults. A field that starts
+    /// as another class gets an instance of it, `depth` levels down.
+    fn construct_at(&mut self, program: &Program, class: &str, depth: usize) -> Result<Instance> {
+        if depth > MAX_NESTED_DEFAULTS {
+            bail!("The defaults of `{class}` build instances without end");
+        }
         let definition = program
             .classes
             .get(class)
             .ok_or_else(|| anyhow!("Unknown native class `{class}`"))?;
-        let fields = definition
-            .fields
-            .iter()
-            .map(|field| match &field.default {
-                Some(('s', value)) => Ok(Value::Str(crate::program::decode_hex(value)?)),
-                Some((_, value)) => constant(&field.ty, value),
-                None if is_float(&field.ty) => Ok(Value::Float(0.0)),
-                None if matches!(field.ty.as_str(), "String" | "Path") => Ok(Value::Str(vec![])),
-                None => Ok(Value::Int(0)),
-            })
-            .collect::<Result<_>>()?;
+        let mut fields = Vec::new();
+        for field in &definition.fields {
+            fields.push(match &field.default {
+                Some(('s', value)) => Value::Str(crate::program::decode_hex(value)?),
+                Some(('c', nested)) => {
+                    let instance = self.construct_at(program, nested, depth + 1)?;
+                    Value::Ref(self.allocate(instance))
+                }
+                Some((_, value)) => constant(&field.ty, value)?,
+                None if is_float(&field.ty) => Value::Float(0.0),
+                None if matches!(field.ty.as_str(), "String" | "Path") => Value::Str(vec![]),
+                None => Value::Int(0),
+            });
+        }
         Ok(Instance {
             class: class.to_owned(),
             fields,
