@@ -2,9 +2,12 @@
 
 use testing::{eval_run, eval_vm};
 
-const STD: &str = "import \"intolang://builtin/std\";\n";
+#[test]
+fn compiled_code_converts_like_the_vm() {
+    let source = r#"
+import "intolang://builtin/std";
 
-const PROGRAM: &str = "init {
+init {
     into c: Char = 'A';
     println(c);
     into n: Int32 = c as Int32;
@@ -22,17 +25,23 @@ const PROGRAM: &str = "init {
     into whole: Int32 = pi as Int32;
     println(whole);
     if (c == 'A') {
-        println(\"same\");
+        println("same");
     }
 }
-";
-
-#[test]
-fn compiled_code_converts_like_the_vm() {
-    let source = format!("{STD}{PROGRAM}");
-    let compiled = eval_run(&source).unwrap();
-    let virtual_run = eval_vm(&source).unwrap();
+"#;
+    let compiled = eval_run(source).unwrap();
+    let virtual_run = eval_vm(source).unwrap();
     assert!(compiled.success, "{}", compiled.stderr);
     assert_eq!(compiled.stdout, virtual_run.stdout);
-    assert_eq!(compiled.stdout, "A\n65\n7\n44\n300\n3\nsame\n");
+    assert_eq!(
+        compiled.stdout,
+        r#"A
+65
+7
+44
+300
+3
+same
+"#
+    );
 }

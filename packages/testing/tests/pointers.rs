@@ -3,7 +3,10 @@
 use intovm::VmOptions;
 use testing::{eval_run, eval_vm_bundled};
 
-const PROGRAM: &str = "import \"intolang://builtin/std\";
+#[test]
+fn memory_is_read_and_written_by_item() {
+    let source = r#"
+import "intolang://builtin/std";
 
 init {
     into bytes = Memory.allocate(64);
@@ -45,51 +48,57 @@ init {
     println(total);
     Memory.free(bytes);
 }
-";
-
-const EXPECTED: &str = "100\n200\n7\n65\n42\n2.500000\n1.500000\nz\n5000000000\n140\n";
-
-#[test]
-fn memory_is_read_and_written_by_item() {
-    let output = eval_vm_bundled(PROGRAM, VmOptions::default()).unwrap();
-    assert_eq!(output.stdout, EXPECTED);
-}
-
-#[test]
-fn compiled_code_reads_and_writes_memory_like_the_vm() {
-    let compiled = eval_run(PROGRAM).unwrap();
-    let virtual_run = eval_vm_bundled(PROGRAM, VmOptions::default()).unwrap();
+"#;
+    let expected = r#"100
+200
+7
+65
+42
+2.500000
+1.500000
+z
+5000000000
+140
+"#;
+    let virtual_run = eval_vm_bundled(source, VmOptions::default()).unwrap();
+    assert_eq!(virtual_run.stdout, expected);
+    let compiled = eval_run(source).unwrap();
     assert!(compiled.success, "{}", compiled.stderr);
-    assert_eq!(compiled.stdout, virtual_run.stdout);
-    assert_eq!(compiled.stdout, EXPECTED);
+    assert_eq!(compiled.stdout, expected);
 }
 
 #[test]
 fn a_plain_pointer_needs_the_type_in_the_method_name() {
-    let program = "import \"intolang://builtin/std\";
+    let message = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
 
 init {
     into bytes = Memory.allocate(8);
     bytes.store(0, 1);
 }
-";
-    let message = eval_vm_bundled(program, VmOptions::default())
-        .unwrap_err()
-        .to_string();
+"#,
+        VmOptions::default(),
+    )
+    .unwrap_err()
+    .to_string();
     assert!(message.contains("store"), "{message}");
 }
 
 #[test]
 fn a_null_pointer_is_reported_in_the_vm() {
-    let program = "import \"intolang://builtin/std\";
+    let message = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
 
 init {
     into nothing = Memory.allocate(0);
     nothing.storeInt32(0, 1);
 }
-";
-    let message = eval_vm_bundled(program, VmOptions::default())
-        .unwrap_err()
-        .to_string();
+"#,
+        VmOptions::default(),
+    )
+    .unwrap_err()
+    .to_string();
     assert!(message.contains("null pointer"), "{message}");
 }

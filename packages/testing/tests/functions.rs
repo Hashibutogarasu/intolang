@@ -3,17 +3,13 @@
 use intovm::VmOptions;
 use testing::eval_vm_bundled;
 
-const STD: &str = "import \"intolang://builtin/std\";\n";
-
-fn run(program: &str) -> Result<String, String> {
-    eval_vm_bundled(&format!("{STD}{program}"), VmOptions::default())
-        .map(|outcome| outcome.stdout)
-        .map_err(|error| format!("{error:#}"))
-}
-
 #[test]
 fn a_recursive_function_calls_itself_at_run_time() {
-    let output = run("pub fun fib(n: Int32): Int32 {
+    let output = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
+
+pub fun fib(n: Int32): Int32 {
     if (n < 2) {
         return n;
     }
@@ -26,14 +22,25 @@ init {
     into small = fib(1);
     println(small);
 }
-")
+"#,
+        VmOptions::default(),
+    )
     .unwrap();
-    assert_eq!(output, "55\n1\n");
+    assert_eq!(
+        output.stdout,
+        r#"55
+1
+"#
+    );
 }
 
 #[test]
 fn a_function_returns_before_its_last_statement() {
-    let output = run("pub fun sign(n: Int32): Int32 {
+    let output = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
+
+pub fun sign(n: Int32): Int32 {
     if (n < 0) {
         return 0 - 1;
     }
@@ -51,51 +58,84 @@ init {
     into c = sign(0 - 5);
     println(c);
 }
-")
+"#,
+        VmOptions::default(),
+    )
     .unwrap();
-    assert_eq!(output, "1\n0\n-1\n");
+    assert_eq!(
+        output.stdout,
+        r#"1
+0
+-1
+"#
+    );
 }
 
 #[test]
 fn a_function_that_returns_nothing_can_stop_early() {
-    let output = run("pub fun report(n: Int32) {
+    let output = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
+
+pub fun report(n: Int32) {
     if (n > 2) {
-        println(\"big\");
+        println("big");
         return;
     }
-    println(\"small\");
+    println("small");
 }
 
 init {
     report(1);
     report(5);
 }
-")
+"#,
+        VmOptions::default(),
+    )
     .unwrap();
-    assert_eq!(output, "small\nbig\n");
+    assert_eq!(
+        output.stdout,
+        r#"small
+big
+"#
+    );
 }
 
 #[test]
 fn a_recursive_function_can_return_text() {
-    let output = run("pub fun repeat(text: String, count: Int32): String {
+    let output = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
+
+pub fun repeat(text: String, count: Int32): String {
     if (count < 1) {
-        return \"\";
+        return "";
     }
     return text + repeat(text, count - 1);
 }
 
 init {
-    into line = repeat(\"ab\", 3);
+    into line = repeat("ab", 3);
     println(line);
 }
-")
+"#,
+        VmOptions::default(),
+    )
     .unwrap();
-    assert_eq!(output, "ababab\n");
+    assert_eq!(
+        output.stdout,
+        r#"ababab
+"#
+    );
 }
 
 #[test]
 fn functions_that_call_each_other_are_called_at_run_time() {
-    let output = run("pub fun even(n: Int32): Int32 {
+    let output = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
+
+pub fun even(n: Int32): Int32 {
     if (n == 0) {
         return 1;
     }
@@ -113,14 +153,25 @@ init {
     println(even(10));
     println(even(7));
 }
-")
+"#,
+        VmOptions::default(),
+    )
     .unwrap();
-    assert_eq!(output, "1\n0\n");
+    assert_eq!(
+        output.stdout,
+        r#"1
+0
+"#
+    );
 }
 
 #[test]
 fn a_recursive_method_receives_its_instance() {
-    let output = run("pub Counter() {
+    let output = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
+
+pub Counter() {
     pub into: Int32 step = 3;
 
     pub fun total(n: Int32): Int32 {
@@ -136,14 +187,24 @@ init {
     into sum = c.total(4);
     println(sum);
 }
-")
+"#,
+        VmOptions::default(),
+    )
     .unwrap();
-    assert_eq!(output, "12\n");
+    assert_eq!(
+        output.stdout,
+        r#"12
+"#
+    );
 }
 
 #[test]
 fn an_argument_is_converted_to_the_type_of_its_parameter() {
-    let output = run("pub fun half(n: Float64): Float64 {
+    let output = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
+
+pub fun half(n: Float64): Float64 {
     if (n < 1.0) {
         return n;
     }
@@ -155,14 +216,26 @@ init {
     into r = half(whole);
     println(r);
 }
-")
+"#,
+        VmOptions::default(),
+    )
     .unwrap();
-    assert_eq!(output, "0.500000\n");
+    assert_eq!(
+        output.stdout,
+        r#"0.500000
+"#
+    );
 }
 
 #[test]
 fn a_call_with_the_wrong_arguments_is_an_error() {
-    let message = run("pub fun fib(n: Int32): Int32 {
+    let message = format!(
+        "{:#}",
+        eval_vm_bundled(
+            r#"
+import "intolang://builtin/std";
+
+pub fun fib(n: Int32): Int32 {
     if (n < 2) {
         return n;
     }
@@ -170,12 +243,21 @@ fn a_call_with_the_wrong_arguments_is_an_error() {
 }
 
 init {
-    into r = fib(\"ten\");
+    into r = fib("ten");
 }
-")
-    .unwrap_err();
+"#,
+            VmOptions::default(),
+        )
+        .unwrap_err()
+    );
     assert!(message.contains("Expected a `Int32`"), "{message}");
-    let message = run("pub fun fib(n: Int32): Int32 {
+    let message = format!(
+        "{:#}",
+        eval_vm_bundled(
+            r#"
+import "intolang://builtin/std";
+
+pub fun fib(n: Int32): Int32 {
     if (n < 2) {
         return n;
     }
@@ -185,21 +267,33 @@ init {
 init {
     into r = fib(1, 2);
 }
-")
-    .unwrap_err();
+"#,
+            VmOptions::default(),
+        )
+        .unwrap_err()
+    );
     assert!(message.contains("expects 1 argument(s)"), "{message}");
 }
 
 #[test]
 fn endless_recursion_overflows_the_stack_of_the_vm() {
-    let message = run("pub fun forever(n: Int32): Int32 {
+    let message = format!(
+        "{:#}",
+        eval_vm_bundled(
+            r#"
+import "intolang://builtin/std";
+
+pub fun forever(n: Int32): Int32 {
     return forever(n + 1);
 }
 
 init {
     into r = forever(0);
 }
-")
-    .unwrap_err();
+"#,
+            VmOptions::default(),
+        )
+        .unwrap_err()
+    );
     assert!(message.contains("Stack overflow"), "{message}");
 }

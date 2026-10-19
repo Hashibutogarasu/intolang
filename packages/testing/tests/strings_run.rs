@@ -3,42 +3,45 @@
 use intovm::VmOptions;
 use testing::{eval_run, eval_vm_bundled};
 
-const STD: &str = "import \"intolang://builtin/std\";\n";
+#[test]
+fn compiled_code_handles_text_like_the_vm() {
+    let source = r#"
+import "intolang://builtin/std";
 
-const PROGRAM: &str = "init {
-    into s: String = \"Hello, World\";
+init {
+    into s: String = "Hello, World";
     println(s.length());
     println(s.at(1));
     println(s.subString(7, 12));
-    println(s.indexOf(\"World\"));
-    println(s.indexOf(\"nope\"));
+    println(s.indexOf("World"));
+    println(s.indexOf("nope"));
     into lower = s.toLower();
     into upper = s.toUpper();
     println(lower);
     println(upper);
     into c: Char = '!';
-    into joined = lower + \", \" + upper + c;
+    into joined = lower + ", " + upper + c;
     println(joined);
     into digit: Int32 = 7;
     into numbered = lower + (('0' as Int32) + digit) as Char;
     println(numbered);
-    if (s.startsWith(\"Hello\")) {
-        println(\"starts\");
+    if (s.startsWith("Hello")) {
+        println("starts");
     }
-    if (s.endsWith(\"nope\")) {
-        println(\"never\");
+    if (s.endsWith("nope")) {
+        println("never");
     } else {
-        println(\"does not end\");
+        println("does not end");
     }
-    if (lower == \"hello, world\") {
-        println(\"same\");
+    if (lower == "hello, world") {
+        println("same");
     }
     if (lower != upper) {
-        println(\"different\");
+        println("different");
     }
     into again = s.toLower();
     if (lower == again) {
-        println(\"equal\");
+        println("equal");
     }
     into n: Int32 = 0;
     into text = s.toUpper();
@@ -48,17 +51,28 @@ const PROGRAM: &str = "init {
     }
     println(text);
 }
-";
-
-#[test]
-fn compiled_code_handles_text_like_the_vm() {
-    let source = format!("{STD}{PROGRAM}");
-    let compiled = eval_run(&source).unwrap();
-    let virtual_run = eval_vm_bundled(&source, VmOptions::default()).unwrap();
+"#;
+    let compiled = eval_run(source).unwrap();
+    let virtual_run = eval_vm_bundled(source, VmOptions::default()).unwrap();
     assert!(compiled.success, "{}", compiled.stderr);
     assert_eq!(compiled.stdout, virtual_run.stdout);
     assert_eq!(
         compiled.stdout,
-        "12\ne\nWorld\n7\n-1\nhello, world\nHELLO, WORLD\nhello, world, HELLO, WORLD!\nhello, world7\nstarts\ndoes not end\nsame\ndifferent\nequal\nHELLO, WORLD!!!\n"
+        r#"12
+e
+World
+7
+-1
+hello, world
+HELLO, WORLD
+hello, world, HELLO, WORLD!
+hello, world7
+starts
+does not end
+same
+different
+equal
+HELLO, WORLD!!!
+"#
     );
 }

@@ -3,51 +3,119 @@
 use intovm::VmOptions;
 use testing::eval_vm_bundled;
 
-const IMPORTS: &str = "import \"intolang://builtin/std\";\nimport \"intolang://builtin/hex\";\n";
-
-fn run(body: &str) -> Result<String, String> {
-    eval_vm_bundled(
-        &format!("{IMPORTS}init {{\n{body}}}\n"),
-        VmOptions::default(),
-    )
-    .map(|outcome| outcome.stdout)
-    .map_err(|error| format!("{error:#}"))
-}
-
 #[test]
 fn a_character_converts_to_the_hex_digits_of_its_code() {
-    let output =
-        run("    into c: Char = 'A';\n    into h: Hex = c as Hex;\n    println(h.digits);\n")
-            .unwrap();
-    assert_eq!(output, "41\n");
+    let output = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
+import "intolang://builtin/hex";
+
+init {
+    into c: Char = 'A';
+    into h: Hex = c as Hex;
+    println(h.digits);
+}
+"#,
+        VmOptions::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        output.stdout,
+        r#"41
+"#
+    );
 }
 
 #[test]
 fn a_number_converts_to_hex_digits() {
-    let output = run(
-        "    into n: Hex = 255 as Hex;\n    println(n.digits);\n    into zero: Hex = 0 as Hex;\n    println(zero.digits);\n    into big: Hex = 4096 as Hex;\n    println(big.digits);\n",
+    let output = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
+import "intolang://builtin/hex";
+
+init {
+    into n: Hex = 255 as Hex;
+    println(n.digits);
+    into zero: Hex = 0 as Hex;
+    println(zero.digits);
+    into big: Hex = 4096 as Hex;
+    println(big.digits);
+}
+"#,
+        VmOptions::default(),
     )
     .unwrap();
-    assert_eq!(output, "ff\n0\n1000\n");
+    assert_eq!(
+        output.stdout,
+        r#"ff
+0
+1000
+"#
+    );
 }
 
 #[test]
 fn a_character_outside_ascii_converts_through_its_code() {
-    let output = run("    into h: Hex = 'あ' as Hex;\n    println(h.digits);\n").unwrap();
-    assert_eq!(output, "3042\n");
+    let output = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
+import "intolang://builtin/hex";
+
+init {
+    into h: Hex = 'あ' as Hex;
+    println(h.digits);
+}
+"#,
+        VmOptions::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        output.stdout,
+        r#"3042
+"#
+    );
 }
 
 #[test]
 fn a_text_does_not_convert_to_hex() {
-    let message = run("    into s: String = \"A\";\n    into h: Hex = s as Hex;\n").unwrap_err();
+    let message = format!(
+        "{:#}",
+        eval_vm_bundled(
+            r#"
+import "intolang://builtin/std";
+import "intolang://builtin/hex";
+
+init {
+    into s: String = "A";
+    into h: Hex = s as Hex;
+}
+"#,
+            VmOptions::default(),
+        )
+        .unwrap_err()
+    );
     assert!(message.contains("no cast from String to Hex"), "{message}");
 }
 
 #[test]
 fn the_digits_can_be_joined_to_a_text() {
-    let output = run(
-        "    into h: Hex = 'Z' as Hex;\n    into label: String = \"0x\" + h.digits;\n    println(label);\n",
+    let output = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
+import "intolang://builtin/hex";
+
+init {
+    into h: Hex = 'Z' as Hex;
+    into label: String = "0x" + h.digits;
+    println(label);
+}
+"#,
+        VmOptions::default(),
     )
     .unwrap();
-    assert_eq!(output, "0x5a\n");
+    assert_eq!(
+        output.stdout,
+        r#"0x5a
+"#
+    );
 }

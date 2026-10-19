@@ -4,30 +4,106 @@ use testing::eval_run;
 
 #[test]
 fn runs_a_compiled_program() {
-    let source = "import \"intolang://builtin/std\";\ninit {\n    into index: Int32 = 0;\n    while (index < 3) {\n        println(index);\n        index = index + 1;\n    }\n}\n";
-    let execution = eval_run(source).unwrap();
+    let execution = eval_run(
+        r#"
+import "intolang://builtin/std";
+
+init {
+    into index: Int32 = 0;
+    while (index < 3) {
+        println(index);
+        index = index + 1;
+    }
+}
+"#,
+    )
+    .unwrap();
     assert!(execution.success, "{}", execution.stderr);
-    assert_eq!(execution.stdout, "0\n1\n2\n");
+    assert_eq!(
+        execution.stdout,
+        r#"0
+1
+2
+"#
+    );
 }
 
 #[test]
 fn prints_compile_time_text() {
-    let source = "import \"intolang://builtin/std\";\ninit {\n    println(\"hello\");\n}\n";
-    assert_eq!(eval_run(source).unwrap().stdout, "hello\n");
+    let execution = eval_run(
+        r#"
+import "intolang://builtin/std";
+
+init {
+    println("hello");
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(
+        execution.stdout,
+        r#"hello
+"#
+    );
 }
 
 #[test]
 fn compiles_scope_end_destroys_with_drop_flags() {
-    let source = "import \"intolang://builtin/std\";\npub Counter() {\n    pub into: Int32 value = 7;\n    pub override fun destroy(): Void { println(\"released\"); }\n}\ninit {\n    now into a = Counter();\n    into index: Int32 = 0;\n    while (index < 2) {\n        now into inner = Counter();\n        if (index == 1) {\n            now into taken = a.move();\n        }\n        index = index + 1;\n    }\n    println(index);\n}\n";
-    let execution = eval_run(source).unwrap();
+    let execution = eval_run(
+        r#"
+import "intolang://builtin/std";
+
+pub Counter() {
+    pub into: Int32 value = 7;
+    pub override fun destroy(): Void { println("released"); }
+}
+
+init {
+    now into a = Counter();
+    into index: Int32 = 0;
+    while (index < 2) {
+        now into inner = Counter();
+        if (index == 1) {
+            now into taken = a.move();
+        }
+        index = index + 1;
+    }
+    println(index);
+}
+"#,
+    )
+    .unwrap();
     assert!(execution.success, "{}", execution.stderr);
     assert!(execution.stdout.contains("2\n"), "{}", execution.stdout);
 }
 
 #[test]
 fn objects_have_a_default_text_and_hash() {
-    let source = "import \"intolang://builtin/std\";\npub Counter() {\n    pub into: Int32 value = 7;\n}\ninit {\n    now into a = Counter();\n    now into b = a.copy();\n    println(a.toString());\n    now into first = a.hash();\n    now into second = a.hash();\n    now into other = b.hash();\n    if (first == second) {\n        println(\"same\");\n    }\n    if (first != other) {\n        println(\"different\");\n    }\n}\n";
-    let execution = eval_run(source).unwrap();
+    let execution = eval_run(
+        r#"
+import "intolang://builtin/std";
+
+pub Counter() {
+    pub into: Int32 value = 7;
+}
+
+init {
+    now into a = Counter();
+    now into b = a.copy();
+    println(a.toString());
+    now into first = a.hash();
+    now into second = a.hash();
+    now into other = b.hash();
+    if (first == second) {
+        println("same");
+    }
+    if (first != other) {
+        println("different");
+    }
+}
+"#,
+    )
+    .unwrap();
     assert!(execution.success, "{}", execution.stderr);
     assert!(
         execution.stdout.starts_with("Object@"),
@@ -42,90 +118,244 @@ fn objects_have_a_default_text_and_hash() {
     );
 }
 
-fn run_events(body: &str) -> String {
-    let source = format!("import \"intolang://builtin/std\";\n{body}");
-    let execution = eval_run(&source).unwrap();
-    assert!(execution.success, "{}", execution.stderr);
-    execution.stdout
-}
-
 #[test]
 fn emit_calls_every_registered_handler_in_order() {
-    let stdout = run_events(
-        "pub event example(value: Int32) {}\nexample.on((value) => { println(value); });\nexample.emit(3);\nexample.emit(4);\nnow into listener = example.on((value) => { println(\"second\"); });\nexample.emit(5);\nlistener.destroy();\nexample.emit(6);\n",
+    let execution = eval_run(
+        r#"
+import "intolang://builtin/std";
+
+pub event example(value: Int32) {}
+example.on((value) => { println(value); });
+example.emit(3);
+example.emit(4);
+now into listener = example.on((value) => { println("second"); });
+example.emit(5);
+listener.destroy();
+example.emit(6);
+"#,
+    )
+    .unwrap();
+    assert!(execution.success, "{}", execution.stderr);
+    assert_eq!(
+        execution.stdout,
+        r#"3
+4
+5
+second
+6
+"#
     );
-    assert_eq!(stdout, "3\n4\n5\nsecond\n6\n");
 }
 
 #[test]
 fn destroying_an_event_silences_its_handlers() {
-    let stdout = run_events(
-        "pub event example(value: Int32) {}\nexample.on((value) => { println(value); });\nexample.emit(1);\nexample.destroy();\n",
+    let execution = eval_run(
+        r#"
+import "intolang://builtin/std";
+
+pub event example(value: Int32) {}
+example.on((value) => { println(value); });
+example.emit(1);
+example.destroy();
+"#,
+    )
+    .unwrap();
+    assert!(execution.success, "{}", execution.stderr);
+    assert_eq!(
+        execution.stdout,
+        r#"1
+"#
     );
-    assert_eq!(stdout, "1\n");
 }
 
 #[test]
 fn the_default_handler_runs_before_the_registered_ones() {
-    let stdout = run_events(
-        "pub event tick(value: Int32) {\n    println(\"default\");\n}\nnow into total = 10;\ntick.on((value) => { println(total); });\ntick.emit(1);\n",
+    let execution = eval_run(
+        r#"
+import "intolang://builtin/std";
+
+pub event tick(value: Int32) {
+    println("default");
+}
+now into total = 10;
+tick.on((value) => { println(total); });
+tick.emit(1);
+"#,
+    )
+    .unwrap();
+    assert!(execution.success, "{}", execution.stderr);
+    assert_eq!(
+        execution.stdout,
+        r#"default
+10
+"#
     );
-    assert_eq!(stdout, "default\n10\n");
 }
 
 #[test]
 fn handlers_receive_string_arguments_and_see_later_changes_of_captures() {
-    let stdout = run_events(
-        "pub event greet(name: String) {}\nnow into count = 1;\ngreet.on((name) => { println(name); println(count); });\ncount = 2;\ngreet.emit(\"bob\");\n",
+    let execution = eval_run(
+        r#"
+import "intolang://builtin/std";
+
+pub event greet(name: String) {}
+now into count = 1;
+greet.on((name) => { println(name); println(count); });
+count = 2;
+greet.emit("bob");
+"#,
+    )
+    .unwrap();
+    assert!(execution.success, "{}", execution.stderr);
+    assert_eq!(
+        execution.stdout,
+        r#"bob
+2
+"#
     );
-    assert_eq!(stdout, "bob\n2\n");
 }
 
 #[test]
 fn a_listener_leaving_its_scope_unregisters_the_handler() {
-    let stdout = run_events(
-        "pub event example(value: Int32) {}\nnow into n = 1;\nif (n == 1) {\n    now into listener = example.on((value) => { println(value); });\n    example.emit(1);\n}\nexample.emit(2);\n",
+    let execution = eval_run(
+        r#"
+import "intolang://builtin/std";
+
+pub event example(value: Int32) {}
+now into n = 1;
+if (n == 1) {
+    now into listener = example.on((value) => { println(value); });
+    example.emit(1);
+}
+example.emit(2);
+"#,
+    )
+    .unwrap();
+    assert!(execution.success, "{}", execution.stderr);
+    assert_eq!(
+        execution.stdout,
+        r#"1
+"#
     );
-    assert_eq!(stdout, "1\n");
 }
 
 #[test]
 fn text_inside_a_branch_only_prints_when_the_branch_runs() {
-    let stdout = run_events(
-        "now into n = 1;\nif (n == 2) {\n    println(\"never\");\n} else {\n    println(\"else\");\n}\nif (n == 1) {\n    println(\"taken\");\n}\nwhile (n < 3) {\n    println(\"loop\");\n    n = n + 1;\n}\nprintln(\"after\");\n",
+    let execution = eval_run(
+        r#"
+import "intolang://builtin/std";
+
+now into n = 1;
+if (n == 2) {
+    println("never");
+} else {
+    println("else");
+}
+if (n == 1) {
+    println("taken");
+}
+while (n < 3) {
+    println("loop");
+    n = n + 1;
+}
+println("after");
+"#,
+    )
+    .unwrap();
+    assert!(execution.success, "{}", execution.stderr);
+    assert_eq!(
+        execution.stdout,
+        r#"else
+taken
+loop
+loop
+after
+"#
     );
-    assert_eq!(stdout, "else\ntaken\nloop\nloop\nafter\n");
 }
 
 #[test]
 fn await_waits_for_the_thread_before_the_next_line() {
-    let stdout = run_events(
-        "now into worker = thread { println(\"in thread\"); };\nawait worker.run();\nprintln(\"after\");\n",
+    let execution = eval_run(
+        r#"
+import "intolang://builtin/std";
+
+now into worker = thread { println("in thread"); };
+await worker.run();
+println("after");
+"#,
+    )
+    .unwrap();
+    assert!(execution.success, "{}", execution.stderr);
+    assert_eq!(
+        execution.stdout,
+        r#"in thread
+after
+"#
     );
-    assert_eq!(stdout, "in thread\nafter\n");
 }
 
 #[test]
 fn a_task_can_be_awaited_later() {
-    let stdout = run_events(
-        "now into worker = thread { println(\"in thread\"); };\nnow into task = worker.run();\nawait task;\nprintln(\"done\");\n",
+    let execution = eval_run(
+        r#"
+import "intolang://builtin/std";
+
+now into worker = thread { println("in thread"); };
+now into task = worker.run();
+await task;
+println("done");
+"#,
+    )
+    .unwrap();
+    assert!(execution.success, "{}", execution.stderr);
+    assert_eq!(
+        execution.stdout,
+        r#"in thread
+done
+"#
     );
-    assert_eq!(stdout, "in thread\ndone\n");
 }
 
 #[test]
 fn threads_share_captured_values_with_the_main_flow() {
-    let stdout = run_events(
-        "now into total = 0;\nnow into worker = thread { total = 5; };\nawait worker.run();\nprintln(total);\n",
+    let execution = eval_run(
+        r#"
+import "intolang://builtin/std";
+
+now into total = 0;
+now into worker = thread { total = 5; };
+await worker.run();
+println(total);
+"#,
+    )
+    .unwrap();
+    assert!(execution.success, "{}", execution.stderr);
+    assert_eq!(
+        execution.stdout,
+        r#"5
+"#
     );
-    assert_eq!(stdout, "5\n");
 }
 
 #[test]
 fn several_threads_run_and_join() {
-    let stdout = run_events(
-        "now into first = thread { println(\"one\"); };\nnow into second = thread { println(\"two\"); };\nnow into a = first.run();\nnow into b = second.run();\nawait a;\nawait b;\nprintln(\"joined\");\n",
-    );
+    let execution = eval_run(
+        r#"
+import "intolang://builtin/std";
+
+now into first = thread { println("one"); };
+now into second = thread { println("two"); };
+now into a = first.run();
+now into b = second.run();
+await a;
+await b;
+println("joined");
+"#,
+    )
+    .unwrap();
+    assert!(execution.success, "{}", execution.stderr);
+    let stdout = execution.stdout;
     assert!(stdout.contains("one\n"), "{stdout}");
     assert!(stdout.contains("two\n"), "{stdout}");
     assert!(stdout.ends_with("joined\n"), "{stdout}");
@@ -133,6 +363,13 @@ fn several_threads_run_and_join() {
 
 #[test]
 fn reports_lowering_errors_before_compiling() {
-    let error = eval_run("init {\n    into value: Int32 = \"x\";\n}\n").unwrap_err();
+    let error = eval_run(
+        r#"
+init {
+    into value: Int32 = "x";
+}
+"#,
+    )
+    .unwrap_err();
     assert!(error.to_string().contains("Type mismatch"), "{error}");
 }

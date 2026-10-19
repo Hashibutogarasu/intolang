@@ -3,18 +3,21 @@
 use intovm::VmOptions;
 use testing::{eval_run, eval_vm_bundled};
 
-const PROGRAM: &str = "import \"intolang://builtin/std\";
+#[test]
+fn fields_with_inferred_types_start_with_their_values() {
+    let source = r#"
+import "intolang://builtin/std";
 
 pub Base() {
 }
 
 pub Cat(): Base {
-    pub into neko = \"cat\";
+    pub into neko = "cat";
     pub into lives = 9;
 }
 
 pub Dog(): Base {
-    pub into foo = \"bar\";
+    pub into foo = "bar";
     pub into cat = Cat();
     pub into age = 3;
 }
@@ -29,37 +32,37 @@ init {
     println(dog.age);
     into first = Dog();
     into second = Dog();
-    first.foo = \"first\";
-    second.foo = \"second\";
+    first.foo = "first";
+    second.foo = "second";
     println(first.foo);
     println(second.foo);
     println(first.cat.neko);
 }
-";
-
-const EXPECTED: &str = "bar\n3\ncat\n9\n4\nfirst\nsecond\ncat\n";
-
-#[test]
-fn fields_with_inferred_types_start_with_their_values() {
-    let output = eval_vm_bundled(PROGRAM, VmOptions::default()).unwrap();
-    assert_eq!(output.stdout, EXPECTED);
-}
-
-#[test]
-fn compiled_code_builds_the_nested_instances_like_the_vm() {
-    let compiled = eval_run(PROGRAM).unwrap();
-    let virtual_run = eval_vm_bundled(PROGRAM, VmOptions::default()).unwrap();
+"#;
+    let expected = r#"bar
+3
+cat
+9
+4
+first
+second
+cat
+"#;
+    let virtual_run = eval_vm_bundled(source, VmOptions::default()).unwrap();
+    assert_eq!(virtual_run.stdout, expected);
+    let compiled = eval_run(source).unwrap();
     assert!(compiled.success, "{}", compiled.stderr);
-    assert_eq!(compiled.stdout, virtual_run.stdout);
-    assert_eq!(compiled.stdout, EXPECTED);
+    assert_eq!(compiled.stdout, expected);
 }
 
 #[test]
 fn every_construction_gets_its_own_storage() {
-    let program = "import \"intolang://builtin/std\";
+    let compiled = eval_run(
+        r#"
+import "intolang://builtin/std";
 
 pub Item() {
-    pub into name = \"\";
+    pub into name = "";
 }
 
 init {
@@ -67,14 +70,19 @@ init {
     into i: Int32 = 0;
     while (i < 3) {
         into item = Item();
-        item.name = \"x\" + 'a';
+        item.name = "x" + 'a';
         items.push(item);
         i = i + 1;
     }
     println(items.length());
 }
-";
-    let compiled = eval_run(program).unwrap();
+"#,
+    )
+    .unwrap();
     assert!(compiled.success, "{}", compiled.stderr);
-    assert_eq!(compiled.stdout, "3\n");
+    assert_eq!(
+        compiled.stdout,
+        r#"3
+"#
+    );
 }

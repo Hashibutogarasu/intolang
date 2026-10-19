@@ -3,10 +3,13 @@
 use intovm::VmOptions;
 use testing::{eval_run, eval_vm_bundled};
 
-const PROGRAM: &str = "import \"intolang://builtin/std\";
+#[test]
+fn fields_hold_lists_and_instances() {
+    let source = r#"
+import "intolang://builtin/std";
 
 pub Entry() {
-    pub into label = \"\";
+    pub into label = "";
 }
 
 pub Table() {
@@ -32,14 +35,14 @@ pub Table() {
 
 init {
     into table = Table.make();
-    table.add(\"a\");
-    table.add(\"b\");
+    table.add("a");
+    table.add("b");
     println(table.count());
     println(table.names.get(1));
-    table.names.push(\"c\");
+    table.names.push("c");
     println(table.names.length());
     into entry = Entry();
-    entry.label = \"x\";
+    entry.label = "x";
     table.entries = [entry];
     println(table.entries.length());
     table.first = entry;
@@ -48,28 +51,28 @@ init {
         println(name);
     });
 }
-";
-
-const EXPECTED: &str = "2\nb\n3\n1\nx\na\nb\nc\n";
-
-#[test]
-fn fields_hold_lists_and_instances() {
-    let output = eval_vm_bundled(PROGRAM, VmOptions::default()).unwrap();
-    assert_eq!(output.stdout, EXPECTED);
-}
-
-#[test]
-fn compiled_code_keeps_lists_in_fields_like_the_vm() {
-    let compiled = eval_run(PROGRAM).unwrap();
-    let virtual_run = eval_vm_bundled(PROGRAM, VmOptions::default()).unwrap();
+"#;
+    let expected = r#"2
+b
+3
+1
+x
+a
+b
+c
+"#;
+    let virtual_run = eval_vm_bundled(source, VmOptions::default()).unwrap();
+    assert_eq!(virtual_run.stdout, expected);
+    let compiled = eval_run(source).unwrap();
     assert!(compiled.success, "{}", compiled.stderr);
-    assert_eq!(compiled.stdout, virtual_run.stdout);
-    assert_eq!(compiled.stdout, EXPECTED);
+    assert_eq!(compiled.stdout, expected);
 }
 
 #[test]
 fn a_field_of_another_type_is_rejected() {
-    let program = "import \"intolang://builtin/std\";
+    let message = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
 
 pub Table() {
     pub into: [String] names = [];
@@ -80,9 +83,10 @@ init {
     into numbers: [Int32] = [1];
     table.names = numbers;
 }
-";
-    let message = eval_vm_bundled(program, VmOptions::default())
-        .unwrap_err()
-        .to_string();
+"#,
+        VmOptions::default(),
+    )
+    .unwrap_err()
+    .to_string();
     assert!(message.contains("The field `names`"), "{message}");
 }

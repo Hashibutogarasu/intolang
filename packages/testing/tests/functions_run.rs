@@ -3,7 +3,10 @@
 use intovm::VmOptions;
 use testing::{eval_run, eval_vm_bundled};
 
-const PROGRAM: &str = "import \"intolang://builtin/std\";
+#[test]
+fn compiled_code_calls_functions_like_the_vm() {
+    let source = r#"
+import "intolang://builtin/std";
 
 pub fun fib(n: Int32): Int32 {
     if (n < 2) {
@@ -24,15 +27,15 @@ pub fun sign(n: Int32): Int32 {
 
 pub fun report(n: Int32) {
     if (n > 2) {
-        println(\"big\");
+        println("big");
         return;
     }
-    println(\"small\");
+    println("small");
 }
 
 pub fun repeat(text: String, count: Int32): String {
     if (count < 1) {
-        return \"\";
+        return "";
     }
     return text + repeat(text, count - 1);
 }
@@ -75,7 +78,7 @@ init {
     println(sign(0 - 5));
     report(1);
     report(5);
-    println(repeat(\"ab\", 3));
+    println(repeat("ab", 3));
     println(even(10));
     println(even(7));
     into whole: Int32 = 8;
@@ -83,16 +86,23 @@ init {
     into c = Counter();
     println(c.total(4));
 }
-";
-
-#[test]
-fn compiled_code_calls_functions_like_the_vm() {
-    let compiled = eval_run(PROGRAM).unwrap();
-    let virtual_run = eval_vm_bundled(PROGRAM, VmOptions::default()).unwrap();
+"#;
+    let compiled = eval_run(source).unwrap();
+    let virtual_run = eval_vm_bundled(source, VmOptions::default()).unwrap();
     assert!(compiled.success, "{}", compiled.stderr);
     assert_eq!(compiled.stdout, virtual_run.stdout);
     assert_eq!(
         compiled.stdout,
-        "144\n1\n-1\nsmall\nbig\nababab\n1\n0\n0.500000\n12\n"
+        r#"144
+1
+-1
+small
+big
+ababab
+1
+0
+0.500000
+12
+"#
     );
 }

@@ -3,46 +3,54 @@
 use intovm::VmOptions;
 use testing::eval_vm_bundled;
 
-const STD: &str = "import \"intolang://builtin/std\";\n";
-
-fn run(program: &str) -> Result<String, String> {
-    eval_vm_bundled(&format!("{STD}{program}"), VmOptions::default())
-        .map(|outcome| outcome.stdout)
-        .map_err(|error| format!("{error:#}"))
-}
-
 #[test]
 fn functions_with_other_parameter_types_are_other_functions() {
-    let output = run("pub fun describe(value: Int32) {
-    println(\"int\");
+    let output = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
+
+pub fun describe(value: Int32) {
+    println("int");
 }
 
 pub fun describe(value: String) {
-    println(\"string\");
+    println("string");
 }
 
 pub fun describe(value: Float64) {
-    println(\"float\");
+    println("float");
 }
 
 init {
     describe(1);
-    describe(\"a\");
+    describe("a");
     describe(1.5);
 }
-")
+"#,
+        VmOptions::default(),
+    )
     .unwrap();
-    assert_eq!(output, "int\nstring\nfloat\n");
+    assert_eq!(
+        output.stdout,
+        r#"int
+string
+float
+"#
+    );
 }
 
 #[test]
 fn the_identical_type_wins_over_a_conversion() {
-    let output = run("pub fun size(value: Int32) {
-    println(\"int32\");
+    let output = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
+
+pub fun size(value: Int32) {
+    println("int32");
 }
 
 pub fun size(value: Int64) {
-    println(\"int64\");
+    println("int64");
 }
 
 init {
@@ -51,14 +59,25 @@ init {
     size(small);
     size(big);
 }
-")
+"#,
+        VmOptions::default(),
+    )
     .unwrap();
-    assert_eq!(output, "int32\nint64\n");
+    assert_eq!(
+        output.stdout,
+        r#"int32
+int64
+"#
+    );
 }
 
 #[test]
 fn the_number_of_arguments_decides_too() {
-    let output = run("pub Adder() {
+    let output = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
+
+pub Adder() {
     pub fun add(a: Int32) {
         println(a);
     }
@@ -73,62 +92,101 @@ init {
     adder.add(4);
     adder.add(4, 5);
 }
-")
+"#,
+        VmOptions::default(),
+    )
     .unwrap();
-    assert_eq!(output, "4\n9\n");
+    assert_eq!(
+        output.stdout,
+        r#"4
+9
+"#
+    );
 }
 
 #[test]
 fn the_return_type_follows_the_chosen_function() {
-    let output = run("pub fun pick(value: Int32): Int32 {
+    let output = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
+
+pub fun pick(value: Int32): Int32 {
     return value + 1;
 }
 
 pub fun pick(value: String): String {
-    return value + \"!\";
+    return value + "!";
 }
 
 init {
     into number = pick(3);
-    into text = pick(\"hey\");
+    into text = pick("hey");
     println(number);
     println(text);
     println(number + 1);
-    println(text + \"?\");
+    println(text + "?");
 }
-")
+"#,
+        VmOptions::default(),
+    )
     .unwrap();
-    assert_eq!(output, "4\nhey!\n5\nhey!?\n");
+    assert_eq!(
+        output.stdout,
+        r#"4
+hey!
+5
+hey!?
+"#
+    );
 }
 
 #[test]
 fn a_call_that_no_overload_accepts_is_an_error() {
-    let message = run("pub fun describe(value: Int32) {
-    println(\"int\");
+    let message = format!(
+        "{:#}",
+        eval_vm_bundled(
+            r#"
+import "intolang://builtin/std";
+
+pub fun describe(value: Int32) {
+    println("int");
 }
 
 pub fun describe(value: String) {
-    println(\"string\");
+    println("string");
 }
 
 init {
     describe(true);
 }
-")
-    .unwrap_err();
+"#,
+            VmOptions::default(),
+        )
+        .unwrap_err()
+    );
     assert!(message.contains("describe"), "{message}");
 }
 
 #[test]
 fn a_function_without_a_twin_keeps_its_name() {
-    let output = run("pub fun once(value: Int32) {
+    let output = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
+
+pub fun once(value: Int32) {
     println(value);
 }
 
 init {
     once(3);
 }
-")
+"#,
+        VmOptions::default(),
+    )
     .unwrap();
-    assert_eq!(output, "3\n");
+    assert_eq!(
+        output.stdout,
+        r#"3
+"#
+    );
 }

@@ -3,22 +3,42 @@
 use intovm::VmOptions;
 use testing::{eval_run, eval_vm_bundled};
 
-const PROGRAM: &str = "import \"intolang://builtin/std\";
+#[test]
+fn the_console_writes_text() {
+    let source = r#"
+import "intolang://builtin/std";
 
 init {
-    Console.write(\"one\");
-    Console.write(\" two\\n\");
-    println(\"three\");
-    print(\"four\\n\");
-    now into word = \"five\";
+    Console.write("one");
+    Console.write(" two\n");
+    println("three");
+    print("four\n");
+    now into word = "five";
     Console.write(word);
-    Console.write(\"\\n\");
+    Console.write("\n");
 }
-";
+"#;
+    let expected = r#"one two
+three
+four
+five
+"#;
+    let output = eval_vm_bundled(source, VmOptions::default()).unwrap();
+    assert_eq!(output.stdout, expected);
+    let compiled = eval_run(source).unwrap();
+    assert!(compiled.success, "{}", compiled.stderr);
+    assert_eq!(compiled.stdout, expected);
+}
 
-const EXPECTED: &str = "one two\nthree\nfour\nfive\n";
-
-const READ_PROGRAM: &str = "import \"intolang://builtin/std\";
+#[test]
+fn the_console_reads_lines_in_the_vm() {
+    let options = VmOptions {
+        stdin: Some(b"hello\r\nworld".to_vec()),
+        ..VmOptions::default()
+    };
+    let output = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
 
 init {
     into first = Console.read();
@@ -28,36 +48,36 @@ init {
     into third = Console.read();
     println(third.length());
 }
-";
-
-#[test]
-fn the_console_writes_text_in_the_vm() {
-    let output = eval_vm_bundled(PROGRAM, VmOptions::default()).unwrap();
-    assert_eq!(output.stdout, EXPECTED);
-}
-
-#[test]
-fn compiled_code_writes_to_the_console_like_the_vm() {
-    let compiled = eval_run(PROGRAM).unwrap();
-    assert!(compiled.success, "{}", compiled.stderr);
-    assert_eq!(compiled.stdout, EXPECTED);
-}
-
-#[test]
-fn the_console_reads_lines_in_the_vm() {
-    let options = VmOptions {
-        stdin: Some(b"hello\r\nworld".to_vec()),
-        ..VmOptions::default()
-    };
-    let output = eval_vm_bundled(READ_PROGRAM, options).unwrap();
-    assert_eq!(output.stdout, "hello\nworld\n0\n");
+"#,
+        options,
+    )
+    .unwrap();
+    assert_eq!(
+        output.stdout,
+        r#"hello
+world
+0
+"#
+    );
 }
 
 #[test]
 fn reading_at_the_end_of_the_input_gives_empty_text() {
-    let virtual_run = eval_vm_bundled(READ_PROGRAM, VmOptions::default()).unwrap();
-    let compiled = eval_run(READ_PROGRAM).unwrap();
+    let source = r#"
+import "intolang://builtin/std";
+
+init {
+    into line = Console.read();
+    println(line.length());
+}
+"#;
+    let virtual_run = eval_vm_bundled(source, VmOptions::default()).unwrap();
+    let compiled = eval_run(source).unwrap();
     assert!(compiled.success, "{}", compiled.stderr);
-    assert_eq!(virtual_run.stdout, "\n\n0\n");
+    assert_eq!(
+        virtual_run.stdout,
+        r#"0
+"#
+    );
     assert_eq!(compiled.stdout, virtual_run.stdout);
 }

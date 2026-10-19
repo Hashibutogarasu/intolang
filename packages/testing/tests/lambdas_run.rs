@@ -3,7 +3,10 @@
 use intovm::VmOptions;
 use testing::{eval_run, eval_vm_bundled};
 
-const PROGRAM: &str = "import \"intolang://builtin/std\";
+#[test]
+fn compiled_code_calls_lambdas_like_the_vm() {
+    let source = r#"
+import "intolang://builtin/std";
 
 pub fun each(count: Int32, action: Callback<Int32>) {
     into i: Int32 = 0;
@@ -18,16 +21,16 @@ pub fun greet(name: String, action: Callback<String>) {
 }
 
 pub fun pairs(action: BiCallback<String, Int32>) {
-    action(\"one\", 1);
-    action(\"two\", 2);
+    action("one", 1);
+    action("two", 2);
 }
 
 init {
     each(3, (n: Int32) => {
         println(n);
     });
-    greet(\"world\", (who) => {
-        println(\"hello \" + who);
+    greet("world", (who) => {
+        println("hello " + who);
     });
     into total: Int32 = 0;
     each(4, (n) => {
@@ -43,16 +46,24 @@ init {
         println(number);
     });
 }
-";
-
-#[test]
-fn compiled_code_calls_lambdas_like_the_vm() {
-    let compiled = eval_run(PROGRAM).unwrap();
-    let virtual_run = eval_vm_bundled(PROGRAM, VmOptions::default()).unwrap();
+"#;
+    let compiled = eval_run(source).unwrap();
+    let virtual_run = eval_vm_bundled(source, VmOptions::default()).unwrap();
     assert!(compiled.success, "{}", compiled.stderr);
     assert_eq!(compiled.stdout, virtual_run.stdout);
     assert_eq!(
         compiled.stdout,
-        "0\n1\n2\nhello world\n6\n0\n2\none\n1\ntwo\n2\n"
+        r#"0
+1
+2
+hello world
+6
+0
+2
+one
+1
+two
+2
+"#
     );
 }

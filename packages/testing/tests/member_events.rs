@@ -3,7 +3,10 @@
 use intovm::VmOptions;
 use testing::{eval_run, eval_vm_bundled};
 
-const PROGRAM: &str = "import \"intolang://builtin/std\";
+#[test]
+fn the_events_of_a_member_belong_to_the_binding() {
+    let source = r#"
+import "intolang://builtin/std";
 
 pub Response() {
     pub into status = 0;
@@ -16,14 +19,14 @@ pub HttpEvents() {
 
 pub Client() {
     pub into on = HttpEvents();
-    pub into name = \"client\";
+    pub into name = "client";
 }
 
 pub Greeter() {
-    pub into greeting = \"hello\";
+    pub into greeting = "hello";
 
     pub fun call(name: String) {
-        println(this.greeting + \", \" + name);
+        println(this.greeting + ", " + name);
     }
 }
 
@@ -50,34 +53,33 @@ init {
     listener.destroy();
     client.on.progress.emit(2);
     into g = Greeter();
-    g(\"world\");
+    g("world");
     ping((n) => {
         println(n * 2);
     });
     ping.emit(21);
 }
-";
-
-const EXPECTED: &str = "50\n200\n1\n2\n2\nhello, world\n42\n";
-
-#[test]
-fn the_events_of_a_member_belong_to_the_binding() {
-    let output = eval_vm_bundled(PROGRAM, VmOptions::default()).unwrap();
-    assert_eq!(output.stdout, EXPECTED);
-}
-
-#[test]
-fn compiled_code_runs_member_events_like_the_vm() {
-    let compiled = eval_run(PROGRAM).unwrap();
-    let virtual_run = eval_vm_bundled(PROGRAM, VmOptions::default()).unwrap();
+"#;
+    let expected = r#"50
+200
+1
+2
+2
+hello, world
+42
+"#;
+    let virtual_run = eval_vm_bundled(source, VmOptions::default()).unwrap();
+    assert_eq!(virtual_run.stdout, expected);
+    let compiled = eval_run(source).unwrap();
     assert!(compiled.success, "{}", compiled.stderr);
-    assert_eq!(compiled.stdout, virtual_run.stdout);
-    assert_eq!(compiled.stdout, EXPECTED);
+    assert_eq!(compiled.stdout, expected);
 }
 
 #[test]
 fn a_handler_must_match_the_parameters_of_the_event() {
-    let program = "import \"intolang://builtin/std\";
+    let message = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
 
 pub HttpEvents() {
     pub event progress(percent: Int32) {}
@@ -93,10 +95,11 @@ init {
         println(a);
     });
 }
-";
-    let message = eval_vm_bundled(program, VmOptions::default())
-        .unwrap_err()
-        .to_string();
+"#,
+        VmOptions::default(),
+    )
+    .unwrap_err()
+    .to_string();
     assert!(
         message.contains("takes 1 parameter(s) but the lambda declares 2"),
         "{message}"
@@ -105,7 +108,9 @@ init {
 
 #[test]
 fn a_destroyed_member_event_cannot_be_used_again() {
-    let program = "import \"intolang://builtin/std\";
+    let message = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
 
 pub HttpEvents() {
     pub event progress(percent: Int32) {}
@@ -120,9 +125,10 @@ init {
     client.on.progress.destroy();
     client.on.progress.emit(1);
 }
-";
-    let message = eval_vm_bundled(program, VmOptions::default())
-        .unwrap_err()
-        .to_string();
+"#,
+        VmOptions::default(),
+    )
+    .unwrap_err()
+    .to_string();
     assert!(message.contains("was destroyed"), "{message}");
 }

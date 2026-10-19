@@ -3,112 +3,333 @@
 use intovm::VmOptions;
 use testing::eval_vm_bundled;
 
-const STD: &str = "import \"intolang://builtin/std\";\n";
-
-fn output_of(body: &str) -> String {
-    eval_vm_bundled(&format!("{STD}init {{\n{body}}}\n"), VmOptions::default())
-        .unwrap()
-        .stdout
-}
-
-fn error_of(body: &str) -> String {
-    format!(
-        "{:#}",
-        eval_vm_bundled(&format!("{STD}init {{\n{body}}}\n"), VmOptions::default()).unwrap_err()
-    )
-}
-
 #[test]
 fn text_known_while_lowering_is_joined_while_lowering() {
-    let output = output_of(
-        "    into a: String = \"foo\";\n    into b: String = a + \"bar\" + '!';\n    println(b);\n",
+    let output = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
+
+init {
+    into a: String = "foo";
+    into b: String = a + "bar" + '!';
+    println(b);
+}
+"#,
+        VmOptions::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        output.stdout,
+        r#"foobar!
+"#
     );
-    assert_eq!(output, "foobar!\n");
 }
 
 #[test]
 fn text_made_at_run_time_can_be_joined_and_printed() {
-    let output = output_of(
-        "    into s: String = \"abc\";\n    into up = s.toUpper();\n    into joined = up + \"-\" + s;\n    println(joined);\n",
+    let output = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
+
+init {
+    into s: String = "abc";
+    into up = s.toUpper();
+    into joined = up + "-" + s;
+    println(joined);
+}
+"#,
+        VmOptions::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        output.stdout,
+        r#"ABC-abc
+"#
     );
-    assert_eq!(output, "ABC-abc\n");
 }
 
 #[test]
 fn a_character_joins_a_run_time_text() {
-    let output = output_of(
-        "    into s: String = \"abc\";\n    into up = s.toUpper();\n    into c: Char = 'x';\n    into joined = up + c;\n    println(joined);\n    into front = c + up;\n    println(front);\n",
+    let output = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
+
+init {
+    into s: String = "abc";
+    into up = s.toUpper();
+    into c: Char = 'x';
+    into joined = up + c;
+    println(joined);
+    into front = c + up;
+    println(front);
+}
+"#,
+        VmOptions::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        output.stdout,
+        r#"ABCx
+xABC
+"#
     );
-    assert_eq!(output, "ABCx\nxABC\n");
 }
 
 #[test]
 fn a_computed_character_joins_a_text() {
-    let output = output_of(
-        "    into s: String = \"n\";\n    into up = s.toUpper();\n    into digit: Int32 = 5;\n    into joined = up + (('0' as Int32) + digit) as Char;\n    println(joined);\n",
+    let output = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
+
+init {
+    into s: String = "n";
+    into up = s.toUpper();
+    into digit: Int32 = 5;
+    into joined = up + (('0' as Int32) + digit) as Char;
+    println(joined);
+}
+"#,
+        VmOptions::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        output.stdout,
+        r#"N5
+"#
     );
-    assert_eq!(output, "N5\n");
 }
 
 #[test]
 fn the_text_methods_answer_for_the_text() {
-    let output = output_of(
-        "    into s: String = \"Hello, World\";\n    println(s.length());\n    println(s.at(1));\n    println(s.subString(7, 12));\n    println(s.indexOf(\"World\"));\n    println(s.indexOf(\"nope\"));\n    println(s.toLower());\n    println(s.toUpper());\n",
+    let output = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
+
+init {
+    into s: String = "Hello, World";
+    println(s.length());
+    println(s.at(1));
+    println(s.subString(7, 12));
+    println(s.indexOf("World"));
+    println(s.indexOf("nope"));
+    println(s.toLower());
+    println(s.toUpper());
+}
+"#,
+        VmOptions::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        output.stdout,
+        r#"12
+e
+World
+7
+-1
+hello, world
+HELLO, WORLD
+"#
     );
-    assert_eq!(output, "12\ne\nWorld\n7\n-1\nhello, world\nHELLO, WORLD\n");
 }
 
 #[test]
 fn prefixes_and_suffixes_are_conditions() {
-    let output = output_of(
-        "    into s: String = \"Hello, World\";\n    if (s.startsWith(\"Hello\")) {\n        println(\"starts\");\n    }\n    if (s.endsWith(\"nope\")) {\n        println(\"never\");\n    } else {\n        println(\"does not end\");\n    }\n",
+    let output = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
+
+init {
+    into s: String = "Hello, World";
+    if (s.startsWith("Hello")) {
+        println("starts");
+    }
+    if (s.endsWith("nope")) {
+        println("never");
+    } else {
+        println("does not end");
+    }
+}
+"#,
+        VmOptions::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        output.stdout,
+        r#"starts
+does not end
+"#
     );
-    assert_eq!(output, "starts\ndoes not end\n");
 }
 
 #[test]
 fn texts_compare_for_equality() {
-    let output = output_of(
-        "    into s: String = \"abc\";\n    into up = s.toUpper();\n    if (up == \"ABC\") {\n        println(\"same\");\n    }\n    if (up != s) {\n        println(\"different\");\n    }\n    into again = s.toUpper();\n    if (up == again) {\n        println(\"equal\");\n    }\n    if (s == \"abc\") {\n        println(\"constant\");\n    }\n    if (s != \"abc\") {\n        println(\"never\");\n    }\n",
+    let output = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
+
+init {
+    into s: String = "abc";
+    into up = s.toUpper();
+    if (up == "ABC") {
+        println("same");
+    }
+    if (up != s) {
+        println("different");
+    }
+    into again = s.toUpper();
+    if (up == again) {
+        println("equal");
+    }
+    if (s == "abc") {
+        println("constant");
+    }
+    if (s != "abc") {
+        println("never");
+    }
+}
+"#,
+        VmOptions::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        output.stdout,
+        r#"same
+different
+equal
+constant
+"#
     );
-    assert_eq!(output, "same\ndifferent\nequal\nconstant\n");
 }
 
 #[test]
 fn a_comparison_result_can_be_stored() {
-    let output = output_of(
-        "    into s: String = \"abc\";\n    into up = s.toUpper();\n    into same: Boolean = up == \"ABC\";\n    if (same) {\n        println(\"stored\");\n    }\n",
+    let output = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
+
+init {
+    into s: String = "abc";
+    into up = s.toUpper();
+    into same: Boolean = up == "ABC";
+    if (same) {
+        println("stored");
+    }
+}
+"#,
+        VmOptions::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        output.stdout,
+        r#"stored
+"#
     );
-    assert_eq!(output, "stored\n");
 }
 
 #[test]
 fn a_loop_can_build_a_text() {
-    let output = output_of(
-        "    into s: String = \"a\";\n    into text = s.toUpper();\n    into n: Int32 = 0;\n    while (n < 3) {\n        text = text + s;\n        n = n + 1;\n    }\n    println(text);\n",
+    let output = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
+
+init {
+    into s: String = "a";
+    into text = s.toUpper();
+    into n: Int32 = 0;
+    while (n < 3) {
+        text = text + s;
+        n = n + 1;
+    }
+    println(text);
+}
+"#,
+        VmOptions::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        output.stdout,
+        r#"Aaaa
+"#
     );
-    assert_eq!(output, "Aaaa\n");
 }
 
 #[test]
 fn a_text_changed_by_a_loop_or_a_branch_keeps_the_value_of_the_run() {
-    let output = output_of(
-        "    into text: String = \"\";\n    into n: Int32 = 0;\n    while (n < 3) {\n        text = 'x' + text;\n        n = n + 1;\n    }\n    println(text);\n    into label: String = \"a\";\n    if (n == 3) {\n        label = \"b\";\n    }\n    println(label);\n    if (n == 4) {\n        label = \"c\";\n    }\n    println(label);\n",
+    let output = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
+
+init {
+    into text: String = "";
+    into n: Int32 = 0;
+    while (n < 3) {
+        text = 'x' + text;
+        n = n + 1;
+    }
+    println(text);
+    into label: String = "a";
+    if (n == 3) {
+        label = "b";
+    }
+    println(label);
+    if (n == 4) {
+        label = "c";
+    }
+    println(label);
+}
+"#,
+        VmOptions::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        output.stdout,
+        r#"xxx
+b
+b
+"#
     );
-    assert_eq!(output, "xxx\nb\nb\n");
 }
 
 #[test]
 fn texts_only_compare_with_equality() {
-    let message = error_of(
-        "    into s: String = \"abc\";\n    into up = s.toUpper();\n    if (up < \"b\") {\n        println(\"never\");\n    }\n",
+    let message = format!(
+        "{:#}",
+        eval_vm_bundled(
+            r#"
+import "intolang://builtin/std";
+
+init {
+    into s: String = "abc";
+    into up = s.toUpper();
+    if (up < "b") {
+        println("never");
+    }
+}
+"#,
+            VmOptions::default(),
+        )
+        .unwrap_err()
     );
     assert!(message.contains("`==` and `!=`"), "{message}");
 }
 
 #[test]
 fn a_text_and_a_number_do_not_join() {
-    let message =
-        error_of("    into s: String = \"abc\";\n    into n: Int32 = 1;\n    into t = s + n;\n");
+    let message = format!(
+        "{:#}",
+        eval_vm_bundled(
+            r#"
+import "intolang://builtin/std";
+
+init {
+    into s: String = "abc";
+    into n: Int32 = 1;
+    into t = s + n;
+}
+"#,
+            VmOptions::default(),
+        )
+        .unwrap_err()
+    );
     assert!(message.contains("Arithmetic"), "{message}");
 }

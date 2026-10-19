@@ -3,10 +3,13 @@
 use intovm::VmOptions;
 use testing::{eval_run, eval_vm_bundled};
 
-const PROGRAM: &str = "import \"intolang://builtin/std\";
+#[test]
+fn compiled_code_keeps_lists_like_the_vm() {
+    let source = r#"
+import "intolang://builtin/std";
 
 pub Item() {
-    pub into: String name = \"\";
+    pub into: String name = "";
 }
 
 init {
@@ -23,30 +26,33 @@ init {
     into ratios = [1.5, 2.5];
     println(ratios.get(1));
     into names: [String] = [];
-    names.push(\"first\");
-    names.push(\"second\" + \"!\");
+    names.push("first");
+    names.push("second" + "!");
     println(names.get(1));
     into marks: [Char] = ['a', 'b'];
     println(marks.get(1));
     into big: [Int64] = [5000000000];
     println(big.get(0));
     into first = Item();
-    first.name = \"one\";
+    first.name = "one";
     into items: [Item] = [];
     items.push(first);
     into again = items.get(0);
     println(again.name);
 }
-";
-
-#[test]
-fn compiled_code_keeps_lists_like_the_vm() {
-    let compiled = eval_run(PROGRAM).unwrap();
-    let virtual_run = eval_vm_bundled(PROGRAM, VmOptions::default()).unwrap();
+"#;
+    let compiled = eval_run(source).unwrap();
+    let virtual_run = eval_vm_bundled(source, VmOptions::default()).unwrap();
     assert!(compiled.success, "{}", compiled.stderr);
     assert_eq!(compiled.stdout, virtual_run.stdout);
     assert_eq!(
         compiled.stdout,
-        "101\n2.500000\nsecond!\nb\n5000000000\none\n"
+        r#"101
+2.500000
+second!
+b
+5000000000
+one
+"#
     );
 }

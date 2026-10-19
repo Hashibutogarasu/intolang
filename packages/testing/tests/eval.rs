@@ -3,7 +3,14 @@ use types::MessageTag;
 
 #[test]
 fn evaluates_source_to_a_message() {
-    let result = eval("init {\n    into answer: Int32 = 42;\n}\n").unwrap();
+    let result = eval(
+        r#"
+init {
+    into answer: Int32 = 42;
+}
+"#,
+    )
+    .unwrap();
     assert!(result.contains("NATIVE_ASSIGN\tanswer\tInt32\tn:42"));
     let tags = result
         .records()
@@ -25,27 +32,58 @@ fn evaluates_source_to_a_message() {
 
 #[test]
 fn provides_the_builtin_console_functions() {
-    let result =
-        eval("import \"intolang://builtin/std\";\ninit {\n    println(\"hi\");\n}\n").unwrap();
-    assert_eq!(result.text(), "hi\n");
+    let result = eval(
+        r#"
+import "intolang://builtin/std";
+
+init {
+    println("hi");
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(
+        result.text(),
+        r#"hi
+"#
+    );
 }
 
 #[test]
 fn surfaces_lowering_errors() {
-    let error = eval("init {\n    into value: Int32 = \"x\";\n}\n").unwrap_err();
+    let error = eval(
+        r#"
+init {
+    into value: Int32 = "x";
+}
+"#,
+    )
+    .unwrap_err();
     assert!(error.to_string().contains("Type mismatch"));
 }
 
 #[test]
 fn evaluates_with_extra_packages() {
     let package = Package::new("tools")
-        .file("src/main/into-info.into", "export \"tools://math\";\n")
+        .file(
+            "src/main/into-info.into",
+            r#"export "tools://math";
+"#,
+        )
         .file(
             "src/main/math.into",
-            "#[link(\"c\", \"src/ffi/math.c\", \"math_abs\")]\npub c fun abs(value: Int32): Int32;\n",
+            r#"#[link("c", "src/ffi/math.c", "math_abs")]
+pub c fun abs(value: Int32): Int32;
+"#,
         );
     let result = eval_with(
-        "import \"tools://math\";\ninit {\n    into value: Int32 = abs(-4);\n}\n",
+        r#"
+import "tools://math";
+
+init {
+    into value: Int32 = abs(-4);
+}
+"#,
         &[package],
     )
     .unwrap();

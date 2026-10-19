@@ -3,10 +3,13 @@
 use intovm::VmOptions;
 use testing::{eval_run, eval_vm_bundled};
 
-const PROGRAM: &str = "import \"intolang://builtin/std\";
+#[test]
+fn for_each_hands_every_item_to_the_lambda() {
+    let source = r#"
+import "intolang://builtin/std";
 
 pub Item() {
-    pub into name = \"\";
+    pub into name = "";
 }
 
 pub fun show(value: Int32) {
@@ -27,14 +30,14 @@ init {
     });
     println(total);
     numbers.forEach(show);
-    into names: [String] = [\"a\", \"b\"];
+    into names: [String] = ["a", "b"];
     names.forEach((name) => {
-        println(name + \"!\");
+        println(name + "!");
     });
     into first = Item();
-    first.name = \"one\";
+    first.name = "one";
     into second = Item();
-    second.name = \"two\";
+    second.name = "two";
     into items: [Item] = [];
     items.push(first);
     items.push(second);
@@ -43,31 +46,37 @@ init {
     });
     into empty: [Int32] = [];
     empty.forEach((n) => {
-        println(\"never\");
+        println("never");
     });
 }
-";
-
-const EXPECTED: &str = "10\n20\n30\n10\n21\n32\n60\n10\n20\n30\na!\nb!\none\ntwo\n";
-
-#[test]
-fn for_each_hands_every_item_to_the_lambda() {
-    let output = eval_vm_bundled(PROGRAM, VmOptions::default()).unwrap();
-    assert_eq!(output.stdout, EXPECTED);
-}
-
-#[test]
-fn compiled_code_loops_like_the_vm() {
-    let compiled = eval_run(PROGRAM).unwrap();
-    let virtual_run = eval_vm_bundled(PROGRAM, VmOptions::default()).unwrap();
+"#;
+    let expected = r#"10
+20
+30
+10
+21
+32
+60
+10
+20
+30
+a!
+b!
+one
+two
+"#;
+    let virtual_run = eval_vm_bundled(source, VmOptions::default()).unwrap();
+    assert_eq!(virtual_run.stdout, expected);
+    let compiled = eval_run(source).unwrap();
     assert!(compiled.success, "{}", compiled.stderr);
-    assert_eq!(compiled.stdout, virtual_run.stdout);
-    assert_eq!(compiled.stdout, EXPECTED);
+    assert_eq!(compiled.stdout, expected);
 }
 
 #[test]
 fn the_lambda_must_fit_the_items() {
-    let program = "import \"intolang://builtin/std\";
+    let message = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
 
 init {
     into numbers: [Int32] = [1];
@@ -75,15 +84,18 @@ init {
         println(n);
     });
 }
-";
-    let message = eval_vm_bundled(program, VmOptions::default())
-        .unwrap_err()
-        .to_string();
+"#,
+        VmOptions::default(),
+    )
+    .unwrap_err()
+    .to_string();
     assert!(
         message.contains("The parameter `n` is a `String`"),
         "{message}"
     );
-    let program = "import \"intolang://builtin/std\";
+    let message = eval_vm_bundled(
+        r#"
+import "intolang://builtin/std";
 
 init {
     into numbers: [Int32] = [1];
@@ -91,9 +103,10 @@ init {
         println(a);
     });
 }
-";
-    let message = eval_vm_bundled(program, VmOptions::default())
-        .unwrap_err()
-        .to_string();
+"#,
+        VmOptions::default(),
+    )
+    .unwrap_err()
+    .to_string();
     assert!(message.contains("not 3 parameter(s)"), "{message}");
 }

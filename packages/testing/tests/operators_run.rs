@@ -2,9 +2,12 @@
 
 use testing::{eval_run, eval_vm};
 
-const STD: &str = "import \"intolang://builtin/std\";\n";
+#[test]
+fn compiled_code_prints_what_the_vm_prints() {
+    let source = r#"
+import "intolang://builtin/std";
 
-const PROGRAM: &str = "init {
+init {
     into a: Int32 = 7;
     into b: Int32 = a % 4 + 2 * 3;
     println(b);
@@ -20,16 +23,16 @@ const PROGRAM: &str = "init {
     println(z);
     into zero: Int32 = 0;
     if (a > 3 && b < 10) {
-        println(\"both\");
+        println("both");
     }
     if (a > 100 && 10 / zero > 1) {
-        println(\"never\");
+        println("never");
     } else {
-        println(\"skipped\");
+        println("skipped");
     }
     into big: Boolean = a > 3;
     if (big && !(a == 8)) {
-        println(\"yes\");
+        println("yes");
     }
     into n: Int32 = 0;
     while (n < 10 && n * n < 30) {
@@ -37,17 +40,22 @@ const PROGRAM: &str = "init {
     }
     println(n);
 }
-";
-
-#[test]
-fn compiled_code_prints_what_the_vm_prints() {
-    let source = format!("{STD}{PROGRAM}");
-    let compiled = eval_run(&source).unwrap();
-    let virtual_run = eval_vm(&source).unwrap();
+"#;
+    let compiled = eval_run(source).unwrap();
+    let virtual_run = eval_vm(source).unwrap();
     assert!(compiled.success, "{}", compiled.stderr);
     assert_eq!(compiled.stdout, virtual_run.stdout);
     assert_eq!(
         compiled.stdout,
-        "9\n11\n28\n11\n19\nboth\nskipped\nyes\n6\n"
+        r#"9
+11
+28
+11
+19
+both
+skipped
+yes
+6
+"#
     );
 }
