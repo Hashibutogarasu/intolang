@@ -5,6 +5,7 @@ mod inex;
 mod install;
 mod new;
 mod root;
+mod target;
 mod uninstall;
 
 pub(crate) use root::run;

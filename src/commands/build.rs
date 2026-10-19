@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 use crate::commands::command::Command;
 use crate::commands::inex;
+use crate::commands::target::{InexTarget, NativeTarget, Project, Target};
 
 #[derive(Deserialize)]
 struct Package {
@@ -89,49 +90,29 @@ pub(super) fn run(
         .as_deref()
         .unwrap_or(&package.name)
         .replace(' ', "-");
-    if vm_output {
-        let output = output_dir.join(format!("{executable}.{}", inex::EXTENSION));
-        if output.exists() {
-            std::fs::remove_file(&output)?;
-        }
-        let message = backend::lower_file(&source, &entry, Some(package_environment.path()))
-            .context("Could not compile Into entry point")?;
-        let header = intovm::InexHeader {
-            name: package.name.clone(),
-            alias: package.alias.clone().unwrap_or_else(|| executable.clone()),
-            version: package.version.clone(),
-            generator: format!("into {}", env!("CARGO_PKG_VERSION")),
-        };
-        let program = inex::assemble(header, message, package_environment.path())?;
-        std::fs::create_dir_all(&output_dir)?;
-        inex::write(&program, &output)?;
-        println!("Built {}", output.display());
-        if run_after_build {
-            inex::execute(&program)?;
-        }
-        return Ok(());
-    }
-    #[cfg(windows)]
-    let executable = format!("{executable}.exe");
-    let output = output_dir.join(executable);
+    let target: Box<dyn Target> = if vm_output {
+        Box::new(InexTarget)
+    } else {
+        Box::new(NativeTarget)
+    };
+    let output = target.output(&output_dir, &executable);
     if output.exists() {
         std::fs::remove_file(&output)?;
     }
-
     let message = backend::lower_file(&source, &entry, Some(package_environment.path()))
         .context("Could not compile Into entry point")?;
     std::fs::create_dir_all(&output_dir)?;
-    compiler::compile_with_packages(&message, &output, package_environment.path())
-        .context("Compilation failed")?;
+    let project = Project {
+        directory: package_dir,
+        name: &package.name,
+        alias: package.alias.as_deref().unwrap_or(&executable),
+        version: &package.version,
+        packages: package_environment.path(),
+    };
+    target.build(&project, message, &output)?;
     println!("Built {}", output.display());
     if run_after_build {
-        let status = std::process::Command::new(&output)
-            .current_dir(package_dir)
-            .status()
-            .with_context(|| format!("Could not run compiled executable {}", output.display()))?;
-        if !status.success() {
-            anyhow::bail!("Program exited with status {status}");
-        }
+        target.run(&project, &output)?;
     }
     Ok(())
 }
