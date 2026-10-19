@@ -1,0 +1,119 @@
+use ast::{Expr, Path};
+use std::collections::HashSet;
+use types::{Literal, Type};
+
+use super::ownership::{BORROW, COPY, MOVE};
+use super::type_name::{base_type_name, parse_type};
+use crate::context::{EVENT, Lowerer, THREAD};
+
+fn literal_type(literal: &Literal) -> Type {
+    match literal {
+        Literal::Int(_) => Type::Int32,
+        Literal::Float(_) => Type::Float64,
+        Literal::String(_) => Type::String,
+        Literal::Bool(_) => Type::Boolean,
+    }
+}
+
+fn spelled(text: &str) -> Type {
+    parse_type(text, &HashSet::new()).unwrap_or_else(|_| Type::Named(text.to_owned()))
+}
+
+impl Lowerer<'_> {
+    /// The type an expression has, without emitting anything.
+    pub fn type_of(&self, expression: &Expr) -> Result<Type, String> {
+        match expression {
+            Expr::Literal(literal) => Ok(literal_type(literal)),
+            Expr::Path(path) => self.path_type(path),
+            Expr::Call { callee, .. } => self.call_type(callee),
+            Expr::Binary { left, right, .. } => {
+                let (left, right) = (self.type_of(left)?, self.type_of(right)?);
+                match (left.is_numeric(), right.is_numeric()) {
+                    (true, true) if left.is_float() || !right.is_float() => Ok(left),
+                    (true, true) => Ok(right),
+                    _ => Err(format!(
+                        "Arithmetic needs numbers but received `{}` and `{}`",
+                        left.name(),
+                        right.name()
+                    )),
+                }
+            }
+            Expr::Compare { .. } | Expr::Not(_) => Ok(Type::Boolean),
+            Expr::Thread { .. } => Ok(Type::Named(THREAD.to_owned())),
+            Expr::Lambda { .. } => Err("A lambda has no type here".to_owned()),
+            Expr::Await(_) => Err("`await` has no value".to_owned()),
+        }
+    }
+
+    fn path_type(&self, path: &Path) -> Result<Type, String> {
+        if let Some(field) = self.static_field(path) {
+            return Ok(spelled(&field.ty));
+        }
+        let first = path.first();
+        if let Some(variable) = self.state.values.get(first) {
+            let mut current = if variable.native {
+                variable.ty.clone()
+            } else {
+                Type::String
+            };
+            for segment in &path.segments()[1..] {
+                let class = base_type_name(&current.name()).to_owned();
+                let field = self
+                    .env
+                    .class_fields
+                    .get(&class)
+                    .and_then(|fields| fields.iter().find(|f| !f.is_static && f.name == *segment))
+                    .ok_or_else(|| format!("`{class}` has no field `{segment}`"))?;
+                current = spelled(&field.ty);
+            }
+            return Ok(current);
+        }
+        if path
+            .as_ident()
+            .is_some_and(|name| self.env.events.contains_key(name))
+        {
+            return Ok(Type::Named(EVENT.to_owned()));
+        }
+        Err(format!("Unknown name `{path}`"))
+    }
+
+    fn call_type(&self, callee: &Path) -> Result<Type, String> {
+        let env = self.env;
+        if !callee.is_member() {
+            let name = callee.first();
+            if env.class_fields.contains_key(base_type_name(name)) {
+                return Ok(Type::Named(name.to_owned()));
+            }
+            return self.function_type(name);
+        }
+        if let Some((class, method)) = self.static_receiver(callee) {
+            return self.function_type(&self.method_key(&class, &method));
+        }
+        let segments = callee.segments();
+        let mut current = self
+            .state
+            .values
+            .get(&segments[0])
+            .map(|variable| variable.ty.clone())
+            .ok_or_else(|| format!("Unknown receiver `{}`", segments[0]))?;
+        for segment in &segments[1..] {
+            let class = base_type_name(&current.name()).to_owned();
+            if matches!(segment.as_str(), COPY | MOVE | BORROW) {
+                continue;
+            }
+            current = self.function_type(&self.method_key(&class, segment))?;
+        }
+        Ok(current)
+    }
+
+    fn function_type(&self, key: &str) -> Result<Type, String> {
+        let env = self.env;
+        if let Some(function) = env.user_functions.get(key) {
+            return Ok(function.return_type.as_deref().map_or(Type::Void, spelled));
+        }
+        if let Some(link) = env.native_links.get(key) {
+            return Ok(spelled(&link.return_type));
+        }
+        Err(format!("Undefined function `{key}`"))
+    }
+}

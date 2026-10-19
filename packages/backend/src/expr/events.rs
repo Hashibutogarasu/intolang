@@ -1,6 +1,6 @@
 use ast::{Expr, Param, Path, Stmt};
 use std::mem;
-use types::{Literal, Type};
+use types::Type;
 
 use super::captures::mentioned_names;
 use super::ownership::DESTROY;
@@ -252,18 +252,11 @@ impl Lowerer<'_> {
         let expected =
             parse_type(written.as_str(), &self.env.type_params).map_err(|e| e.to_string())?;
         let expected = expected.referent();
-        let actual = match arg {
-            Expr::Literal(Literal::String(_)) => Type::String,
-            Expr::Literal(Literal::Int(_)) => Type::Int32,
-            Expr::Path(path) => {
-                match path.as_ident().and_then(|name| self.state.values.get(name)) {
-                    Some(variable) if variable.native => variable.ty.referent().clone(),
-                    Some(_) => Type::String,
-                    None => return Err(format!("Unknown event argument `{arg}`")),
-                }
-            }
-            other => return Err(format!("Unsupported event argument `{other}`")),
-        };
+        let actual = self
+            .type_of(arg)
+            .map_err(|_| format!("Unknown event argument `{arg}`"))?
+            .referent()
+            .clone();
         if &actual != expected
             && !(actual == Type::String && *expected == Type::Path)
             && !self.inherits_from(&actual, expected)
