@@ -2,8 +2,8 @@ use ast::Expr;
 use moduler::Module;
 use native::{
     CastAssign, CompareAssign, Comparison, FieldAssign, FieldLoad, FunctionCall,
-    FunctionDefinition, FunctionRef, FunctionReturn, IndirectCall, NativeArg, Operand,
-    OwnershipChange, StateCheck,
+    FunctionDefinition, FunctionRef, FunctionReturn, IndirectCall, MemoryLoad, MemoryStore,
+    NativeArg, Operand, OwnershipChange, StateCheck,
 };
 use parser::{Hex, Record};
 use types::{ComparisonOperator, Literal, MessageTag, Type};
@@ -66,6 +66,14 @@ pub fn field_assign(output: &mut String, assign: &FieldAssign) {
 
 pub fn field_load(output: &mut String, load: &FieldLoad) {
     push(output, load.to_record());
+}
+
+pub fn memory_load(output: &mut String, load: &MemoryLoad) {
+    push(output, load.to_record());
+}
+
+pub fn memory_store(output: &mut String, store: &MemoryStore) {
+    push(output, store.to_record());
 }
 
 pub fn print(output: &mut String, name: &str, ty: &Type, newline: bool) {

@@ -3,7 +3,7 @@ use native::{LinkCall, NativeArg, NativeLink};
 use types::{Literal, MessageTag};
 
 use crate::context::{Lowerer, Ownership};
-use crate::expr::{MOVE, base_type_name};
+use crate::expr::{MOVE, base_type_name, parse_type};
 
 impl Lowerer<'_> {
     /// Emit a call to the native function `link` binds. `args` holds the
@@ -45,6 +45,29 @@ impl Lowerer<'_> {
                 None => return Err(format!("Missing required argument `{}`", param.name)),
             }
         }
+        let mut native = Vec::new();
+        for (position, arg) in args.iter().enumerate() {
+            let computed = matches!(
+                arg,
+                Expr::Binary { .. }
+                    | Expr::Cast { .. }
+                    | Expr::Compare { .. }
+                    | Expr::Logical { .. }
+                    | Expr::Not(_)
+            );
+            let param = position
+                .checked_sub(receivers)
+                .and_then(|index| link.params.get(index));
+            let written = param.and_then(|param| param.ty.as_ref());
+            native.push(match (computed, written) {
+                (true, Some(written)) => {
+                    let ty = parse_type(written.as_str(), &self.env.type_params)
+                        .map_err(|error| error.to_string())?;
+                    self.runtime_argument(arg, &ty)?
+                }
+                _ => self.native_arg(arg)?,
+            });
+        }
         let call = LinkCall {
             package_alias: link.package_alias.clone(),
             language: link.language,
@@ -52,10 +75,7 @@ impl Lowerer<'_> {
             target: link.target.clone(),
             return_type: link.return_type.clone(),
             assigned_to: assigned_to.to_owned(),
-            args: args
-                .iter()
-                .map(|arg| self.native_arg(arg))
-                .collect::<Result<_, _>>()?,
+            args: native,
         };
         self.state.output.push_str(&call.to_record(tag).to_string());
         for name in handed_over {

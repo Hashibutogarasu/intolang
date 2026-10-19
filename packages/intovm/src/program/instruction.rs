@@ -1,6 +1,7 @@
 use native::{
     CastAssign, CompareAssign, Comparison, FieldAssign, FieldLoad, FunctionCall, FunctionRef,
-    FunctionReturn, IndirectCall, LinkCall, NativeArg, Operand, OwnershipChange, StateCheck,
+    FunctionReturn, IndirectCall, LinkCall, MemoryLoad, MemoryStore, NativeArg, Operand,
+    OwnershipChange, StateCheck,
 };
 use std::collections::HashMap;
 
@@ -36,6 +37,8 @@ pub enum Instr {
     Cast(CastAssign),
     FieldAssign(FieldAssign),
     FieldLoad(FieldLoad),
+    Load(MemoryLoad),
+    Store(MemoryStore),
     Print {
         variable: String,
         ty: String,

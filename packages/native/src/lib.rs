@@ -3,6 +3,7 @@ mod build;
 mod call;
 mod function;
 mod link;
+mod memory;
 mod operand;
 mod ownership;
 
@@ -14,5 +15,6 @@ pub use build::{
 pub use call::LinkCall;
 pub use function::{FunctionCall, FunctionDefinition, FunctionRef, FunctionReturn, IndirectCall};
 pub use link::{NativeLink, is_vm_only};
+pub use memory::{MemoryLoad, MemoryStore};
 pub use operand::{CastAssign, CompareAssign, Comparison, FieldAssign, FieldLoad, Operand};
 pub use ownership::{OwnershipChange, Property, StateCheck};

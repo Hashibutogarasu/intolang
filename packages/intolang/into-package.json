@@ -9,6 +9,7 @@
   "nativeDependencies": {
     "src/ffi/dummy-process.c": [],
     "src/ffi/list.c": [],
+    "src/ffi/memory.c": [],
     "src/ffi/object.c": [],
     "src/ffi/string.c": []
   },

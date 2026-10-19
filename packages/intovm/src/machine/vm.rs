@@ -77,8 +77,15 @@ pub struct Vm {
     pub(super) native: Option<Rc<Library>>,
     pub(super) retained_strings: Vec<std::ffi::CString>,
     pub(super) lists: Vec<Vec<Value>>,
+    pub(super) allocations: HashMap<usize, std::alloc::Layout>,
     options: VmOptions,
     stdout: Vec<u8>,
+}
+
+impl Drop for Vm {
+    fn drop(&mut self) {
+        self.release_allocations();
+    }
 }
 
 impl Vm {
@@ -92,6 +99,7 @@ impl Vm {
             native: None,
             retained_strings: Vec::new(),
             lists: Vec::new(),
+            allocations: HashMap::new(),
             options,
             program: Rc::new(Program::default()),
             globals: HashMap::new(),
@@ -110,6 +118,7 @@ impl Vm {
         install(&mut vm, real_processes);
         super::text::install(&mut vm);
         super::lists::install(&mut vm);
+        super::memory_access::install(&mut vm);
         vm
     }
 
@@ -263,6 +272,8 @@ impl Vm {
                 let holds = compare(comparison.operator, &left, &right)?;
                 self.store(&assign.target, Value::Int(i64::from(holds)));
             }
+            Instr::Load(load) => self.memory_load(load)?,
+            Instr::Store(store) => self.memory_store(store)?,
             Instr::FieldLoad(load) => {
                 let holder = self.load_slot(&load.slot)?;
                 let value = self

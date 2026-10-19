@@ -1,0 +1,13 @@
+pub Memory() {
+    #[link("c", "src/ffi/memory.c", "into_memory_allocate")]
+    pub static fun allocate(bytes: Int64): Pointer;
+
+    #[link("c", "src/ffi/memory.c", "into_memory_free")]
+    pub static fun free(pointer: Pointer): Void;
+
+    #[link("c", "src/ffi/memory.c", "into_memory_copy")]
+    pub static fun copyBytes(target: Pointer, source: Pointer, bytes: Int64): Void;
+
+    #[link("c", "src/ffi/memory.c", "into_memory_fill")]
+    pub static fun fillBytes(target: Pointer, value: Int32, bytes: Int64): Void;
+}

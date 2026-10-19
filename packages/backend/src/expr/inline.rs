@@ -424,6 +424,12 @@ impl<'a> Lowerer<'a> {
             {
                 return Ok(());
             }
+            if self
+                .lower_pointer_method(&receiver, &receiver_type, method, args, "")?
+                .is_some()
+            {
+                return Ok(());
+            }
             self.check_receiver_call(&receiver, method)?;
             if self.give_back_reference(&receiver, method) {
                 return Ok(());

@@ -111,6 +111,13 @@ impl Lowerer<'_> {
         {
             return Ok(());
         }
+        if self
+            .lower_pointer_method(&receiver, &receiver_type, method, args, "")
+            .map_err(|message| fail(self, message))?
+            .is_some()
+        {
+            return Ok(());
+        }
         self.check_receiver_call(&receiver, method)
             .map_err(|message| fail(self, message))?;
         if self.give_back_reference(&receiver, method) {

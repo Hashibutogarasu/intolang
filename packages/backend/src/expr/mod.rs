@@ -13,6 +13,7 @@ mod numeric;
 mod objects;
 mod operand;
 mod ownership;
+mod pointers;
 mod print_value;
 mod resolve;
 mod signals;

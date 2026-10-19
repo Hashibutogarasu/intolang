@@ -3,6 +3,7 @@ mod events;
 mod frame;
 mod lists;
 mod memory;
+mod memory_access;
 mod native;
 mod operand;
 mod process;

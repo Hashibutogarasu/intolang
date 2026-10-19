@@ -1,8 +1,8 @@
 use anyhow::{Result, anyhow, bail};
 use native::{
     CastAssign, CompareAssign, Comparison, FieldAssign, FieldLoad, FunctionCall,
-    FunctionDefinition, FunctionRef, FunctionReturn, IndirectCall, LinkCall, OwnershipChange,
-    StateCheck,
+    FunctionDefinition, FunctionRef, FunctionReturn, IndirectCall, LinkCall, MemoryLoad,
+    MemoryStore, OwnershipChange, StateCheck,
 };
 use parser::{Hex, Record};
 use types::MessageTag;
@@ -110,6 +110,12 @@ impl Program {
             MessageTag::Compare => self
                 .instructions
                 .push(Instr::Compare(CompareAssign::try_from(record)?)),
+            MessageTag::Load => self
+                .instructions
+                .push(Instr::Load(MemoryLoad::try_from(record)?)),
+            MessageTag::Store => self
+                .instructions
+                .push(Instr::Store(MemoryStore::try_from(record)?)),
             MessageTag::FieldLoad => self
                 .instructions
                 .push(Instr::FieldLoad(FieldLoad::try_from(record)?)),

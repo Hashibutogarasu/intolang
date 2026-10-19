@@ -8,8 +8,9 @@ use crate::native::{
     NativeEmit, NativeEventDestroy, NativeEventOff, NativeEventOn, NativeFieldAssign,
     NativeFieldLoad, NativeFieldPrint, NativeFunctionBegin, NativeFunctionRef, NativeHandlerBegin,
     NativeHandlerEnd, NativeIfBegin, NativeIfCall, NativeIfConst, NativeIfElse, NativeIfEnd,
-    NativeIfState, NativeLinkAssign, NativeLoopBegin, NativeLoopEnd, NativeModule, NativeOwnership,
-    NativePrint, NativePrintConst, NativeReturn, NativeThreadRun, NativeThrow, NativeWhileBegin,
+    NativeIfState, NativeLinkAssign, NativeLoad, NativeLoopBegin, NativeLoopEnd, NativeModule,
+    NativeOwnership, NativePrint, NativePrintConst, NativeReturn, NativeStore, NativeThreadRun,
+    NativeThrow, NativeWhileBegin,
 };
 use crate::{Codegen, Text};
 
@@ -45,6 +46,8 @@ pub(crate) fn parse(message: &str) -> Result<Program> {
             MessageTag::FieldPrint => Box::new(NativeFieldPrint::try_from(&record)?),
             MessageTag::FieldAssign => Box::new(NativeFieldAssign::try_from(&record)?),
             MessageTag::FieldLoad => Box::new(NativeFieldLoad::try_from(&record)?),
+            MessageTag::Load => Box::new(NativeLoad::try_from(&record)?),
+            MessageTag::Store => Box::new(NativeStore::try_from(&record)?),
             MessageTag::LinkAssign => Box::new(NativeLinkAssign::try_from(&record)?),
             MessageTag::Construct => Box::new(NativeConstruct::try_from(&record)?),
             MessageTag::Module => Box::new(NativeModule::try_from(&record)?),

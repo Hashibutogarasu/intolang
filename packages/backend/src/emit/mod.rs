@@ -5,6 +5,6 @@ pub use records::{
     alias, arith, assign, await_task, bare, call_indirect, cast_assign, class, compare_assign,
     comparison, construct, copy, drop_flag, drop_guard, event_destroy, event_emit, event_off,
     event_on, field_assign, field_load, field_print, function_begin, function_call, function_ref,
-    function_return, handler_begin, handler_end, if_const, if_state, module, module_classes,
-    native_call, ownership, print, print_const, text, thread_run, throw,
+    function_return, handler_begin, handler_end, if_const, if_state, memory_load, memory_store,
+    module, module_classes, native_call, ownership, print, print_const, text, thread_run, throw,
 };

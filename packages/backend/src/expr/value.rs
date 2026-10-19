@@ -241,6 +241,13 @@ impl<'a> Lowerer<'a> {
                 let ty = resolve_annotation(ty, annotation)?;
                 return Ok(Some((ty.name(), ty, true)));
             }
+            if let Some(result) =
+                self.lower_pointer_method(&receiver, &receiver_type, method, args, assigned_to)?
+            {
+                let ty = result.ok_or_else(|| format!("`{callee}` does not return a value"))?;
+                let ty = resolve_annotation(ty, annotation)?;
+                return Ok(Some((ty.name(), ty, true)));
+            }
             if self.is_ownership_method(&class, method)
                 && matches!(method, "copy" | "move" | "borrow")
             {
