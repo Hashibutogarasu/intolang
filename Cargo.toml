@@ -18,4 +18,4 @@ intovm = { version = "0.1.0", path = "packages/intovm" }
 native = { version = "0.1.0", path = "packages/native" }
 
 [workspace]
-members = ["apps/compiler", "packages/ast", "packages/backend", "packages/codegen", "packages/formatter", "packages/intovm", "packages/lld", "packages/moduler", "packages/native", "packages/parser", "packages/testing", "packages/tokenizer", "packages/types"]
+members = ["apps/compiler", "packages/ast", "packages/backend", "packages/bundle", "packages/codegen", "packages/formatter", "packages/intovm", "packages/lld", "packages/moduler", "packages/native", "packages/parser", "packages/testing", "packages/tokenizer", "packages/types"]

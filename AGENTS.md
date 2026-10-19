@@ -23,6 +23,7 @@ It is a Cargo workspace (Rust edition 2024).
 | --- | --- | --- |
 | `src/` | `intolang` (root) | CLI entrypoint (`main.rs`) and `src/commands/*` (`new`, `build`, `install`, `format`, `inex`) |
 | `apps/compiler/` | `compiler` | Drives `codegen`: target machine, object emission, native source compilation (`native`), links via `lld`; embeds resources in `build.rs` |
+| `packages/bundle/` | `bundle` | A file tree in memory (`Bundle`, `BundlePath`, `Entry`): normalized relative paths, equal contents stored once, trees and packages added from directories; no LLVM and no dependency on the other crates |
 | `packages/codegen/` | `codegen` | LLVM code generation from the lowered message: one node per record under `src/native/`, shared LLVM state in `src/context/` |
 | `apps/compiler/res/` | — | `packages/intolang` runtime and `templates/hello_world` used by `into new` |
 | `packages/types/` | `types` | Language type structures only (tokens, keywords, `Type`, message tags); no tokenizing or formatting behaviour |
