@@ -4,7 +4,9 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use super::arith::{compare, constant, is_float, operate};
+use super::events::EventTable;
 use super::frame::Frame;
+use super::threads::Thread;
 use crate::program::{Cond, Instr, Program};
 use crate::value::{Instance, Value};
 
@@ -21,6 +23,9 @@ pub struct Vm {
     pub(super) frames: Vec<Frame>,
     pub(super) heap: Vec<Instance>,
     pub(super) intrinsics: HashMap<String, Intrinsic>,
+    pub(super) events: HashMap<String, EventTable>,
+    pub(super) threads: Vec<Thread>,
+    pub(super) current: usize,
     stdout: Vec<u8>,
 }
 
@@ -32,6 +37,9 @@ impl Vm {
             frames: vec![Frame::main()],
             heap: Vec::new(),
             intrinsics: HashMap::new(),
+            events: HashMap::new(),
+            threads: vec![Thread::default()],
+            current: 0,
             stdout: Vec::new(),
         }
     }
@@ -39,6 +47,9 @@ impl Vm {
     pub fn load(&mut self, message: &str) -> Result<()> {
         self.program = Rc::new(Program::load(message)?);
         self.frames = vec![Frame::main()];
+        self.threads = vec![Thread::default()];
+        self.current = 0;
+        self.events.clear();
         Ok(())
     }
 
@@ -62,14 +73,19 @@ impl Vm {
 
     pub fn run(&mut self) -> Result<()> {
         let program = self.program.clone();
-        while let Some(frame) = self.frames.last() {
+        loop {
+            let Some(frame) = self.frames.last() else {
+                if self.thread_finished()? {
+                    return Ok(());
+                }
+                continue;
+            };
             let Some(instr) = program.instructions.get(frame.pc) else {
                 self.frames.pop();
                 continue;
             };
             self.step(&program, instr)?;
         }
-        Ok(())
     }
 
     fn advance(&mut self) {
@@ -169,6 +185,24 @@ impl Vm {
             Instr::LinkAssign(call) => {
                 let result = self.link_call(call)?;
                 self.store_result(call, result);
+            }
+            Instr::EventOn {
+                event,
+                listener,
+                handler,
+            } => self.event_on(event, listener, handler)?,
+            Instr::Emit { event, args } => {
+                self.advance();
+                self.emit(event, args)?;
+                return Ok(());
+            }
+            Instr::EventOff { event, listener } => self.event_off(event, listener)?,
+            Instr::EventDestroy { event } => self.event_destroy(event),
+            Instr::ThreadRun { task, function } => self.thread_run(task, function)?,
+            Instr::Await { task } => {
+                if !self.thread_await(task)? {
+                    return Ok(());
+                }
             }
             Instr::Branch { cond, otherwise } => {
                 if !self.condition(cond)? {

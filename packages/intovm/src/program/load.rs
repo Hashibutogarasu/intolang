@@ -225,7 +225,34 @@ impl Program {
                 let after = self.here();
                 self.patch(skip, after);
             }
-            tag => bail!("The VM does not support {tag:?} yet"),
+            MessageTag::EventOn => self.instructions.push(Instr::EventOn {
+                event: record.get(0).to_owned(),
+                listener: record.get(1).to_owned(),
+                handler: record.get(2).to_owned(),
+            }),
+            MessageTag::Emit => self.instructions.push(Instr::Emit {
+                event: record.get(0).to_owned(),
+                args: record
+                    .fields()
+                    .iter()
+                    .skip(1)
+                    .map(|field| field.parse())
+                    .collect::<Result<_>>()?,
+            }),
+            MessageTag::EventOff => self.instructions.push(Instr::EventOff {
+                event: record.get(0).to_owned(),
+                listener: record.get(1).to_owned(),
+            }),
+            MessageTag::EventDestroy => self.instructions.push(Instr::EventDestroy {
+                event: record.get(0).to_owned(),
+            }),
+            MessageTag::ThreadRun => self.instructions.push(Instr::ThreadRun {
+                task: record.get(0).to_owned(),
+                function: record.get(1).to_owned(),
+            }),
+            MessageTag::Await => self.instructions.push(Instr::Await {
+                task: record.get(0).to_owned(),
+            }),
         }
         Ok(())
     }

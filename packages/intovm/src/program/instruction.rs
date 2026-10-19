@@ -60,6 +60,29 @@ pub enum Instr {
         argument: NativeArg,
     },
     LinkAssign(LinkCall),
+    EventOn {
+        event: String,
+        listener: String,
+        handler: String,
+    },
+    Emit {
+        event: String,
+        args: Vec<NativeArg>,
+    },
+    EventOff {
+        event: String,
+        listener: String,
+    },
+    EventDestroy {
+        event: String,
+    },
+    ThreadRun {
+        task: String,
+        function: String,
+    },
+    Await {
+        task: String,
+    },
     Branch {
         cond: Cond,
         otherwise: usize,

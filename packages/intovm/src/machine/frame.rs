@@ -26,3 +26,14 @@ impl Frame {
         self.main || self.captures.iter().any(|capture| capture == name)
     }
 }
+
+impl Frame {
+    pub fn function(entry: usize, locals: HashMap<String, Value>, captures: Vec<String>) -> Self {
+        Self {
+            pc: entry,
+            locals,
+            captures,
+            main: false,
+        }
+    }
+}
