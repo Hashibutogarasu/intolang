@@ -138,6 +138,22 @@ impl<'a> Lowerer<'a> {
             .map(|variable| variable.ty.clone())
             .ok_or_else(|| format!("Unknown receiver `{receiver}`"))?;
         for segment in &segments[1..segments.len() - 1] {
+            let declares_field = env
+                .class_fields
+                .get(base_type_name(&current_type.name()))
+                .is_some_and(|fields| {
+                    fields
+                        .iter()
+                        .any(|field| !field.is_static && field.name == *segment)
+                });
+            if declares_field
+                && let Some((slot, ty)) =
+                    self.lower_field_read(&Path::from(vec![current.clone(), segment.clone()]))?
+            {
+                current = slot;
+                current_type = ty;
+                continue;
+            }
             let key = self.method_key(base_type_name(&current_type.name()), segment);
             let link = env.native_links.get(&key).ok_or_else(|| {
                 format!("Undefined member `{segment}` on `{}`", current_type.name())

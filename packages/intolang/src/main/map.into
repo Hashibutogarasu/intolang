@@ -1,0 +1,53 @@
+pub Map<K, V>() {
+    pub into: [String] keys = [];
+    pub into: [V] values = [];
+
+    pub static fun create(): Map {
+        into made = Map();
+        made.keys = [];
+        made.values = [];
+        return made;
+    }
+
+    pub fun size(): Int32 {
+        return this.keys.length();
+    }
+
+    pub fun indexOf(key: String): Int32 {
+        into i: Int32 = 0;
+        while (i < this.keys.length()) {
+            if (this.keys.get(i) == key) {
+                return i;
+            }
+            i = i + 1;
+        }
+        return 0 - 1;
+    }
+
+    pub fun has(key: String): Boolean {
+        return this.indexOf(key) >= 0;
+    }
+
+    pub fun get(key: String): V {
+        into at = this.indexOf(key);
+        return this.values.get(at);
+    }
+
+    pub fun set(key: String, value: V) {
+        into at = this.indexOf(key);
+        if (at < 0) {
+            this.keys.push(key);
+            this.values.push(value);
+            return;
+        }
+        this.values.set(at, value);
+    }
+
+    pub fun keyAt(position: Int32): String {
+        return this.keys.get(position);
+    }
+
+    pub fun valueAt(position: Int32): V {
+        return this.values.get(position);
+    }
+}

@@ -125,7 +125,7 @@ impl Lowerer<'_> {
             .get(&segments[0])
             .map(|variable| variable.ty.clone())
             .ok_or_else(|| format!("Unknown receiver `{}`", segments[0]))?;
-        for segment in &segments[1..] {
+        for (position, segment) in segments[1..].iter().enumerate() {
             let class = base_type_name(&current.name()).to_owned();
             if matches!(segment.as_str(), COPY | MOVE | BORROW) {
                 continue;
@@ -134,6 +134,21 @@ impl Lowerer<'_> {
                 && segment == "get"
             {
                 current = (**element).clone();
+                continue;
+            }
+            let is_last = position + 2 == segments.len();
+            let field = (!is_last)
+                .then(|| {
+                    self.env.class_fields.get(&class).and_then(|fields| {
+                        fields
+                            .iter()
+                            .find(|field| !field.is_static && field.name == *segment)
+                    })
+                })
+                .flatten();
+            if let Some(field) = field {
+                let written = self.written_type(&field.ty);
+                current = self.bind_arguments(&current, written);
                 continue;
             }
             let key = self.method_key(&class, segment);

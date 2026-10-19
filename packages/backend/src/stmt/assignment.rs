@@ -94,6 +94,62 @@ impl Lowerer<'_> {
         Ok(())
     }
 
+    /// The operand that stores `value` in a field that holds a list, an
+    /// instance or a pointer: the slot of a binding, or a new one that the
+    /// value is built into.
+    fn reference_operand(
+        &mut self,
+        field: &str,
+        field_type: &Type,
+        value: &Expr,
+    ) -> Result<Operand, String> {
+        if let Some(name) = value.as_ident() {
+            self.ensure_usable(name)?;
+            let held = self
+                .state
+                .values
+                .get(name)
+                .filter(|variable| variable.native)
+                .ok_or_else(|| {
+                    format!(
+                        "The field `{field}` is a `{}` but `{name}` holds no such value",
+                        field_type.name()
+                    )
+                })?;
+            if !held.ty.is_assignable_to(field_type) {
+                return Err(format!(
+                    "The field `{field}` is a `{}` but received a `{}`",
+                    field_type.name(),
+                    held.ty.name()
+                ));
+            }
+            return Ok(Operand::Slot(name.to_owned()));
+        }
+        if !matches!(
+            value,
+            Expr::Array(_) | Expr::Object(_) | Expr::Call { .. } | Expr::Path(_)
+        ) {
+            return Err(format!(
+                "Assigning `{value}` to the `{}` field `{field}` is not supported",
+                field_type.name()
+            ));
+        }
+        let env = self.env;
+        let slot = self.fresh_slot(field_type);
+        let (_, built, native) =
+            self.declaration_value(value, Some(field_type.clone()), &env.type_params, &slot)?;
+        if !native {
+            return Err(format!(
+                "The field `{field}` is a `{}` but received `{value}`",
+                field_type.name()
+            ));
+        }
+        self.state
+            .values
+            .insert(slot.clone(), crate::context::Variable::temporary(built));
+        Ok(Operand::Slot(slot))
+    }
+
     /// The operand that stores `value` in a field of type `field_type`.
     fn field_operand(
         &mut self,
@@ -153,10 +209,7 @@ impl Lowerer<'_> {
                     other => Ok(other),
                 }
             }
-            other => Err(format!(
-                "Assigning a `{}` field is not supported",
-                other.name()
-            )),
+            reference => self.reference_operand(field, reference, value),
         }
     }
 

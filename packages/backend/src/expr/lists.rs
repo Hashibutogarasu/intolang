@@ -1,7 +1,10 @@
-use ast::Expr;
+use ast::{Declaration, Expr, Path, Stmt, StmtKind, TypeRef};
 use native::{CastAssign, NativeLink};
-use types::{Literal, MessageTag, Type};
+use types::{
+    ArithmeticOperator, ComparisonOperator, Literal, MessageTag, Storage as Declared, Type,
+};
 
+use super::type_name::parse_type;
 use crate::context::{Lowerer, Variable};
 use crate::emit;
 
@@ -152,6 +155,126 @@ impl<'a> Lowerer<'a> {
         Ok(list)
     }
 
+    /// The statements `list.forEach(action)` stands for: a loop over the
+    /// indices that hands each item to the lambda body, which also sees the
+    /// index when it declares a second parameter. A binding that holds a
+    /// function is called with each item instead.
+    fn list_for_each(
+        &mut self,
+        list: &str,
+        element: &Type,
+        args: &[Expr],
+    ) -> Result<Vec<Stmt>, String> {
+        let [action] = args else {
+            return Err(format!(
+                "`forEach` takes 1 argument but received {}",
+                args.len()
+            ));
+        };
+        let counter = format!("__index{}", self.state.temp_counter);
+        self.state.temp_counter += 1;
+        let statement = |kind| Stmt { line: 0, kind };
+        let declare = |name: &str, annotation: Option<TypeRef>, value: Expr| {
+            statement(StmtKind::Declaration(Declaration {
+                storage: Declared::Local,
+                constant: false,
+                pointer: false,
+                name: name.to_owned(),
+                annotation,
+                value: Some(value),
+            }))
+        };
+        let item_value = Expr::Call {
+            callee: Path::from(vec![list.to_owned(), "get".to_owned()]),
+            args: vec![Expr::ident(counter.clone())],
+        };
+        let borrowed = self.is_class_type(element);
+        let mut body = Vec::new();
+        match action {
+            Expr::Lambda {
+                params,
+                body: lambda,
+            } => {
+                if params.is_empty() || params.len() > 2 {
+                    return Err(format!(
+                        "The lambda of `forEach` takes the item and optionally the index, not {} parameter(s)",
+                        params.len()
+                    ));
+                }
+                let written = match &params[0].ty {
+                    Some(written) => {
+                        let own = parse_type(written.as_str(), &self.env.type_params)
+                            .map_err(|error| error.to_string())?;
+                        if !element.is_assignable_to(&own) {
+                            return Err(format!(
+                                "The parameter `{}` is a `{}` but the items are `{}`",
+                                params[0].name,
+                                own.name(),
+                                element.name()
+                            ));
+                        }
+                        written.clone()
+                    }
+                    None if borrowed => TypeRef::from(format!("{}&", element.name()).as_str()),
+                    None => TypeRef::from(element.name().as_str()),
+                };
+                body.push(declare(&params[0].name, Some(written), item_value));
+                if let Some(index) = params.get(1) {
+                    body.push(declare(
+                        &index.name,
+                        Some(TypeRef::from("Int32")),
+                        Expr::ident(counter.clone()),
+                    ));
+                }
+                body.extend(lambda.iter().cloned());
+            }
+            other => match other.as_ident() {
+                Some(name) => {
+                    let item = format!("__item{}", self.state.temp_counter);
+                    self.state.temp_counter += 1;
+                    let written = if borrowed {
+                        TypeRef::from(format!("{}&", element.name()).as_str())
+                    } else {
+                        TypeRef::from(element.name().as_str())
+                    };
+                    body.push(declare(&item, Some(written), item_value));
+                    body.push(statement(StmtKind::Expr(Expr::Call {
+                        callee: Path::single(name),
+                        args: vec![Expr::ident(item)],
+                    })));
+                }
+                None => {
+                    return Err(format!(
+                        "`forEach` expects a lambda or a function, not `{other}`"
+                    ));
+                }
+            },
+        }
+        body.push(statement(StmtKind::Assign {
+            target: Path::single(counter.clone()),
+            value: Expr::Binary {
+                left: Box::new(Expr::ident(counter.clone())),
+                op: ArithmeticOperator::Add,
+                right: Box::new(Expr::int(1)),
+            },
+        }));
+        let length = Expr::Call {
+            callee: Path::from(vec![list.to_owned(), "length".to_owned()]),
+            args: Vec::new(),
+        };
+        Ok(vec![
+            declare(&counter, Some(TypeRef::from("Int32")), Expr::int(0)),
+            statement(StmtKind::While {
+                condition: Expr::Compare {
+                    left: Box::new(Expr::ident(counter)),
+                    op: ComparisonOperator::Less,
+                    right: Box::new(length),
+                },
+                body,
+            }),
+        ])
+    }
+
     /// Lower `push`, `get` and `set` on a list, which pick the methods that
     /// fit the element type. Returns `None` when the call is not one of those
     /// on a list; otherwise the type of the value, if the call has one. The
@@ -167,6 +290,12 @@ impl<'a> Lowerer<'a> {
         let Some(element) = Self::list_element(receiver_type).cloned() else {
             return Ok(None);
         };
+        if method == "forEach" {
+            let statements = self.list_for_each(receiver, &element, args)?;
+            self.lower_block(&statements)
+                .map_err(|error| error.to_string())?;
+            return Ok(Some(None));
+        }
         if !matches!(method, "push" | "get" | "set") {
             return Ok(None);
         }

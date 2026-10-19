@@ -1,10 +1,10 @@
 use anyhow::Result;
-use ast::{Expr, Stmt};
+use ast::{Expr, Path, Stmt};
 use types::{MessageTag, Type};
 
 use crate::context::Lowerer;
 use crate::emit;
-use crate::expr::state_check;
+use crate::expr::{base_type_name, state_check};
 
 impl Lowerer<'_> {
     pub fn lower_if(
@@ -86,8 +86,31 @@ impl Lowerer<'_> {
         }
         match condition {
             Expr::Compare { left, right, .. } => !self.is_plain_comparison(left, right),
-            Expr::Call { .. } => false,
+            Expr::Call { callee, args } => !self.is_native_call(callee, args),
             _ => true,
+        }
+    }
+
+    /// Whether a call in a condition runs a function bound by `#[link]`, which
+    /// can open the branch itself, instead of one written in Into.
+    pub(crate) fn is_native_call(&self, callee: &Path, args: &[Expr]) -> bool {
+        let env = self.env;
+        let key = if !callee.is_member() {
+            self.pick_overload(callee.first(), args).ok()
+        } else if let Some((class, method)) = self.static_receiver(callee) {
+            self.pick_overload(&self.method_key(&class, &method), args)
+                .ok()
+        } else {
+            let segments = callee.segments();
+            let prefix = Path::from(segments[..segments.len() - 1].to_vec());
+            self.type_of(&Expr::Path(prefix)).ok().and_then(|ty| {
+                let key = self.method_key(base_type_name(&ty.name()), callee.last());
+                self.pick_overload(&key, args).ok()
+            })
+        };
+        match key {
+            Some(key) => !env.user_functions.contains_key(&key),
+            None => true,
         }
     }
 
@@ -108,7 +131,7 @@ impl Lowerer<'_> {
             Expr::Compare { left, op, right } if self.is_plain_comparison(left, right) => self
                 .begin_comparison(compare_tag, label, left, *op, right)
                 .map_err(|message| self.diagnostic(line, &message)),
-            Expr::Call { callee, args } => {
+            Expr::Call { callee, args } if self.is_native_call(callee, args) => {
                 let (link, combined, has_receiver) = if callee.is_member() {
                     let (link, combined) = self
                         .resolve_method(callee, args)

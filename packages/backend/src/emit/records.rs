@@ -375,6 +375,7 @@ fn encode_default(default: Option<&Expr>) -> (char, String) {
         Some(Expr::Call { callee, args }) if args.is_empty() && callee.as_ident().is_some() => {
             ('c', callee.first().to_owned())
         }
+        Some(Expr::Array(_) | Expr::Object(_)) => ('-', String::new()),
         Some(Expr::Literal(Literal::Int(value))) => ('n', value.to_string()),
         Some(Expr::Literal(Literal::Float(value))) => ('n', value.to_string()),
         Some(other) => ('n', other.to_string()),

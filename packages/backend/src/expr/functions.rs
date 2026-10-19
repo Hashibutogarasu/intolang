@@ -297,7 +297,10 @@ impl Lowerer<'_> {
                     self.ensure_usable(name)?;
                     Some(Operand::Slot(name.to_owned()))
                 }
-                None => return Err(format!("Unsupported return value `{value}`")),
+                None => {
+                    let slot = self.materialize_return(value)?;
+                    Some(Operand::Slot(slot))
+                }
             },
         };
         emit::function_return(
