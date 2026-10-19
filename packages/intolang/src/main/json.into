@@ -157,7 +157,7 @@ pub Json() {
         }
     }
 
-    pub static fun read(path: String): Json {
+    pub static fun read(path: Path): Json {
         into binary = Binary.read(path);
         into text = binary.text();
         return Json.parse(text);

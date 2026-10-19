@@ -1,4 +1,5 @@
 use ast::Path;
+use native::NativeLink;
 use std::collections::{HashMap, HashSet};
 
 use crate::context::UserFunction;
@@ -7,13 +8,16 @@ use crate::expr::{called_paths, names_callback, returns_early};
 /// The functions that are called at run time instead of being inlined: the
 /// ones that can reach themselves through calls, and the ones that return
 /// before their last statement.
-pub fn runtime_functions(functions: &HashMap<String, UserFunction>) -> HashSet<String> {
+pub fn runtime_functions(
+    functions: &HashMap<String, UserFunction>,
+    links: &HashMap<String, NativeLink>,
+) -> HashSet<String> {
     let edges: HashMap<&str, HashSet<String>> = functions
         .iter()
         .map(|(key, function)| {
             let targets = called_paths(&function.body)
                 .iter()
-                .flat_map(|path| callee_keys(functions, function, path))
+                .flat_map(|path| callee_keys(functions, links, function, path))
                 .collect();
             (key.as_str(), targets)
         })
@@ -42,6 +46,7 @@ fn takes_callback(function: &UserFunction) -> bool {
 /// The functions a call from `caller` may run.
 fn callee_keys(
     functions: &HashMap<String, UserFunction>,
+    links: &HashMap<String, NativeLink>,
     caller: &UserFunction,
     path: &Path,
 ) -> Vec<String> {
@@ -62,6 +67,9 @@ fn callee_keys(
             let static_key = format!("{receiver}.{method}");
             if functions.contains_key(&static_key) {
                 return vec![static_key];
+            }
+            if links.contains_key(&static_key) {
+                return Vec::new();
             }
             let suffix = format!(".{method}");
             functions

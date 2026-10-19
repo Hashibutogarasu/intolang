@@ -115,7 +115,8 @@ fn compiled_code_parses_json_like_the_vm() {
 
 fn read_program(path: &std::path::Path) -> String {
     format!(
-        "import \"intolang://builtin/std\";\n\ninit {{\n    into doc = Json.read(\"{}\");\n    println(doc.toString());\n    into missing = Json.read(\"{}.missing\");\n    println(missing.toString());\n}}\n",
+        "import \"intolang://builtin/std\";\n\npub fun load(path: Path): Json {{\n    return Json.read(path);\n}}\n\npub fun size(path: Path): Int64 {{\n    into binary = Binary.read(path);\n    return binary.length();\n}}\n\ninit {{\n    into doc = Json.read(\"{}\");\n    println(doc.toString());\n    into missing = Json.read(\"{}.missing\");\n    println(missing.toString());\n    into forwarded: Path = \"{}\";\n    into again = load(forwarded);\n    println(again.toString());\n    println(size(forwarded));\n}}\n",
+        path.display(),
         path.display(),
         path.display()
     )
@@ -126,9 +127,13 @@ fn json_is_read_from_a_file_through_binary() {
     let directory = std::env::temp_dir().join(format!("into-json-read-{}", std::process::id()));
     std::fs::create_dir_all(&directory).unwrap();
     let path = directory.join("sample.json");
-    std::fs::write(&path, "{ \"values\": [1, 2.5, \"x\"], \"ok\": true }").unwrap();
+    let text = "{ \"values\": [1, 2.5, \"x\"], \"ok\": true }";
+    std::fs::write(&path, text).unwrap();
     let program = read_program(&path);
-    let expected = "{\"values\":[1,2.5,\"x\"],\"ok\":true}\nnull\n";
+    let expected = format!(
+        "{{\"values\":[1,2.5,\"x\"],\"ok\":true}}\nnull\n{{\"values\":[1,2.5,\"x\"],\"ok\":true}}\n{}\n",
+        text.len()
+    );
     let output = eval_vm_bundled(&program, VmOptions::default());
     let compiled = eval_run(&program);
     std::fs::remove_dir_all(&directory).unwrap();

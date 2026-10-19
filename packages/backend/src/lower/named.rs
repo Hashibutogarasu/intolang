@@ -182,7 +182,7 @@ fn prepare(program: &Program, packages_dir: Option<&Path>, source_path: &str) ->
             .insert(name, event);
     }
     env.events.extend(collect_events(program));
-    env.runtime_functions = runtime_functions(&env.user_functions);
+    env.runtime_functions = runtime_functions(&env.user_functions, &env.native_links);
     env.overloads = collect_overloads(&env.user_functions, &env.native_links);
 
     env.classes = builtin_classes();

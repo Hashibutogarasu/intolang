@@ -1,9 +1,9 @@
 pub Binary() {
     #[link("c", "src/ffi/binary.c", "into_binary_read")]
-    pub static fun read(path: String): Binary;
+    pub static fun read(path: Path): Binary;
 
     #[link("c", "src/ffi/binary.c", "into_binary_write")]
-    pub fun write(path: String): Boolean;
+    pub fun write(path: Path): Boolean;
 
     #[link("c", "src/ffi/binary.c", "into_binary_length")]
     pub fun length(): Int64;

@@ -7,11 +7,11 @@ pub File() {
     #[link("c", "src/ffi/fs/file.c", "fs_file_new")]
     pub c fun new(): File;
 
-    pub fun read(path: String): Binary {
+    pub fun read(path: Path): Binary {
         return Binary.read(path);
     }
 
-    pub fun write(path: String, binary: Binary, format: Format): Boolean {
+    pub fun write(path: Path, binary: Binary, format: Format): Boolean {
         return binary.write(path);
     }
 
