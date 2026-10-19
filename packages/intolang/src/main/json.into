@@ -4,6 +4,9 @@ pub JsonField() {
 }
 
 pub JsonObject() {
+    pub default fun toJson(): Json {
+        return Json.object();
+    }
 }
 
 #[dynamic]
@@ -142,6 +145,30 @@ pub Json() {
 
     pub fun setBool(key: String, value: Boolean) {
         this.setJson(key, Json.ofBool(value));
+    }
+
+    pub fun set(key: String, value: String) {
+        this.setString(key, value);
+    }
+
+    pub fun set(key: String, value: Int64) {
+        this.setInt(key, value);
+    }
+
+    pub fun set(key: String, value: Float64) {
+        this.setFloat(key, value);
+    }
+
+    pub fun set(key: String, value: Boolean) {
+        this.setBool(key, value);
+    }
+
+    pub fun set(key: String, value: Json) {
+        this.setJson(key, value);
+    }
+
+    pub fun set(key: String, value: JsonObject) {
+        this.setJson(key, value.toJson());
     }
 
     pub fun push(value: Json) {

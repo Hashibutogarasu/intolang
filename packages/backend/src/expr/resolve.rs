@@ -48,6 +48,26 @@ impl<'a> Lowerer<'a> {
         own
     }
 
+    /// Whether a value of type `actual` may be given where `expected` is
+    /// wanted: it is assignable, or it is an instance of a class that inherits
+    /// from the class `expected` names.
+    pub fn accepts(&self, actual: &Type, expected: &Type) -> bool {
+        if actual.is_assignable_to(expected) {
+            return true;
+        }
+        let (Some(class), Some(wanted)) = (
+            actual.referent().class_name(),
+            expected.referent().class_name(),
+        ) else {
+            return false;
+        };
+        ancestors(&self.env.classes, base_type_name(class)).is_ok_and(|chain| {
+            chain
+                .iter()
+                .any(|ancestor| ancestor.name == base_type_name(wanted))
+        })
+    }
+
     /// The key of the function a call with `args` runs, when several functions
     /// share `key` and differ in the types of their parameters: the one whose
     /// parameters fit the arguments best, preferring identical types.
@@ -71,7 +91,7 @@ impl<'a> Lowerer<'a> {
                         };
                         if actual.referent() == expected.referent() {
                             score += 2;
-                        } else if actual.is_assignable_to(&expected) {
+                        } else if self.accepts(actual, &expected) {
                             score += 1;
                         } else {
                             continue 'candidates;
