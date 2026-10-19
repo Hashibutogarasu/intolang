@@ -17,7 +17,7 @@ fn an_array_literal_lists_its_items() {
 #[test]
 fn a_trailing_comma_is_accepted() {
     assert_eq!(
-        parse("[\"a\", \"b\",]"),
+        parse(r#"["a", "b",]"#),
         Expr::Array(vec![
             Expr::Literal(Literal::String("a".into())),
             Expr::Literal(Literal::String("b".into())),
@@ -38,10 +38,13 @@ fn an_unclosed_array_is_an_error() {
 
 #[test]
 fn an_array_type_is_written_with_brackets() {
-    let program: Program =
-        "init {\n    into xs: [Int32] = [1];\n    into grid: [[String]] = [];\n}\n"
-            .parse()
-            .unwrap();
+    let program: Program = r#"init {
+    into xs: [Int32] = [1];
+    into grid: [[String]] = [];
+}
+"#
+    .parse()
+    .unwrap();
     let body = program
         .items
         .iter()

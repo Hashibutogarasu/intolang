@@ -4,7 +4,10 @@ use formatter::format_source;
 fn keeps_reference_types_attached_to_their_names() {
     assert_eq!(
         format_source("pub fun stop(target:Process&,code:Int32):Process&{return target;}"),
-        "pub fun stop(target: Process&, code: Int32): Process& {\n    return target;\n}\n"
+        r#"pub fun stop(target: Process&, code: Int32): Process& {
+    return target;
+}
+"#
     );
 }
 
@@ -12,6 +15,7 @@ fn keeps_reference_types_attached_to_their_names() {
 fn formats_reference_annotations() {
     assert_eq!(
         format_source("now into view:Counter&=owner;"),
-        "now into view: Counter& = owner;\n"
+        r#"now into view: Counter& = owner;
+"#
     );
 }

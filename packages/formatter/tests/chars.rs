@@ -2,10 +2,15 @@ use formatter::format_source;
 
 #[test]
 fn a_character_literal_keeps_its_spelling() {
-    assert_eq!(format_source("into c:Char='A';"), "into c: Char = 'A';\n");
     assert_eq!(
-        format_source("into n:Int32 = '\\n' as Int32;"),
-        "into n: Int32 = '\\n' as Int32;\n"
+        format_source("into c:Char='A';"),
+        r#"into c: Char = 'A';
+"#
+    );
+    assert_eq!(
+        format_source(r"into n:Int32 = '\n' as Int32;"),
+        r"into n: Int32 = '\n' as Int32;
+"
     );
 }
 
@@ -13,7 +18,10 @@ fn a_character_literal_keeps_its_spelling() {
 fn a_brace_inside_a_character_literal_does_not_open_a_block() {
     assert_eq!(
         format_source("init{into c:Char='{';}"),
-        "init {\n    into c: Char = '{';\n}\n"
+        r#"init {
+    into c: Char = '{';
+}
+"#
     );
 }
 

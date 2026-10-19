@@ -14,7 +14,7 @@ fn expression_of(source: &str) -> Expr {
 
 #[test]
 fn parses_thread_expressions() {
-    let Expr::Thread { body } = expression_of("now into worker = thread { println(\"hi\"); };")
+    let Expr::Thread { body } = expression_of(r#"now into worker = thread { println("hi"); };"#)
     else {
         panic!("expected a thread");
     };

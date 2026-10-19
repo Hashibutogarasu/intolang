@@ -19,23 +19,37 @@ fn write_package(root: &PathBuf, module: &str) {
     std::fs::create_dir_all(&main).unwrap();
     std::fs::write(
         package.join("into-package.json"),
-        "{\"name\":\"Files\",\"alias\":\"files\",\"version\":\"1.0.0\",\"LICENCE\":\"MIT\"}",
+        r#"{"name":"Files","alias":"files","version":"1.0.0","LICENCE":"MIT"}"#,
     )
     .unwrap();
-    std::fs::write(main.join("into-info.into"), "export \"files://reader\";\n").unwrap();
+    std::fs::write(
+        main.join("into-info.into"),
+        r#"export "files://reader";
+"#,
+    )
+    .unwrap();
     std::fs::write(main.join("reader.into"), module).unwrap();
 }
-
-const ENTRY: &str = "import \"files://reader\";\ninit {\n}\n";
 
 #[test]
 fn links_that_differ_in_parameter_types_get_their_own_keys() {
     let root = temp_package_root("overloads");
     write_package(
         &root,
-        "#[link(\"c\", \"src/ffi/read.c\", \"read_text\")]\npub fun read(path: String): String;\n#[link(\"c\", \"src/ffi/read.c\", \"read_path\")]\npub fun read(path: Path): String;\n#[link(\"c\", \"src/ffi/read.c\", \"single\")]\npub fun once(path: String): String;\n",
+        r#"#[link("c", "src/ffi/read.c", "read_text")]
+pub fun read(path: String): String;
+#[link("c", "src/ffi/read.c", "read_path")]
+pub fun read(path: Path): String;
+#[link("c", "src/ffi/read.c", "single")]
+pub fun once(path: String): String;
+"#,
     );
-    let entry: Program = ENTRY.parse().unwrap();
+    let entry: Program = r#"import "files://reader";
+init {
+}
+"#
+    .parse()
+    .unwrap();
     let links = resolve_links(&entry, &root).unwrap();
     assert!(!links.contains_key("read"));
     assert_eq!(links["read$String"].target, "read_text");
@@ -49,9 +63,22 @@ fn methods_that_differ_in_parameter_types_get_their_own_keys() {
     let root = temp_package_root("method-overloads");
     write_package(
         &root,
-        "pub File() {\n    #[link(\"c\", \"src/ffi/file.c\", \"file_read_text\")]\n    pub fun read(path: String): String;\n    #[link(\"c\", \"src/ffi/file.c\", \"file_read_path\")]\n    pub fun read(path: Path): String;\n    #[link(\"c\", \"src/ffi/file.c\", \"file_close\")]\n    pub fun close(): Void;\n}\n",
+        r#"pub File() {
+    #[link("c", "src/ffi/file.c", "file_read_text")]
+    pub fun read(path: String): String;
+    #[link("c", "src/ffi/file.c", "file_read_path")]
+    pub fun read(path: Path): String;
+    #[link("c", "src/ffi/file.c", "file_close")]
+    pub fun close(): Void;
+}
+"#,
     );
-    let entry: Program = ENTRY.parse().unwrap();
+    let entry: Program = r#"import "files://reader";
+init {
+}
+"#
+    .parse()
+    .unwrap();
     let links = resolve_links(&entry, &root).unwrap();
     assert_eq!(links["File.read$String"].target, "file_read_text");
     assert_eq!(links["File.read$Path"].target, "file_read_path");

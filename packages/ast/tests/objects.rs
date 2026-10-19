@@ -12,7 +12,7 @@ fn text(value: &str) -> Expr {
 #[test]
 fn an_object_literal_lists_its_entries() {
     assert_eq!(
-        parse("{ \"foo\": \"bar\", \"number\": 0 }"),
+        parse(r#"{ "foo": "bar", "number": 0 }"#),
         Expr::Object(vec![
             ("foo".to_owned(), text("bar")),
             ("number".to_owned(), Expr::int(0)),
@@ -24,7 +24,7 @@ fn an_object_literal_lists_its_entries() {
 #[test]
 fn a_trailing_comma_and_nesting_are_accepted() {
     assert_eq!(
-        parse("{ \"inner\": { \"a\": [1, 2], }, }"),
+        parse(r#"{ "inner": { "a": [1, 2], }, }"#),
         Expr::Object(vec![(
             "inner".to_owned(),
             Expr::Object(vec![(
@@ -38,12 +38,12 @@ fn a_trailing_comma_and_nesting_are_accepted() {
 #[test]
 fn the_values_are_expressions() {
     assert_eq!(
-        parse("{ \"sum\": a + 1 }").to_string(),
-        "{ \"sum\": a + 1 }"
+        parse(r#"{ "sum": a + 1 }"#).to_string(),
+        r#"{ "sum": a + 1 }"#
     );
     assert_eq!(
-        parse("{ \"a\": 1, \"b\": 2 }").to_string(),
-        "{ \"a\": 1, \"b\": 2 }"
+        parse(r#"{ "a": 1, "b": 2 }"#).to_string(),
+        r#"{ "a": 1, "b": 2 }"#
     );
     assert_eq!(parse("{}").to_string(), "{}");
 }
@@ -51,16 +51,24 @@ fn the_values_are_expressions() {
 #[test]
 fn a_key_must_be_text_and_entries_need_commas() {
     assert!("{ foo: 1 }".parse::<Expr>().is_err());
-    assert!("{ \"a\": 1 \"b\": 2 }".parse::<Expr>().is_err());
-    assert!("{ \"a\" 1 }".parse::<Expr>().is_err());
-    assert!("{ \"a\": 1".parse::<Expr>().is_err());
+    assert!(r#"{ "a": 1 "b": 2 }"#.parse::<Expr>().is_err());
+    assert!(r#"{ "a" 1 }"#.parse::<Expr>().is_err());
+    assert!(r#"{ "a": 1"#.parse::<Expr>().is_err());
 }
 
 #[test]
 fn a_block_after_a_condition_is_not_an_object() {
-    let program: Program = "init {\n    if (a == 1) {\n        b = 2;\n    }\n    while (a < 3) {\n        a = a + 1;\n    }\n}\n"
-        .parse()
-        .unwrap();
+    let program: Program = r#"init {
+    if (a == 1) {
+        b = 2;
+    }
+    while (a < 3) {
+        a = a + 1;
+    }
+}
+"#
+    .parse()
+    .unwrap();
     let init = program
         .items
         .iter()
@@ -77,9 +85,10 @@ fn a_block_after_a_condition_is_not_an_object() {
 
 #[test]
 fn a_declaration_can_hold_an_object() {
-    let program: Program = "now into json: Json = { \"foo\": \"bar\" };\n"
-        .parse()
-        .unwrap();
+    let program: Program = r#"now into json: Json = { "foo": "bar" };
+"#
+    .parse()
+    .unwrap();
     let declared = program.items.iter().any(|item| match item {
         ast::Item::Stmt(stmt) => matches!(
             &stmt.kind,

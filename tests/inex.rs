@@ -38,19 +38,17 @@ fn into(arguments: &[&Path]) -> Output {
 }
 
 fn manifest(name: &str, field: &str) -> String {
-    format!(
-        "{{\"name\":\"{name}\",\"alias\":\"{name}\",\"version\":\"0.3.0\",\"LICENCE\":\"MIT\",{field}}}"
-    )
+    format!(r#"{{"name":"{name}","alias":"{name}","version":"0.3.0","LICENCE":"MIT",{field}}}"#)
 }
-
-const HELLO: &str = "import \"intolang://builtin/std\";\nprintln(\"Hello VM\");\n";
 
 #[test]
 fn build_vm_writes_an_inex_file_that_into_runs() {
     let project = Project::new(
         "runs",
-        &manifest("hello", "\"runs\":\"src/main/hello.into\""),
-        HELLO,
+        &manifest("hello", r#""runs":"src/main/hello.into""#),
+        r#"import "intolang://builtin/std";
+println("Hello VM");
+"#,
     );
     let built = into(&[Path::new("build"), Path::new("--vm"), &project.root]);
     assert!(built.status.success(), "{built:?}");
@@ -58,12 +56,21 @@ fn build_vm_writes_an_inex_file_that_into_runs() {
     let text = std::fs::read_to_string(&file).unwrap();
     assert!(
         text.starts_with(
-            "#!/usr/bin/env into\nINEX 1\nname:\thello\nalias:\thello\nversion:\t0.3.0\n"
+            r#"#!/usr/bin/env into
+INEX 1
+name:	hello
+alias:	hello
+version:	0.3.0
+"#
         ),
         "{text}"
     );
     let ran = into(&[&file]);
-    assert_eq!(String::from_utf8_lossy(&ran.stdout), "Hello VM\n");
+    assert_eq!(
+        String::from_utf8_lossy(&ran.stdout),
+        r#"Hello VM
+"#
+    );
     assert!(ran.status.success(), "{ran:?}");
 }
 
@@ -71,8 +78,10 @@ fn build_vm_writes_an_inex_file_that_into_runs() {
 fn an_inex_file_runs_without_the_project() {
     let project = Project::new(
         "moved",
-        &manifest("hello", "\"runs\":\"src/main/hello.into\""),
-        HELLO,
+        &manifest("hello", r#""runs":"src/main/hello.into""#),
+        r#"import "intolang://builtin/std";
+println("Hello VM");
+"#,
     );
     into(&[Path::new("build"), Path::new("--vm"), &project.root]);
     let elsewhere = std::env::temp_dir().join(format!(
@@ -83,19 +92,28 @@ fn an_inex_file_runs_without_the_project() {
     drop(project);
     let ran = into(&[Path::new("run"), &elsewhere]);
     std::fs::remove_file(&elsewhere).ok();
-    assert_eq!(String::from_utf8_lossy(&ran.stdout), "Hello VM\n");
+    assert_eq!(
+        String::from_utf8_lossy(&ran.stdout),
+        r#"Hello VM
+"#
+    );
 }
 
 #[test]
 fn run_vm_builds_and_runs_in_one_step() {
     let project = Project::new(
         "run-vm",
-        &manifest("hello", "\"runs\":\"src/main/hello.into\""),
-        HELLO,
+        &manifest("hello", r#""runs":"src/main/hello.into""#),
+        r#"import "intolang://builtin/std";
+println("Hello VM");
+"#,
     );
     let ran = into(&[Path::new("run"), Path::new("--vm"), &project.root]);
     assert!(
-        String::from_utf8_lossy(&ran.stdout).ends_with("Hello VM\n"),
+        String::from_utf8_lossy(&ran.stdout).ends_with(
+            r#"Hello VM
+"#
+        ),
         "{ran:?}"
     );
     assert!(project.inex("hello").is_file());
@@ -105,7 +123,7 @@ fn run_vm_builds_and_runs_in_one_step() {
 fn a_library_package_has_no_inex_form() {
     let project = Project::new(
         "library",
-        &manifest("tool", "\"library\":\"src/main/lib.into\""),
+        &manifest("tool", r#""library":"src/main/lib.into""#),
         "",
     );
     let built = into(&[Path::new("build"), Path::new("--vm"), &project.root]);
@@ -122,7 +140,13 @@ fn a_file_that_is_not_inex_is_rejected() {
         "intolang-inex-test-{}-broken.inex",
         std::process::id()
     ));
-    std::fs::write(&path, "#!/usr/bin/env into\nELF 1\n").unwrap();
+    std::fs::write(
+        &path,
+        r#"#!/usr/bin/env into
+ELF 1
+"#,
+    )
+    .unwrap();
     let ran = into(&[&path]);
     std::fs::remove_file(&path).ok();
     assert!(!ran.status.success());
@@ -138,7 +162,13 @@ fn an_unsupported_version_is_rejected_before_running() {
         "intolang-inex-test-{}-future.inex",
         std::process::id()
     ));
-    std::fs::write(&path, "#!/usr/bin/env into\nINEX 99\n").unwrap();
+    std::fs::write(
+        &path,
+        r#"#!/usr/bin/env into
+INEX 99
+"#,
+    )
+    .unwrap();
     let ran = into(&[&path]);
     std::fs::remove_file(&path).ok();
     assert!(!ran.status.success());

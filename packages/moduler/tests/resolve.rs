@@ -19,21 +19,39 @@ fn write_greet_package(root: &PathBuf, module: &str) {
     std::fs::create_dir_all(&main).unwrap();
     std::fs::write(
         package.join("into-package.json"),
-        "{\"name\":\"Greet\",\"alias\":\"greet\",\"version\":\"1.0.0\",\"LICENCE\":\"MIT\"}",
+        r#"{"name":"Greet","alias":"greet","version":"1.0.0","LICENCE":"MIT"}"#,
     )
     .unwrap();
-    std::fs::write(main.join("into-info.into"), "export \"greet://hello\";\n").unwrap();
+    std::fs::write(
+        main.join("into-info.into"),
+        r#"export "greet://hello";
+"#,
+    )
+    .unwrap();
     std::fs::write(main.join("hello.into"), module).unwrap();
 }
 
-const ENTRY: &str = "import \"greet://hello\";\ninit {\n    hello();\n}\n";
+fn entry() -> Program {
+    r#"import "greet://hello";
+init {
+    hello();
+}
+"#
+    .parse()
+    .unwrap()
+}
 
 #[test]
 fn resolves_modules_and_hides_private_items() {
     let root = temp_package_root("resolve");
-    write_greet_package(&root, "pub fun hello(): Void;\nfun secret(): Void;\n");
+    write_greet_package(
+        &root,
+        r#"pub fun hello(): Void;
+fun secret(): Void;
+"#,
+    );
 
-    let entry: Program = ENTRY.parse().unwrap();
+    let entry = entry();
     let modules = collect_modules(&entry, &root).unwrap();
     assert_eq!(modules.len(), 1);
     let module = &modules[0].module;
@@ -56,10 +74,14 @@ fn resolves_link_metadata_for_public_declarations_only() {
     let root = temp_package_root("links");
     write_greet_package(
         &root,
-        "#[link(\"c\", \"src/ffi/hello.c\", \"greet_hello\")]\npub c fun hello(name: String?): Void;\n#[link(\"c\", \"src/ffi/hello.c\", \"hidden\")]\nc fun secret(): Void;\n",
+        r#"#[link("c", "src/ffi/hello.c", "greet_hello")]
+pub c fun hello(name: String?): Void;
+#[link("c", "src/ffi/hello.c", "hidden")]
+c fun secret(): Void;
+"#,
     );
 
-    let entry: Program = ENTRY.parse().unwrap();
+    let entry = entry();
     let links = resolve_links(&entry, &root).unwrap();
     assert!(!links.contains_key("secret"));
     let link = &links["hello"];
@@ -76,10 +98,12 @@ fn rejects_link_sources_outside_the_package() {
     let root = temp_package_root("escape");
     write_greet_package(
         &root,
-        "#[link(\"c\", \"../outside.c\", \"greet_hello\")]\npub c fun hello(): Void;\n",
+        r#"#[link("c", "../outside.c", "greet_hello")]
+pub c fun hello(): Void;
+"#,
     );
 
-    let entry: Program = ENTRY.parse().unwrap();
+    let entry = entry();
     let error = resolve_links(&entry, &root).unwrap_err();
     assert!(error.to_string().contains("must remain inside"), "{error}");
 
@@ -88,9 +112,18 @@ fn rejects_link_sources_outside_the_package() {
 
 #[test]
 fn collects_only_public_declarations() {
-    let program: Program = "pub fun visible() {}\nfun hidden() {}\npub Thing() {\n    pub fun new(): Thing;\n    fun secret(): Thing;\n}\npub macro test {\n    #[test]\n}\n"
-        .parse()
-        .unwrap();
+    let program: Program = r#"pub fun visible() {}
+fun hidden() {}
+pub Thing() {
+    pub fun new(): Thing;
+    fun secret(): Thing;
+}
+pub macro test {
+    #[test]
+}
+"#
+    .parse()
+    .unwrap();
     let items = public_items(&program);
     assert!(items.contains("visible"), "{items:?}");
     assert!(!items.contains("hidden"), "{items:?}");

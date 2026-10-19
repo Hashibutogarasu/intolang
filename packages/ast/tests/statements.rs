@@ -29,7 +29,7 @@ fn parses_declaration_forms() {
     assert!(constant.constant);
     assert_eq!(constant.storage, Storage::Now);
 
-    let late = declaration("late into lazy = \"x\";");
+    let late = declaration(r#"late into lazy = "x";"#);
     assert_eq!(late.storage, Storage::Late);
 
     let pointer = declaration("now into* handle = f();");
@@ -59,21 +59,22 @@ fn parses_expressions() {
     );
     assert_eq!(declaration("into n = -7;").value, Some(Expr::int(-7)));
     assert_eq!(
-        declaration("into s = \"a\\nb\";").value,
+        declaration(r#"into s = "a\nb";"#).value,
         Some(Expr::Literal(Literal::String("a\nb".into())))
     );
-    let call = declaration("into v = w.window.create(1, \"t\", x);")
+    let call = declaration(r#"into v = w.window.create(1, "t", x);"#)
         .value
         .unwrap();
-    assert_eq!(call.to_string(), "w.window.create(1, \"t\", x)");
+    assert_eq!(call.to_string(), r#"w.window.create(1, "t", x)"#);
     let negated = declaration("into ok = !check(x);").value.unwrap();
     assert_eq!(negated.to_string(), "!check(x)");
 }
 
 #[test]
 fn parses_control_flow() {
-    let source = "while (i < 3) { i = i + 1; if (i == 2) { break; } else { f(); } }";
-    let StmtKind::While { condition, body } = statements(source).remove(0) else {
+    let StmtKind::While { condition, body } =
+        statements("while (i < 3) { i = i + 1; if (i == 2) { break; } else { f(); } }").remove(0)
+    else {
         panic!("expected while");
     };
     assert!(matches!(
@@ -105,8 +106,9 @@ fn parses_control_flow() {
 
 #[test]
 fn accepts_conditions_without_parentheses_and_else_if() {
-    let source = "if condition == false { f(); } else if other { g(); } else { h(); }";
-    let StmtKind::If { else_body, .. } = statements(source).remove(0) else {
+    let StmtKind::If { else_body, .. } =
+        statements("if condition == false { f(); } else if other { g(); } else { h(); }").remove(0)
+    else {
         panic!("expected if");
     };
     let else_body = else_body.unwrap();
@@ -127,7 +129,12 @@ fn distinguishes_assignment_from_comparison() {
 
 #[test]
 fn semicolons_are_optional_at_line_and_block_ends() {
-    let kinds = statements("break\nprint(\"x\")\nreturn\nunload y");
+    let kinds = statements(
+        r#"break
+print("x")
+return
+unload y"#,
+    );
     assert_eq!(kinds.len(), 4);
     let nested = statements("init { f() }");
     assert!(matches!(nested[0], StmtKind::Init(_)));
@@ -135,14 +142,28 @@ fn semicolons_are_optional_at_line_and_block_ends() {
 
 #[test]
 fn statements_do_not_depend_on_layout() {
-    let spread = "into x\n=\n1\n+\n2\n;\nf(\na,\n\"b\"\n)\n;\n";
-    let packed = "into x=1+2;f(a,\"b\");";
+    let spread = r#"into x
+=
+1
++
+2
+;
+f(
+a,
+"b"
+)
+;
+"#;
+    let packed = r#"into x=1+2;f(a,"b");"#;
     assert_eq!(statements(spread), statements(packed));
 }
 
 #[test]
 fn reports_syntax_errors_with_lines() {
-    let error = "into a = 1;\nf(;".parse::<Program>().unwrap_err();
+    let error = r#"into a = 1;
+f(;"#
+        .parse::<Program>()
+        .unwrap_err();
     assert_eq!(error.downcast_ref::<SyntaxError>().unwrap().line, 2);
     let error = "}".parse::<Program>().unwrap_err();
     assert!(error.to_string().contains("Unexpected closing brace"));
@@ -151,9 +172,12 @@ fn reports_syntax_errors_with_lines() {
 
 #[test]
 fn rejects_nested_function_declarations() {
-    let error = "pub fun outer() {\n    pub fun inner() {}\n}\n"
-        .parse::<Program>()
-        .unwrap_err();
+    let error = r#"pub fun outer() {
+    pub fun inner() {}
+}
+"#
+    .parse::<Program>()
+    .unwrap_err();
     let syntax = error.downcast_ref::<SyntaxError>().unwrap();
     assert_eq!(syntax.line, 2);
     assert_eq!(syntax.scope, "function body");

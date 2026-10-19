@@ -23,7 +23,7 @@ fn a_character_literal_is_one_token() {
 #[test]
 fn escapes_are_decoded() {
     assert_eq!(
-        kinds("'\\n' '\\'' '\\\\' '\\t'"),
+        kinds(r"'\n' '\'' '\\' '\t'"),
         vec![
             TokenKind::Char('\n'),
             TokenKind::Char('\''),

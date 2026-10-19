@@ -6,7 +6,12 @@ fn program(source: &str) -> Program {
 
 #[test]
 fn parses_event_declarations() {
-    let program = program("pub event example(args: Args) {\n}\nevent quiet() {}\n");
+    let program = program(
+        r#"pub event example(args: Args) {
+}
+event quiet() {}
+"#,
+    );
     let events: Vec<_> = program.events().collect();
     assert_eq!(events.len(), 2);
     assert_eq!(events[0].name, "example");
@@ -21,7 +26,9 @@ fn parses_event_declarations() {
 #[test]
 fn parses_event_modifiers_and_type_parameters() {
     let program = program(
-        "pub default event onCast<From, To>(from: From, to: To) {}\npub override event onCast<Char, Hex>(from: Char, to: Hex) {}\n",
+        r#"pub default event onCast<From, To>(from: From, to: To) {}
+pub override event onCast<Char, Hex>(from: Char, to: Hex) {}
+"#,
     );
     let events: Vec<_> = program.events().collect();
     assert!(events[0].is_default && !events[0].is_override);
@@ -32,7 +39,12 @@ fn parses_event_modifiers_and_type_parameters() {
 
 #[test]
 fn parses_a_lambda_argument() {
-    let program = program("example.on((args) => {\n    println(\"got\");\n});\n");
+    let program = program(
+        r#"example.on((args) => {
+    println("got");
+});
+"#,
+    );
     let stmt = program.statements().next().unwrap();
     let StmtKind::Expr(Expr::Call { callee, args }) = &stmt.kind else {
         panic!("expected a call statement, found {:?}", stmt.kind);
@@ -48,7 +60,11 @@ fn parses_a_lambda_argument() {
 
 #[test]
 fn parses_typed_and_empty_lambda_parameters() {
-    let program = program("run(() => {});\nrun((a: Int32, b) => { });\n");
+    let program = program(
+        r#"run(() => {});
+run((a: Int32, b) => { });
+"#,
+    );
     let lambdas: Vec<_> = program
         .statements()
         .map(|stmt| match &stmt.kind {
@@ -64,14 +80,20 @@ fn parses_typed_and_empty_lambda_parameters() {
 
 #[test]
 fn parenthesised_expressions_are_not_lambdas() {
-    let program = program("into value = (1 + 2);\n");
+    let program = program(
+        r#"into value = (1 + 2);
+"#,
+    );
     let stmt = program.statements().next().unwrap();
     assert!(matches!(stmt.kind, StmtKind::Declaration(_)));
 }
 
 #[test]
 fn lambda_parameters_shadow_inlined_names() {
-    let program = program("example.on((args) => { use(args); });\n");
+    let program = program(
+        r#"example.on((args) => { use(args); });
+"#,
+    );
     let stmt = program.statements().next().unwrap();
     let replaced = stmt.substitute(&[("args".to_owned(), Expr::int(7))]);
     let StmtKind::Expr(Expr::Call { args, .. }) = &replaced.kind else {

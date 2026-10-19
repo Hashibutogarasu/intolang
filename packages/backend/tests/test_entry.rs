@@ -1,28 +1,55 @@
 use std::path::Path;
 use testing::{Package, Workspace};
 
-const SOURCE: &str = "import \"intolang://builtin/tests/assert\";\nimport \"intolang://builtin/tests/ownership-check\";\n\npub Dog() {\n    pub into: Int32 age = 1;\n}\n\npub fun first() {\n    now into dog = Dog();\n    assertOwned(dog);\n    assertTrue(true);\n}\n\npub fun second() {\n    println(1);\n}\n";
-
 fn helpers() -> Package {
     Package::new("builtin")
         .file(
             "src/main/into-info.into",
-            "export \"builtin://tests/assert/assertTrue\";\nexport \"builtin://tests/ownership-check/assertOwned\";\n",
+            r#"export "builtin://tests/assert/assertTrue";
+export "builtin://tests/ownership-check/assertOwned";
+"#,
         )
         .file(
             "src/main/tests/assert.into",
-            "pub fun assertTrue(condition: Boolean) {\n    if condition == false {\n        throw \"expected true\";\n    }\n}\n",
+            r#"pub fun assertTrue(condition: Boolean) {
+    if condition == false {
+        throw "expected true";
+    }
+}
+"#,
         )
         .file(
             "src/main/tests/ownership-check.into",
-            "#[inspects]\npub fun assertOwned(value: Object) {\n    if value.isOwned == false {\n        throw \"value is not owned\";\n    }\n}\n",
+            r#"#[inspects]
+pub fun assertOwned(value: Object) {
+    if value.isOwned == false {
+        throw "value is not owned";
+    }
+}
+"#,
         )
 }
 
 fn lower(test: &str) -> anyhow::Result<String> {
     let workspace = Workspace::with_packages(&[helpers()])?;
     backend::lower_test(
-        SOURCE,
+        r#"import "intolang://builtin/tests/assert";
+import "intolang://builtin/tests/ownership-check";
+
+pub Dog() {
+    pub into: Int32 age = 1;
+}
+
+pub fun first() {
+    now into dog = Dog();
+    assertOwned(dog);
+    assertTrue(true);
+}
+
+pub fun second() {
+    println(1);
+}
+"#,
         Path::new("sample.into"),
         Some(workspace.path()),
         test,

@@ -2,7 +2,14 @@ use testing::eval;
 
 #[test]
 fn lowers_explicit_integer_type() {
-    let output = eval("init {\n    into value: Int32 = 42;\n}\n").unwrap();
+    let output = eval(
+        r#"
+init {
+    into value: Int32 = 42;
+}
+"#,
+    )
+    .unwrap();
     assert!(
         output.contains("NATIVE_ASSIGN\tvalue\tInt32\tn:42"),
         "{output}"
@@ -11,9 +18,15 @@ fn lowers_explicit_integer_type() {
 
 #[test]
 fn lowers_int64_and_float_types() {
-    let output =
-        eval("init {\n    into big: Int64 = 5000000000;\n    into ratio: Float = 2.5;\n}\n")
-            .unwrap();
+    let output = eval(
+        r#"
+init {
+    into big: Int64 = 5000000000;
+    into ratio: Float = 2.5;
+}
+"#,
+    )
+    .unwrap();
     assert!(
         output.contains("NATIVE_ASSIGN\tbig\tInt64\tn:5000000000"),
         "{output}"
@@ -26,28 +39,70 @@ fn lowers_int64_and_float_types() {
 
 #[test]
 fn accepts_numeric_widening() {
-    let source = "init {\n    into small: Int32 = 1;\n    into big: Int64 = small;\n}\n";
-    assert!(eval(source).is_ok());
+    assert!(
+        eval(
+            r#"
+init {
+    into small: Int32 = 1;
+    into big: Int64 = small;
+}
+"#
+        )
+        .is_ok()
+    );
 }
 
 #[test]
 fn accepts_string_literal_as_path() {
-    assert!(eval("init {\n    into source: Path = \"res/badapple.mp4\";\n}\n").is_ok());
+    assert!(
+        eval(
+            r#"
+init {
+    into source: Path = "res/badapple.mp4";
+}
+"#
+        )
+        .is_ok()
+    );
 }
 
 #[test]
 fn rejects_string_assigned_to_integer() {
-    let error = eval("init {\n    into message: Int32 = \"Hello World!\";\n}\n").unwrap_err();
+    let error = eval(
+        r#"
+init {
+    into message: Int32 = "Hello World!";
+}
+"#,
+    )
+    .unwrap_err();
     assert!(error.to_string().contains("Type mismatch"), "{error}");
 }
 
 #[test]
 fn rejects_mismatched_declarations() {
     for source in [
-        "init {\n    into message: String = 42;\n}\n",
-        "init {\n    into flag: Int32 = true;\n}\n",
-        "init {\n    into text: String = \"x\";\n    into count: Int32 = text;\n}\n",
-        "init {\n    into source: Path = 42;\n}\n",
+        r#"
+init {
+    into message: String = 42;
+}
+"#,
+        r#"
+init {
+    into flag: Int32 = true;
+}
+"#,
+        r#"
+init {
+    into text: String = "x";
+    into count: Int32 = text;
+}
+"#,
+        r#"
+init {
+    into source: Path = 42;
+}
+"#,
     ] {
         assert!(eval(source).is_err(), "{source}");
     }
@@ -55,12 +110,30 @@ fn rejects_mismatched_declarations() {
 
 #[test]
 fn treats_path_as_distinct_from_string() {
-    let source = "init {\n    into source: Path = \"res/badapple.mp4\";\n    into text: String = source;\n}\n";
-    assert!(eval(source).is_err());
+    assert!(
+        eval(
+            r#"
+init {
+    into source: Path = "res/badapple.mp4";
+    into text: String = source;
+}
+"#
+        )
+        .is_err()
+    );
 }
 
 #[test]
 fn rejects_mismatched_reassignment() {
-    let source = "init {\n    into value: Int32 = 0;\n    value = \"text\";\n}\n";
-    assert!(eval(source).is_err());
+    assert!(
+        eval(
+            r#"
+init {
+    into value: Int32 = 0;
+    value = "text";
+}
+"#
+        )
+        .is_err()
+    );
 }

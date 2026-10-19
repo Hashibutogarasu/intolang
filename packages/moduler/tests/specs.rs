@@ -20,53 +20,53 @@ fn export(source: &str) -> Option<ExportSpec> {
 #[test]
 fn parses_import_uris() {
     assert_eq!(
-        import("import \"json://value\";"),
+        import(r#"import "json://value";"#),
         Some(ImportSpec {
             alias: "json".into(),
             module: "value".into(),
         })
     );
     assert_eq!(
-        import("import \"intolang://builtin/std\";"),
+        import(r#"import "intolang://builtin/std";"#),
         Some(ImportSpec {
             alias: "builtin".into(),
             module: "std".into(),
         })
     );
     assert_eq!(
-        import("import   \"fs://file\";"),
+        import(r#"import   "fs://file";"#),
         Some(ImportSpec {
             alias: "fs".into(),
             module: "file".into(),
         })
     );
     assert!(import("init { }").is_none());
-    assert!(import("import \"nonsense\";").is_none());
+    assert!(import(r#"import "nonsense";"#).is_none());
 }
 
 #[test]
 fn parses_export_uris() {
     assert_eq!(
-        export("export \"fs://file\";"),
+        export(r#"export "fs://file";"#),
         Some(ExportSpec {
             alias: "fs".into(),
             path: "file".into(),
         })
     );
     assert_eq!(
-        export("export   \"builtin://tests/assert/assert\";"),
+        export(r#"export   "builtin://tests/assert/assert";"#),
         Some(ExportSpec {
             alias: "builtin".into(),
             path: "tests/assert/assert".into(),
         })
     );
-    assert!(export("import \"fs://file\";").is_none());
+    assert!(export(r#"import "fs://file";"#).is_none());
 }
 
 #[test]
 fn display_returns_the_canonical_uri() {
     let spec: ImportSpec = "intolang://builtin/std".parse().unwrap();
     assert_eq!(spec.to_string(), "builtin://std");
-    let program: Program = "import \"a://b\";".parse().unwrap();
+    let program: Program = r#"import "a://b";"#.parse().unwrap();
     assert!(matches!(program.items[0], Item::Import(_)));
 }

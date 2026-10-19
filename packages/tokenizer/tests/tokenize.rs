@@ -9,7 +9,10 @@ fn kinds(source: &str) -> Vec<TokenKind> {
 #[test]
 fn skips_whitespace_and_comments() {
     assert_eq!(
-        kinds("into x = 1; // trailing\n  x"),
+        kinds(
+            r#"into x = 1; // trailing
+  x"#
+        ),
         vec![
             TokenKind::Identifier("into".into()),
             TokenKind::Identifier("x".into()),
@@ -24,14 +27,19 @@ fn skips_whitespace_and_comments() {
 #[test]
 fn decodes_string_escapes() {
     assert_eq!(
-        kinds("\"a\\n\\t\\\"\\\\\\q\""),
+        kinds(r##""a\n\t\"\\\q""##),
         vec![TokenKind::String("a\n\t\"\\\\q".into())]
     );
 }
 
 #[test]
 fn tracks_lines_including_multiline_strings() {
-    let tokens = "a\n\"x\ny\"\nb".parse::<Tokens>().unwrap();
+    let tokens = r#"a
+"x
+y"
+b"#
+    .parse::<Tokens>()
+    .unwrap();
     let lines: Vec<usize> = tokens.iter().map(|token| token.line()).collect();
     assert_eq!(lines, vec![1, 2, 4]);
     assert_eq!(tokens[1].span.end_line, 3);
@@ -39,7 +47,7 @@ fn tracks_lines_including_multiline_strings() {
 
 #[test]
 fn records_character_spans() {
-    let tokens = "ab = \"x\";".parse::<Tokens>().unwrap();
+    let tokens = r#"ab = "x";"#.parse::<Tokens>().unwrap();
     let spans: Vec<(usize, usize)> = tokens
         .iter()
         .map(|token| (token.span.start, token.span.end))
@@ -49,7 +57,8 @@ fn records_character_spans() {
 
 #[test]
 fn keeps_comments_only_on_request() {
-    let source = "a; // note\nb;";
+    let source = r#"a; // note
+b;"#;
     let plain = source.parse::<Tokens>().unwrap();
     assert_eq!(plain.len(), 4);
     let with_comments = Tokens::with_comments(source).unwrap();
@@ -59,9 +68,9 @@ fn keeps_comments_only_on_request() {
 
 #[test]
 fn rejects_unterminated_strings() {
-    assert!("\"open".parse::<Tokens>().is_err());
-    assert!("\"open\\\"".parse::<Tokens>().is_err());
-    assert!("\"open\\".parse::<Tokens>().is_err());
+    assert!(r#""open"#.parse::<Tokens>().is_err());
+    assert!(r##""open\""##.parse::<Tokens>().is_err());
+    assert!(r#""open\"#.parse::<Tokens>().is_err());
 }
 
 #[test]

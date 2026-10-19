@@ -4,11 +4,13 @@ use formatter::format_source;
 fn keeps_the_spacing_of_the_new_arithmetic_operators() {
     assert_eq!(
         format_source("into a:Int32=b % 3 | c<<2;"),
-        "into a: Int32 = b % 3 | c<<2;\n"
+        r#"into a: Int32 = b % 3 | c<<2;
+"#
     );
     assert_eq!(
         format_source("into a:Int32 = b >> 1 ^ c & d;"),
-        "into a: Int32 = b >> 1 ^ c & d;\n"
+        r#"into a: Int32 = b >> 1 ^ c & d;
+"#
     );
 }
 
@@ -16,7 +18,10 @@ fn keeps_the_spacing_of_the_new_arithmetic_operators() {
 fn spaces_the_logical_operators_like_the_other_compound_operators() {
     assert_eq!(
         format_source("if(a>1&&b<2||!c){x=1;}"),
-        "if (a>1 && b<2 || !c) {\n    x = 1;\n}\n"
+        r#"if (a>1 && b<2 || !c) {
+    x = 1;
+}
+"#
     );
 }
 

@@ -6,7 +6,12 @@ fn program(source: &str) -> Program {
 
 #[test]
 fn a_class_lists_its_type_parameters() {
-    let program = program("pub Box<T>() {\n    pub into: T content;\n}\n");
+    let program = program(
+        r#"pub Box<T>() {
+    pub into: T content;
+}
+"#,
+    );
     let class = program.classes().next().unwrap();
     assert_eq!(class.name, "Box");
     assert_eq!(class.type_params, vec!["T"]);
@@ -15,7 +20,13 @@ fn a_class_lists_its_type_parameters() {
 
 #[test]
 fn a_class_may_take_several_type_parameters() {
-    let program = program("pub Pair<K, V>() {\n    pub into: K key;\n    pub into: V value;\n}\n");
+    let program = program(
+        r#"pub Pair<K, V>() {
+    pub into: K key;
+    pub into: V value;
+}
+"#,
+    );
     let class = program.classes().next().unwrap();
     assert_eq!(class.type_params, vec!["K", "V"]);
 }
@@ -23,7 +34,13 @@ fn a_class_may_take_several_type_parameters() {
 #[test]
 fn a_parent_keeps_its_type_arguments() {
     let program = program(
-        "pub Box<T>() {\n    pub into: T content;\n}\npub Named<T>(): Box<T> {\n    pub into: String label = \"\";\n}\n",
+        r#"pub Box<T>() {
+    pub into: T content;
+}
+pub Named<T>(): Box<T> {
+    pub into: String label = "";
+}
+"#,
     );
     let named = program.classes().nth(1).unwrap();
     assert_eq!(named.type_params, vec!["T"]);
@@ -33,7 +50,11 @@ fn a_parent_keeps_its_type_arguments() {
 
 #[test]
 fn a_parent_may_be_given_concrete_arguments() {
-    let program = program("pub Names(): Box<String> {\n}\n");
+    let program = program(
+        r#"pub Names(): Box<String> {
+}
+"#,
+    );
     let class = program.classes().next().unwrap();
     assert!(class.type_params.is_empty());
     assert_eq!(class.parent.as_deref(), Some("Box"));
@@ -42,7 +63,12 @@ fn a_parent_may_be_given_concrete_arguments() {
 
 #[test]
 fn a_class_without_type_parameters_has_none() {
-    let program = program("pub Plain() {\n    pub into: Int32 count = 1;\n}\n");
+    let program = program(
+        r#"pub Plain() {
+    pub into: Int32 count = 1;
+}
+"#,
+    );
     let class = program.classes().next().unwrap();
     assert!(class.type_params.is_empty());
     assert!(class.parent_type.is_none());
@@ -50,6 +76,11 @@ fn a_class_without_type_parameters_has_none() {
 
 #[test]
 fn a_call_is_not_mistaken_for_a_class_header() {
-    let program = program("init {\n    into b = Box();\n}\n");
+    let program = program(
+        r#"init {
+    into b = Box();
+}
+"#,
+    );
     assert_eq!(program.classes().count(), 0);
 }

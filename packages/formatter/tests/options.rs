@@ -1,7 +1,5 @@
 use formatter::{FormatOptions, Indent, format_source_with};
 
-const SOURCE: &str = "init {\n\n\n    if (a) {\n        f(\n            x\n        );\n    }\n}\n";
-
 #[test]
 fn honors_indent_width() {
     let options = FormatOptions {
@@ -9,8 +7,28 @@ fn honors_indent_width() {
         ..FormatOptions::default()
     };
     assert_eq!(
-        format_source_with(SOURCE, options),
-        "init {\n\n  if (a) {\n    f(\n      x\n    );\n  }\n}\n"
+        format_source_with(
+            r#"init {
+
+
+    if (a) {
+        f(
+            x
+        );
+    }
+}
+"#,
+            options
+        ),
+        r#"init {
+
+  if (a) {
+    f(
+      x
+    );
+  }
+}
+"#
     );
 }
 
@@ -21,8 +39,28 @@ fn honors_tab_indent() {
         ..FormatOptions::default()
     };
     assert_eq!(
-        format_source_with(SOURCE, options),
-        "init {\n\n\tif (a) {\n\t\tf(\n\t\t\tx\n\t\t);\n\t}\n}\n"
+        format_source_with(
+            r#"init {
+
+
+    if (a) {
+        f(
+            x
+        );
+    }
+}
+"#,
+            options
+        ),
+        r#"init {
+
+	if (a) {
+		f(
+			x
+		);
+	}
+}
+"#
     );
 }
 
@@ -34,7 +72,26 @@ fn honors_blank_line_limit_and_continuation_levels() {
         ..FormatOptions::default()
     };
     assert_eq!(
-        format_source_with(SOURCE, options),
-        "init {\n    if (a) {\n        f(\n                x\n        );\n    }\n}\n"
+        format_source_with(
+            r#"init {
+
+
+    if (a) {
+        f(
+            x
+        );
+    }
+}
+"#,
+            options
+        ),
+        r#"init {
+    if (a) {
+        f(
+                x
+        );
+    }
+}
+"#
     );
 }

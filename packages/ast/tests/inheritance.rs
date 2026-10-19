@@ -7,7 +7,14 @@ fn program(source: &str) -> Program {
 #[test]
 fn parses_abstract_classes_and_parents() {
     let program = program(
-        "pub abstract Animal() {\n    pub abstract fun speak(): String;\n    pub default fun describe(): String { return \"animal\"; }\n}\npub Dog(): Animal {\n    pub override fun speak(): String { return \"woof\"; }\n}\n",
+        r#"pub abstract Animal() {
+    pub abstract fun speak(): String;
+    pub default fun describe(): String { return "animal"; }
+}
+pub Dog(): Animal {
+    pub override fun speak(): String { return "woof"; }
+}
+"#,
     );
     let classes: Vec<_> = program.classes().collect();
     assert_eq!(classes.len(), 2);
@@ -24,7 +31,13 @@ fn parses_abstract_classes_and_parents() {
 #[test]
 fn parses_events_inside_classes() {
     let program = program(
-        "pub Hex() {\n    pub into: String digits = \"\";\n    pub override event onCast<Char, Hex>(from: Char, to: Hex) {\n        to.digits = \"41\";\n    }\n}\n",
+        r#"pub Hex() {
+    pub into: String digits = "";
+    pub override event onCast<Char, Hex>(from: Char, to: Hex) {
+        to.digits = "41";
+    }
+}
+"#,
     );
     let hex = program.classes().next().unwrap();
     assert_eq!(hex.fields.len(), 1);
@@ -35,7 +48,12 @@ fn parses_events_inside_classes() {
 
 #[test]
 fn classes_without_a_parent_keep_the_plain_header() {
-    let program = program("pub Config() {\n    pub static into: Int32 count = 5;\n}\n");
+    let program = program(
+        r#"pub Config() {
+    pub static into: Int32 count = 5;
+}
+"#,
+    );
     let config = program.classes().next().unwrap();
     assert!(config.parent.is_none() && !config.is_abstract);
 }

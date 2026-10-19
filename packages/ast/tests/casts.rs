@@ -75,5 +75,5 @@ fn parentheses_group_a_cast_operand() {
 #[test]
 fn expressions_print_with_their_casts_and_characters() {
     assert_eq!(parse("'A' as Int32 + 1").to_string(), "'A' as Int32 + 1");
-    assert_eq!(parse("'\\n'").to_string(), "'\\n'");
+    assert_eq!(parse(r"'\n'").to_string(), r"'\n'");
 }

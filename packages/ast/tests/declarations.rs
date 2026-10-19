@@ -8,7 +8,10 @@ fn program(source: &str) -> Program {
 #[test]
 fn parses_imports_exports_and_enums() {
     let program = program(
-        "import \"intolang://builtin/std\";\nexport \"json://value\";\nenum Format { Text, JSON = 2, }\n",
+        r#"import "intolang://builtin/std";
+export "json://value";
+enum Format { Text, JSON = 2, }
+"#,
     );
     assert_eq!(
         program.imports().next().unwrap().uri,
@@ -24,7 +27,14 @@ fn parses_imports_exports_and_enums() {
 #[test]
 fn parses_classes_with_fields_and_methods() {
     let program = program(
-        "pub Config() {\n    pub into: Int32 instance = 1;\n    pub static into: Int32 count = 5;\n    #[link(\"c\", \"src/a.c\", \"sym\")]\n    pub static c fun make(base: Path, n: Int32 = 2, tag: String?): Config;\n    pub fun present() { this.show(); }\n}\n",
+        r#"pub Config() {
+    pub into: Int32 instance = 1;
+    pub static into: Int32 count = 5;
+    #[link("c", "src/a.c", "sym")]
+    pub static c fun make(base: Path, n: Int32 = 2, tag: String?): Config;
+    pub fun present() { this.show(); }
+}
+"#,
     );
     let class = program.classes().next().unwrap();
     assert!(class.is_public);
@@ -49,7 +59,13 @@ fn parses_classes_with_fields_and_methods() {
 
 #[test]
 fn parses_empty_classes_and_macros() {
-    let program = program("pub FileIterator() { }\npub macro test {\n    #[test]\n}\n");
+    let program = program(
+        r#"pub FileIterator() { }
+pub macro test {
+    #[test]
+}
+"#,
+    );
     assert_eq!(program.classes().next().unwrap().name, "FileIterator");
     let macro_decl = program.macros().next().unwrap();
     assert_eq!(macro_decl.name, "test");
@@ -59,7 +75,9 @@ fn parses_empty_classes_and_macros() {
 #[test]
 fn parses_generic_and_variadic_functions() {
     let program = program(
-        "pub fun identity<T>(value: T): T { return value; }\npub fun print(str: String, params: Object...) {}\n",
+        r#"pub fun identity<T>(value: T): T { return value; }
+pub fun print(str: String, params: Object...) {}
+"#,
     );
     let mut functions = program.functions();
     let identity = functions.next().unwrap();
@@ -71,9 +89,12 @@ fn parses_generic_and_variadic_functions() {
 
 #[test]
 fn rejects_legacy_class_fields() {
-    let error = "pub Old() {\n    name: String;\n}\n"
-        .parse::<Program>()
-        .unwrap_err();
+    let error = r#"pub Old() {
+    name: String;
+}
+"#
+    .parse::<Program>()
+    .unwrap_err();
     let syntax = error.downcast_ref::<SyntaxError>().unwrap();
     assert_eq!(syntax.line, 2);
     assert!(syntax.message.contains("pub into: <Type> <name>"));
@@ -81,7 +102,12 @@ fn rejects_legacy_class_fields() {
 
 #[test]
 fn rejects_dangling_attributes_and_bad_enums() {
-    assert!("#[test]\ninit { }".parse::<Program>().is_err());
+    assert!(
+        r#"#[test]
+init { }"#
+            .parse::<Program>()
+            .is_err()
+    );
     let error = "enum E { A = x }".parse::<Program>().unwrap_err();
     assert!(error.to_string().contains("32-bit integers"));
 }

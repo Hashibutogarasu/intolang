@@ -1,6 +1,8 @@
 use ast::Program;
 
-const MODULE_SCOPE: &str = r#"
+#[test]
+fn parses_module_scope_statements() {
+    let program: Program = r#"
 import "intolang://builtin/std";
 
 into mem1 = 0;
@@ -16,9 +18,16 @@ mem3 = 4;
 late into mem4 = 4;
 now into mem5 = 5;
 unload mem5;
-"#;
+"#
+    .parse()
+    .unwrap();
+    assert_eq!(program.imports().count(), 1);
+    assert_eq!(program.statements().count(), 9);
+}
 
-const CLASSES: &str = r##"
+#[test]
+fn parses_classes_methods_and_native_functions() {
+    let program: Program = r##"
 enum Method {
     GET,
 }
@@ -57,9 +66,19 @@ pub Window() {
 #[link("c", "src/ffi/client.c", "wayland_display_connect")]
 pub c fun wayland_display_connect(name: String?): Pointer;
 pub cpp fun std_string_create(value: String): Pointer;
-"##;
+"##
+    .parse()
+    .unwrap();
+    assert_eq!(program.enums().count(), 1);
+    assert_eq!(program.classes().count(), 2);
+    assert_eq!(program.functions().count(), 2);
+    let window = program.classes().nth(1).unwrap();
+    assert_eq!(window.methods.len(), 3);
+}
 
-const BUILTINS: &str = r#"
+#[test]
+fn parses_builtin_style_functions_and_macros() {
+    let program: Program = r#"
 pub fun print(str: String, params: Object...) {
     Console.write(str);
 }
@@ -85,9 +104,16 @@ pub fun assertMemoryExists(value: Object) {
 pub macro test {
     #[test]
 }
-"#;
+"#
+    .parse()
+    .unwrap();
+    assert_eq!(program.functions().count(), 4);
+    assert_eq!(program.macros().count(), 1);
+}
 
-const LOOPS: &str = r#"
+#[test]
+fn parses_nested_loops_and_branches() {
+    let program: Program = r#"
 init {
     now into* format = audio.format();
     into reading = 0;
@@ -106,34 +132,8 @@ init {
         }
     }
 }
-"#;
-
-#[test]
-fn parses_module_scope_statements() {
-    let program: Program = MODULE_SCOPE.parse().unwrap();
-    assert_eq!(program.imports().count(), 1);
-    assert_eq!(program.statements().count(), 9);
-}
-
-#[test]
-fn parses_classes_methods_and_native_functions() {
-    let program: Program = CLASSES.parse().unwrap();
-    assert_eq!(program.enums().count(), 1);
-    assert_eq!(program.classes().count(), 2);
-    assert_eq!(program.functions().count(), 2);
-    let window = program.classes().nth(1).unwrap();
-    assert_eq!(window.methods.len(), 3);
-}
-
-#[test]
-fn parses_builtin_style_functions_and_macros() {
-    let program: Program = BUILTINS.parse().unwrap();
-    assert_eq!(program.functions().count(), 4);
-    assert_eq!(program.macros().count(), 1);
-}
-
-#[test]
-fn parses_nested_loops_and_branches() {
-    let program: Program = LOOPS.parse().unwrap();
+"#
+    .parse()
+    .unwrap();
     assert_eq!(program.statements().count(), 1);
 }
