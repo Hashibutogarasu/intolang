@@ -11,6 +11,7 @@ pub struct NativeFieldPrint {
     variable: String,
     class_name: String,
     field_index: u32,
+    character: bool,
     newline: bool,
 }
 
@@ -22,6 +23,7 @@ impl TryFrom<&Record> for NativeFieldPrint {
             variable: record.get(0).to_owned(),
             class_name: record.get(1).to_owned(),
             field_index: record.get(2).parse()?,
+            character: record.get(3) == "Char",
             newline: record.get(4) == "1",
         })
     }
@@ -50,7 +52,7 @@ impl Codegen for NativeFieldPrint {
                 ctx.empty.as_ptr(),
             );
             let loaded = LLVMBuildLoad2(ctx.builder, field_type, field_pointer, ctx.empty.as_ptr());
-            ctx.print_scalar(field_type, loaded, self.newline, false)?;
+            ctx.print_scalar(field_type, loaded, self.newline, self.character)?;
             Ok(CodegenResult::unit())
         }
     }

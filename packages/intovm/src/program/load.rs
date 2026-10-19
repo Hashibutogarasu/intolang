@@ -1,5 +1,7 @@
 use anyhow::{Result, anyhow, bail};
-use native::{CastAssign, CompareAssign, Comparison, LinkCall, OwnershipChange, StateCheck};
+use native::{
+    CastAssign, CompareAssign, Comparison, FieldAssign, LinkCall, OwnershipChange, StateCheck,
+};
 use parser::{Hex, Record};
 use types::MessageTag;
 
@@ -106,6 +108,9 @@ impl Program {
             MessageTag::Compare => self
                 .instructions
                 .push(Instr::Compare(CompareAssign::try_from(record)?)),
+            MessageTag::FieldAssign => self
+                .instructions
+                .push(Instr::FieldAssign(FieldAssign::try_from(record)?)),
             MessageTag::Cast => self
                 .instructions
                 .push(Instr::Cast(CastAssign::try_from(record)?)),

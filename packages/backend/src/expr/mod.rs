@@ -18,6 +18,8 @@ mod typing;
 mod value;
 
 pub use events::RuntimeCall;
+pub use numeric::Kind;
 pub use ownership::{DESTROY, MOVE};
 pub use state_check::state_check;
+pub use text::Text;
 pub use type_name::{base_type_name, parse_type};

@@ -35,7 +35,7 @@ fn integer_only(operator: ArithmeticOperator) -> bool {
 }
 
 impl Lowerer<'_> {
-    pub(super) fn fresh_slot(&mut self, ty: &Type) -> String {
+    pub(crate) fn fresh_slot(&mut self, ty: &Type) -> String {
         let name = format!("__value{}", self.state.temp_counter);
         self.state.temp_counter += 1;
         self.state

@@ -1,7 +1,8 @@
 use ast::Expr;
 use moduler::Module;
 use native::{
-    CastAssign, CompareAssign, Comparison, NativeArg, Operand, OwnershipChange, StateCheck,
+    CastAssign, CompareAssign, Comparison, FieldAssign, NativeArg, Operand, OwnershipChange,
+    StateCheck,
 };
 use parser::{Hex, Record};
 use types::{ComparisonOperator, Literal, MessageTag, Type};
@@ -56,6 +57,10 @@ pub fn compare_assign(output: &mut String, compare: &CompareAssign) {
 
 pub fn cast_assign(output: &mut String, cast: &CastAssign) {
     push(output, cast.to_record());
+}
+
+pub fn field_assign(output: &mut String, assign: &FieldAssign) {
+    push(output, assign.to_record());
 }
 
 pub fn print(output: &mut String, name: &str, ty: &Type, newline: bool) {
@@ -331,6 +336,7 @@ fn encode_default(default: Option<&Expr>) -> (char, String) {
         None => ('-', String::new()),
         Some(Expr::Literal(Literal::String(value))) => ('s', Hex::from(value.as_str()).to_string()),
         Some(Expr::Literal(Literal::Bool(value))) => ('b', flag(*value).to_owned()),
+        Some(Expr::Literal(Literal::Char(value))) => ('n', u32::from(*value).to_string()),
         Some(Expr::Literal(Literal::Int(value))) => ('n', value.to_string()),
         Some(Expr::Literal(Literal::Float(value))) => ('n', value.to_string()),
         Some(other) => ('n', other.to_string()),

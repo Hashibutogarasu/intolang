@@ -60,7 +60,14 @@ impl CodegenContext {
                     if width > 32 {
                         (if newline { "%ld\n" } else { "%ld" }, value)
                     } else {
-                        let promoted = if width < 32 {
+                        let promoted = if width == 1 {
+                            LLVMBuildZExt(
+                                self.builder,
+                                value,
+                                LLVMInt32TypeInContext(self.context),
+                                self.empty.as_ptr(),
+                            )
+                        } else if width < 32 {
                             LLVMBuildSExt(
                                 self.builder,
                                 value,

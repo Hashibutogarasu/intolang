@@ -17,6 +17,7 @@ pub enum MessageTag {
     Print,
     PrintConst,
     FieldPrint,
+    FieldAssign,
     LinkAssign,
     Construct,
     Module,

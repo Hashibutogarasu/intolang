@@ -69,6 +69,7 @@ pub struct Vm {
     pub(super) trace: Vec<TraceEntry>,
     pub(super) processes: ProcessTable,
     pub(super) native: Option<Rc<Library>>,
+    pub(super) retained_strings: Vec<std::ffi::CString>,
     options: VmOptions,
     stdout: Vec<u8>,
 }
@@ -82,6 +83,7 @@ impl Vm {
                 options.programs.clone(),
             ),
             native: None,
+            retained_strings: Vec::new(),
             options,
             program: Rc::new(Program::default()),
             globals: HashMap::new(),
@@ -250,6 +252,12 @@ impl Vm {
                 let right = self.operand(&comparison.operand, &comparison.type_name)?;
                 let holds = compare(comparison.operator, &left, &right)?;
                 self.store(&assign.target, Value::Int(i64::from(holds)));
+            }
+            Instr::FieldAssign(assign) => {
+                let holder = self.load_slot(&assign.slot)?;
+                let value = self.operand(&assign.operand, &assign.ty)?;
+                self.write_instance_field(&holder, assign.index, value)
+                    .map_err(|error| anyhow!("`{}`: {error}", assign.slot))?;
             }
             Instr::Cast(cast) => {
                 let value = self.load_slot(&cast.source)?;

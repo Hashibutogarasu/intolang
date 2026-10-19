@@ -56,6 +56,39 @@ impl Vm {
         }
     }
 
+    /// Store `value` in the field `index` of an instance the VM or native
+    /// code owns.
+    pub(super) fn write_instance_field(
+        &mut self,
+        holder: &Value,
+        index: usize,
+        value: Value,
+    ) -> Result<()> {
+        match holder {
+            Value::Ref(reference) => {
+                let slot = self
+                    .heap
+                    .get_mut(*reference)
+                    .ok_or_else(|| anyhow!("Dangling reference {reference}"))?
+                    .fields
+                    .get_mut(index)
+                    .ok_or_else(|| anyhow!("Unknown field index {index}"))?;
+                *slot = value;
+                Ok(())
+            }
+            Value::Native { ptr, class } => {
+                let layout = self.layout_of(class);
+                let field = layout
+                    .fields
+                    .get(index)
+                    .ok_or_else(|| anyhow!("Unknown field index {index} of `{class}`"))?;
+                unsafe { write_field(*ptr, field, &value, &mut self.retained_strings, &raw_of) };
+                Ok(())
+            }
+            _ => bail!("The value holds no instance"),
+        }
+    }
+
     /// The class an instance the VM or native code owns belongs to.
     pub(super) fn class_of(&self, value: &Value) -> Result<String> {
         match value {
