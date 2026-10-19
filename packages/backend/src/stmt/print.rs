@@ -33,7 +33,9 @@ impl Lowerer<'_> {
                 self.print_literal(literal, newline);
                 return Ok(());
             }
-            if (path.segments().len() > 2 || self.is_type_property(path))
+            if (path.segments().len() > 2
+                || self.is_type_property(path)
+                || self.is_dynamic_member(path))
                 && self.state.values.get(path.first()).is_some()
             {
                 let Some((slot, ty)) = self

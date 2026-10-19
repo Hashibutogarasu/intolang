@@ -5,8 +5,9 @@ use std::path::Path;
 
 use crate::collect::{
     ancestors, builtin_classes, check_inheritance, collect_cast_handlers, collect_class_events,
-    collect_class_infos, collect_classes, collect_consuming, collect_enums, collect_events,
-    collect_overloads, collect_type_params, collect_user_functions, runtime_functions,
+    collect_class_infos, collect_classes, collect_consuming, collect_dynamic_classes,
+    collect_enums, collect_events, collect_overloads, collect_type_params, collect_user_functions,
+    runtime_functions,
 };
 use crate::context::{Env, FieldDef, Lowerer, OBJECT};
 use crate::diagnostic::syntax_diagnostic;
@@ -120,7 +121,10 @@ fn prepare(program: &Program, packages_dir: Option<&Path>, source_path: &str) ->
     env.type_params = collect_type_params(program);
     for module in &loaded {
         env.type_params.extend(collect_type_params(&module.program));
+        env.dynamic_classes
+            .extend(collect_dynamic_classes(&module.program));
     }
+    env.dynamic_classes.extend(collect_dynamic_classes(program));
     env.modules = loaded.iter().map(|loaded| loaded.module.clone()).collect();
 
     for module in loaded.iter().filter(|module| !module.contents.is_empty()) {

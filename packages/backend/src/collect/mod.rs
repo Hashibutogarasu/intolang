@@ -7,7 +7,7 @@ mod overloads;
 mod runtime;
 mod type_params;
 
-pub use classes::collect_classes;
+pub use classes::{collect_classes, collect_dynamic_classes};
 pub use enums::collect_enums;
 pub use events::{collect_class_events, collect_events};
 pub use functions::{

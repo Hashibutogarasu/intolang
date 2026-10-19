@@ -74,12 +74,22 @@ impl Lowerer<'_> {
             };
             for segment in &path.segments()[1..] {
                 let class = base_type_name(&current.name()).to_owned();
-                let field = self
-                    .env
-                    .class_fields
-                    .get(&class)
-                    .and_then(|fields| fields.iter().find(|f| !f.is_static && f.name == *segment))
-                    .ok_or_else(|| format!("`{class}` has no field `{segment}`"))?;
+                let field =
+                    self.env.class_fields.get(&class).and_then(|fields| {
+                        fields.iter().find(|f| !f.is_static && f.name == *segment)
+                    });
+                let Some(field) = field else {
+                    if self.is_dynamic(&class) {
+                        let key = self.method_key(&class, "get");
+                        let read = self.function_type(&self.pick_overload(
+                            &key,
+                            &[Expr::Literal(Literal::String(segment.clone()))],
+                        )?)?;
+                        current = self.bind_arguments(&current, read);
+                        continue;
+                    }
+                    return Err(format!("`{class}` has no field `{segment}`"));
+                };
                 let written = self.written_type(&field.ty);
                 current = self.bind_arguments(&current, written);
             }

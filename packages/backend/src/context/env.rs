@@ -25,6 +25,9 @@ pub struct Env {
     pub runtime_functions: HashSet<String>,
     pub consuming: HashMap<String, Ownership>,
     pub events: HashMap<String, EventInfo>,
+    /// The classes marked `#[dynamic]`: a member they do not declare is read
+    /// with their `get` method.
+    pub dynamic_classes: HashSet<String>,
     /// The events each class declares, by class and event name.
     pub class_events: HashMap<String, HashMap<String, EventInfo>>,
     pub type_params: HashSet<String>,
