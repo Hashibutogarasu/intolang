@@ -8,4 +8,4 @@ pub use collect::{collect_modules, collect_modules_from};
 pub use loaded::LoadedModule;
 pub use module::Module;
 pub use source::{FileSystem, SourceProvider};
-pub use unresolved::{import_path, unresolved_imports};
+pub use unresolved::{ImportTarget, export_target, import_path, import_target, unresolved_imports};

@@ -34,10 +34,14 @@ pub fn definition(
                 range: module.line_index.range(symbol.name_span),
             }]
         }
-        Some(Resolved::Module { path, .. }) => vec![Location {
-            uri: path_to_uri(&real(&path)),
-            range: Range::new(Position::new(0, 0), Position::new(0, 0)),
-        }],
+        Some(Resolved::Module { target, .. }) => target
+            .file
+            .iter()
+            .map(|file| Location {
+                uri: path_to_uri(&real(file)),
+                range: Range::new(Position::new(0, 0), Position::new(0, 0)),
+            })
+            .collect(),
         None => Vec::new(),
     }
 }

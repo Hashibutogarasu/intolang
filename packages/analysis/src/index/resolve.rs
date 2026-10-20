@@ -1,6 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use ipc::SymbolKind;
+use moduler::ImportTarget;
 use types::{Span, Token, TokenKind};
 
 use super::symbol::{Index, Symbol};
@@ -17,7 +18,7 @@ pub enum Resolved<'a> {
         token: Span,
     },
     Module {
-        path: PathBuf,
+        target: ImportTarget,
         token: Span,
     },
 }
@@ -41,16 +42,12 @@ pub fn resolve<'a>(
         })?;
     let token = &tokens[position];
     match &token.kind {
-        TokenKind::String(_) => {
-            let packages_dir = packages_dir?;
-            let decl = analysis.program.imports().find(|decl| {
-                decl.uri_span.0.start <= token.span.start && token.span.end <= decl.uri_span.0.end
-            })?;
-            let path = moduler::import_path(decl, packages_dir).ok()??;
-            Some(Resolved::Module {
-                path,
-                token: token.span,
-            })
+        TokenKind::String(_) => module(analysis, token, token, packages_dir?),
+        TokenKind::Identifier(word) if matches!(word.as_str(), "import" | "export") => {
+            let uri = tokens
+                .get(position + 1)
+                .filter(|next| matches!(next.kind, TokenKind::String(_)))?;
+            module(analysis, token, uri, packages_dir?)
         }
         TokenKind::Identifier(word) => {
             let scope = Scope { analysis };
@@ -74,6 +71,27 @@ pub fn resolve<'a>(
         }
         _ => None,
     }
+}
+
+/// The package and file named by the `import` or `export` whose address is the
+/// string token `uri`; `token` is what the answer is about.
+fn module<'a>(
+    analysis: &Analysis,
+    token: &Token,
+    uri: &Token,
+    packages_dir: &Path,
+) -> Option<Resolved<'a>> {
+    let within = |decl: &&ast::UseDecl| {
+        decl.uri_span.0.start <= uri.span.start && uri.span.end <= decl.uri_span.0.end
+    };
+    let target = match analysis.program.imports().find(within) {
+        Some(decl) => moduler::import_target(decl, packages_dir),
+        None => moduler::export_target(analysis.program.exports().find(within)?, packages_dir),
+    };
+    Some(Resolved::Module {
+        target: target.ok()??,
+        token: token.span,
+    })
 }
 
 fn is_member(tokens: &[Token], position: usize) -> bool {
