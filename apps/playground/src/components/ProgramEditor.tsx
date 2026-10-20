@@ -6,6 +6,7 @@ import { useDarkScheme } from "@/hooks/useColorScheme";
 import { Engine } from "@/lib/engine";
 import { DOCUMENT_URI, LANGUAGE, followDocument, registerLanguage } from "@/lib/language";
 import { configureMonaco } from "@/lib/monaco";
+import Loading from "./Loading";
 
 type Props = {
   defaultValue: string;
@@ -52,6 +53,7 @@ export default function ProgramEditor({ defaultValue, onReady }: Props) {
       defaultLanguage="plaintext"
       defaultValue={defaultValue}
       theme={dark ? "vs-dark" : "light"}
+      loading={<Loading />}
       onMount={mount}
       options={{
         minimap: { enabled: false },

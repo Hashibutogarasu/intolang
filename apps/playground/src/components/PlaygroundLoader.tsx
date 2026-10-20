@@ -2,9 +2,11 @@
 
 import dynamic from "next/dynamic";
 
+import Loading from "./Loading";
+
 const Playground = dynamic(() => import("./Playground"), {
   ssr: false,
-  loading: () => <p className="loading">Loading…</p>,
+  loading: Loading,
 });
 
 export default function PlaygroundLoader() {
