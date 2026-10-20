@@ -60,12 +60,12 @@ impl Command for Install {
                             "Up to date"
                         };
                         format!(
-                            "{status} {} {}",
+                            "{status} {} {}\n",
                             restoration.package.alias, restoration.package.version
                         )
                     })
                     .collect::<Vec<_>>();
-                progress.finish(&restored.join(", "));
+                progress.finish(&restored.join(""));
             }
         }
         Ok(())
