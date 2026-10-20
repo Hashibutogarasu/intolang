@@ -1,3 +1,6 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use errors::{Error, Result};
 use parser::{KeywordLexeme, PunctLexeme};
 use types::{Keyword, Punct, Token, TokenKind};
@@ -11,11 +14,104 @@ use super::located::Located;
 pub struct Cursor<'a> {
     tokens: &'a [Token],
     index: usize,
+    recovered: Option<Rc<RefCell<Vec<Error>>>>,
 }
 
 impl<'a> Cursor<'a> {
     pub fn new(tokens: &'a [Token]) -> Self {
-        Self { tokens, index: 0 }
+        Self {
+            tokens,
+            index: 0,
+            recovered: None,
+        }
+    }
+
+    /// A cursor that keeps going after a syntax error: the error is collected
+    /// and the cursor skips to the next statement.
+    pub fn recovering(tokens: &'a [Token]) -> Self {
+        Self {
+            recovered: Some(Rc::default()),
+            ..Self::new(tokens)
+        }
+    }
+
+    /// The errors collected so far by a recovering cursor.
+    pub fn take_recovered(&self) -> Vec<Error> {
+        self.recovered
+            .as_ref()
+            .map(|errors| std::mem::take(&mut *errors.borrow_mut()))
+            .unwrap_or_default()
+    }
+
+    /// Hand a syntax error that began at `start` back to the caller, or, for a
+    /// recovering cursor, collect it and skip to the next statement.
+    pub fn recover(&mut self, error: Error, start: usize) -> Result<()> {
+        let Some(recovered) = self.recovered.clone() else {
+            return Err(error);
+        };
+        recovered.borrow_mut().push(error);
+        self.synchronize();
+        if self.index <= start {
+            self.index = start;
+            self.bump();
+        }
+        Ok(())
+    }
+
+    /// Skip to the end of the broken statement: past a `;` or a balanced `}`
+    /// outside of any nesting, or up to the `}` of the enclosing block or the
+    /// keyword that starts the next statement on a later line.
+    fn synchronize(&mut self) {
+        let mut depth = 0usize;
+        while let Some(token) = self.peek() {
+            match token.kind {
+                TokenKind::Symbol(';') if depth == 0 => {
+                    self.index += 1;
+                    return;
+                }
+                TokenKind::Symbol('{' | '(' | '[') => depth += 1,
+                TokenKind::Symbol('}') if depth == 0 => return,
+                TokenKind::Symbol('}' | ')' | ']') => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 && matches!(token.kind, TokenKind::Symbol('}')) {
+                        self.index += 1;
+                        return;
+                    }
+                }
+                _ if depth == 0
+                    && token.line() > self.previous_end_line()
+                    && self.starts_statement() =>
+                {
+                    return;
+                }
+                _ => {}
+            }
+            self.index += 1;
+        }
+    }
+
+    fn starts_statement(&self) -> bool {
+        matches!(
+            self.peek_keyword(0),
+            Some(
+                Keyword::Into
+                    | Keyword::Now
+                    | Keyword::Late
+                    | Keyword::Const
+                    | Keyword::If
+                    | Keyword::While
+                    | Keyword::Return
+                    | Keyword::Throw
+                    | Keyword::Init
+                    | Keyword::Import
+                    | Keyword::Export
+                    | Keyword::Pub
+                    | Keyword::Enum
+                    | Keyword::Event
+                    | Keyword::Break
+                    | Keyword::Unload
+            )
+        )
     }
 
     pub fn at_end(&self) -> bool {

@@ -23,6 +23,10 @@ pub(crate) fn parse_block(cursor: &mut Cursor<'_>, scope: Scope) -> Result<Vec<S
         if cursor.at_end() {
             return Err(cursor.error_expecting("`}`", "Expected `}` to close the block"));
         }
-        body.push(Stmt::parse(cursor, scope)?);
+        let start = cursor.position();
+        match Stmt::parse(cursor, scope) {
+            Ok(stmt) => body.push(stmt),
+            Err(error) => cursor.recover(error, start)?,
+        }
     }
 }

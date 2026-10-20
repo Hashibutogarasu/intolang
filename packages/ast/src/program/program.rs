@@ -70,6 +70,34 @@ impl Program {
     }
 }
 
+impl Program {
+    /// Parse every item that can be parsed, and collect the syntax error of
+    /// each one that cannot instead of stopping at the first.
+    pub fn parse_recovering(tokens: &Tokens) -> (Self, Vec<Error>) {
+        let mut cursor = Cursor::recovering(tokens);
+        let mut items = Vec::new();
+        while !cursor.at_end() {
+            let start = cursor.position();
+            match Item::try_from(&mut cursor) {
+                Ok(item) => items.push(item),
+                Err(error) => cursor
+                    .recover(error, start)
+                    .expect("a recovering cursor collects the error"),
+            }
+        }
+        (Self { items }, cursor.take_recovered())
+    }
+
+    /// [`Program::parse_recovering`] over source text; a lexical error ends
+    /// the parse with that one error.
+    pub fn parse_all(source: &str) -> (Self, Vec<Error>) {
+        match source.parse::<Tokens>() {
+            Ok(tokens) => Self::parse_recovering(&tokens),
+            Err(error) => (Self::default(), vec![error]),
+        }
+    }
+}
+
 impl TryFrom<&Tokens> for Program {
     type Error = Error;
 
