@@ -1,4 +1,9 @@
 {
+  "dap": {
+    "CodeLLDB": {
+      "binary": ".zed/codelldb.sh"
+    }
+  },
   "lsp": {
     "into-lsp": {
       "binary": { "path": "dist/debug/into-lsp" },

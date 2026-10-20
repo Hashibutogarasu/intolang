@@ -13,9 +13,9 @@ Install this directory with `zed: install dev extension`.
 
 ## Debugging from this repository
 
-Open the repository in Zed and press `F5`, then pick `Into: Zed with the language server`. It builds `into-lsp` and `intolang-ipc` with the task `Into: build language server` and starts a second Zed in the foreground on the repository with its own profile in `dist/zed-dev` (`.zed/launch-zed.sh`, which needs `zed`, `zeditor` or `zed-editor` on the `PATH`), so the logs of the extension and of the server appear in the debug terminal. `.zed/settings.json` points the server at `dist/debug/into-lsp` and `dist/debug/intolang-ipc`, and at the builtin packages in `packages`; relative paths are relative to the project.
+Open the repository in Zed and press `F5`, then pick `Into: Zed with the language server`. The task `Into: prepare Zed debug session` (`.zed/prepare-zed-profile.sh`) builds `into-lsp` and `intolang-ipc`, builds this extension for `wasm32-wasip2` with `rustup` (the way Zed builds a dev extension, so `rustup` must be installed) and links it into the profile, so the extension is there at the first start. Then F5 starts a second Zed in the foreground on the repository with its own profile in `dist/zed-dev` (the scenario starts `/run/current-system/sw/bin/zeditor`, the Zed command on NixOS; LLDB needs an absolute path, so change `program` in `.zed/debug.json` to the path of `zed` elsewhere), so the logs of the extension and of the server appear in the debug terminal. `.zed/settings.json` points the server at `dist/debug/into-lsp` and `dist/debug/intolang-ipc`, and at the builtin packages in `packages`; relative paths are relative to the project.
 
-Install this directory once in that second Zed with `zed: install dev extension`; its profile keeps it for the next starts. `Into: attach to into-lsp` attaches CodeLLDB to a running `into-lsp` or `intolang-ipc` that you pick in the process list.
+The task `Into: build language server` only rebuilds the two programs. `Into: attach to into-lsp` and `Into: attach to intolang-ipc` make CodeLLDB wait for a process of `dist/debug/into-lsp` or `dist/debug/intolang-ipc` to start and attach to it; start one of them, then open an `.into` file in the second Zed so that it starts the server.
 
 ## Settings
 

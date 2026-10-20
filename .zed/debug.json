@@ -3,13 +3,30 @@
     "label": "Into: Zed with the language server",
     "adapter": "CodeLLDB",
     "request": "launch",
-    "program": "$ZED_WORKTREE_ROOT/.zed/launch-zed.sh",
+    "program": "/run/current-system/sw/bin/zeditor",
+    "args": [
+      "--foreground",
+      "--user-data-dir",
+      "$ZED_WORKTREE_ROOT/dist/zed-dev",
+      "$ZED_WORKTREE_ROOT"
+    ],
+    "env": { "RUST_LOG": "info" },
     "cwd": "$ZED_WORKTREE_ROOT",
-    "build": { "label": "Into: build language server" }
+    "initCommands": ["process handle SIGCHLD --stop false --pass true --notify false"],
+    "build": "Into: prepare Zed debug session"
   },
   {
     "label": "Into: attach to into-lsp",
     "adapter": "CodeLLDB",
-    "request": "attach"
+    "request": "attach",
+    "program": "$ZED_WORKTREE_ROOT/dist/debug/into-lsp",
+    "waitFor": true
+  },
+  {
+    "label": "Into: attach to intolang-ipc",
+    "adapter": "CodeLLDB",
+    "request": "attach",
+    "program": "$ZED_WORKTREE_ROOT/dist/debug/intolang-ipc",
+    "waitFor": true
   }
 ]

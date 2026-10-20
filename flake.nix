@@ -55,6 +55,7 @@
               pkgs.pkg-config
               pkgs.nodejs
               pkgs.pnpm
+              pkgs.vscode-extensions.vadimcn.vscode-lldb.adapter
             ];
 
             LLVM_SYS_231_PREFIX = "${llvm.dev}";
@@ -90,6 +91,7 @@
               pkgs.pkg-config
               pkgs.nodejs
               pkgs.pnpm
+              pkgs.vscode-extensions.vadimcn.vscode-lldb.adapter
               pkgs.wayland
               pkgs.wayland-protocols
               pkgs.wayland-scanner

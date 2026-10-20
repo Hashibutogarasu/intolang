@@ -17,5 +17,14 @@
     "use_new_terminal": false,
     "allow_concurrent_runs": false,
     "reveal": "always"
+  },
+  {
+    "label": "Into: prepare Zed debug session",
+    "command": "sh",
+    "args": [".zed/prepare-zed-profile.sh"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
   }
 ]
