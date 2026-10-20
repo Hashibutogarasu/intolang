@@ -6,6 +6,9 @@ use crate::style::now;
 /// The mark of a line whose work is done.
 pub(crate) const DONE: &str = "✓";
 
+/// The mark of a line whose work failed.
+pub(crate) const FAILED: &str = "✗";
+
 /// The mark of a line whose work goes on.
 pub(crate) const PENDING: &str = " ";
 

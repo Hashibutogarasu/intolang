@@ -52,6 +52,23 @@ fn the_human_format_writes_the_error_and_its_code_to_stderr() {
 }
 
 #[test]
+fn a_build_that_fails_marks_its_last_line_with_a_cross() {
+    let project = Project::new("cross", "init { into x = ; }");
+    let output = into(
+        &[Path::new("build"), Path::new("--vm"), &project.root],
+        "human",
+    );
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let cross = stderr
+        .lines()
+        .find(|line| line.starts_with("[✗]"))
+        .unwrap_or_else(|| panic!("{stderr}"));
+    assert!(cross.contains("Lowering the Into sources"), "{stderr}");
+    assert!(!stderr.contains("[✓]"), "{stderr}");
+}
+
+#[test]
 fn the_json_format_writes_the_context_to_stdout() {
     let project = Project::new("json", "init { into x = ; }");
     let output = into(

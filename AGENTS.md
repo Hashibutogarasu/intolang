@@ -356,6 +356,10 @@ has a test in the `tests/` directory of the crate that implements it.
   which runs.
 - Legacy single-dash flags are accepted and normalized: `-test`, `-run`,
   `-format`, `-depth`.
+- The progress line of a command (`progress::Progress`) shows a spinner in its
+  brackets and a green check mark when `finish` ends it. A `Progress` that is
+  dropped before `finish`, as when the build fails, keeps its last message and
+  shows a red cross instead (`[✗]`, also on a stream that is not a terminal).
 - `build --vm` writes an `.inex` file instead of calling LLVM and the linker,
   for executables only; `run --vm` builds it and runs it. `build --test` runs the
   tests in the VM.
