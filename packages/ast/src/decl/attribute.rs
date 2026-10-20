@@ -1,4 +1,4 @@
-use anyhow::Result;
+use errors::Result;
 use types::Punct;
 
 use crate::{Cursor, Expr};
@@ -34,7 +34,7 @@ impl Attribute {
 }
 
 impl TryFrom<&mut Cursor<'_>> for Attribute {
-    type Error = anyhow::Error;
+    type Error = errors::Error;
 
     fn try_from(cursor: &mut Cursor<'_>) -> Result<Self> {
         let line = cursor.line();

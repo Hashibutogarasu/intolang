@@ -1,4 +1,4 @@
-use anyhow::Result;
+use errors::Result;
 use parser::{ArithmeticLexeme, ComparisonLexeme, LogicalLexeme};
 use std::fmt;
 use std::str::FromStr;
@@ -254,7 +254,7 @@ impl fmt::Display for Expr {
 }
 
 impl FromStr for Expr {
-    type Err = anyhow::Error;
+    type Err = errors::Error;
 
     fn from_str(source: &str) -> Result<Self> {
         let tokens = tokenizer::Tokens::try_from(source)?;
@@ -268,7 +268,7 @@ impl FromStr for Expr {
 }
 
 impl TryFrom<&mut Cursor<'_>> for Expr {
-    type Error = anyhow::Error;
+    type Error = errors::Error;
 
     fn try_from(cursor: &mut Cursor<'_>) -> Result<Self> {
         logical(cursor, LogicalOperator::Or)

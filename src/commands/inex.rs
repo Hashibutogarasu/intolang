@@ -78,7 +78,7 @@ pub(super) fn assemble(
 fn add_file(bundle: &mut Bundle, target: &str, source: &Path) -> Result<()> {
     let contents =
         std::fs::read(source).with_context(|| format!("Could not read {}", source.display()))?;
-    bundle.add_file(target, contents, FILE_MODE)
+    Ok(bundle.add_file(target, contents, FILE_MODE)?)
 }
 
 /// Write `inex` to `output`, executable where the platform has such a mode.

@@ -1,4 +1,4 @@
-use anyhow::Result;
+use errors::Result;
 use types::{Keyword, Punct};
 
 use super::param::Param;
@@ -38,7 +38,7 @@ impl EventDecl {
 }
 
 impl TryFrom<&mut Cursor<'_>> for EventDecl {
-    type Error = anyhow::Error;
+    type Error = errors::Error;
 
     fn try_from(cursor: &mut Cursor<'_>) -> Result<Self> {
         let line = cursor.line();

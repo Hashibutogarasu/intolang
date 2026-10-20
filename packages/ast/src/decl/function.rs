@@ -1,4 +1,4 @@
-use anyhow::Result;
+use errors::Result;
 use parser::{KeywordLexeme, LanguageLexeme};
 use types::{Keyword, Language, Punct};
 
@@ -61,7 +61,7 @@ impl FunctionDecl {
 }
 
 impl TryFrom<&mut Cursor<'_>> for FunctionDecl {
-    type Error = anyhow::Error;
+    type Error = errors::Error;
 
     fn try_from(cursor: &mut Cursor<'_>) -> Result<Self> {
         let attributes = Attribute::parse_all(cursor)?;

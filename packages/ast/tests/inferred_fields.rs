@@ -1,4 +1,4 @@
-use ast::{Program, SyntaxError};
+use ast::Program;
 
 fn class(source: &str) -> ast::ClassDecl {
     let program: Program = source.parse().unwrap();
@@ -66,7 +66,7 @@ fn a_field_needs_a_type_or_a_value() {
 "#
     .parse::<Program>()
     .unwrap_err();
-    let syntax = error.downcast_ref::<SyntaxError>().unwrap();
+    let syntax = error.resolved_context();
     assert!(
         syntax.message.contains("needs a type or a value"),
         "{}",
@@ -82,7 +82,7 @@ fn a_value_that_has_no_obvious_type_is_rejected() {
 "#
     .parse::<Program>()
     .unwrap_err();
-    let syntax = error.downcast_ref::<SyntaxError>().unwrap();
+    let syntax = error.resolved_context();
     assert!(
         syntax.message.contains("cannot be inferred"),
         "{}",

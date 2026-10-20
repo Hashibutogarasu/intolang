@@ -1,4 +1,4 @@
-use anyhow::Result;
+use errors::Result;
 use types::{Keyword, Punct};
 
 use super::block::{Scope, parse_block};
@@ -226,7 +226,7 @@ impl Stmt {
 }
 
 impl TryFrom<&mut Cursor<'_>> for Stmt {
-    type Error = anyhow::Error;
+    type Error = errors::Error;
 
     fn try_from(cursor: &mut Cursor<'_>) -> Result<Self> {
         Stmt::parse(cursor, Scope::Module)

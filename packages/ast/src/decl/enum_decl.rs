@@ -1,4 +1,4 @@
-use anyhow::Result;
+use errors::Result;
 use types::{Keyword, Punct, TokenKind};
 
 use crate::{Cursor, SyntaxError};
@@ -24,7 +24,7 @@ impl EnumDecl {
 }
 
 impl TryFrom<&mut Cursor<'_>> for EnumDecl {
-    type Error = anyhow::Error;
+    type Error = errors::Error;
 
     fn try_from(cursor: &mut Cursor<'_>) -> Result<Self> {
         let line = cursor.line();

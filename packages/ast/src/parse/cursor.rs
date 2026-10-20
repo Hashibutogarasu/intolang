@@ -1,4 +1,4 @@
-use anyhow::{Error, Result};
+use errors::{Error, Result};
 use parser::{KeywordLexeme, PunctLexeme};
 use types::{Keyword, Punct, Token, TokenKind};
 

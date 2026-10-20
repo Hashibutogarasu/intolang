@@ -1,5 +1,5 @@
 use anyhow::{Result, anyhow, bail};
-use ast::{Program, SyntaxError};
+use ast::Program;
 use intovm::VmOptions;
 use parser::PathLexeme;
 use std::path::Path;
@@ -15,7 +15,7 @@ pub fn run_tests(source: &str, path: &Path, packages_dir: &Path) -> Result<TestS
     let path_text = PathLexeme::from(path).to_string();
     let program = source
         .parse::<Program>()
-        .map_err(|error| SyntaxError::bind(error, &path_text))?;
+        .map_err(|error| error.bound_to(&path_text))?;
     let imported = moduler::resolve(&program, packages_dir)?;
     let package = moduler::find_by_alias(packages_dir, BUILTIN_ALIAS)?
         .ok_or_else(|| anyhow!("Builtin package is not bundled"))?;

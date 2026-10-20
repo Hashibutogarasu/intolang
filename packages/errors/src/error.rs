@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::context::ErrorContext;
+use crate::context::{ErrorContext, SourceSpan};
 use crate::errors::{Domain, Errors};
 use crate::report::{ErrorReport, HumanReport, ReportFormat};
 use crate::trace::{
@@ -54,6 +54,37 @@ impl Error {
         if self.kind.domain() == Domain::IntoLang {
             self.trace.into = Some(trace);
         }
+        self
+    }
+
+    /// Bind an error of the Into program that knows its line to the source `path` it was found
+    /// in: the path joins its context and the Into language layer gets its frame. Other errors,
+    /// and errors that are bound already, are left as they are.
+    pub fn bound_to(mut self, path: &str) -> Self {
+        if self.kind.domain() != Domain::IntoLang || self.trace.into.is_some() {
+            return self;
+        }
+        let scope = self
+            .context
+            .as_ref()
+            .and_then(|context| context.syntax.as_ref())
+            .map_or_else(|| "module".to_string(), |syntax| syntax.scope.clone());
+        let line = match (&self.kind, &self.context) {
+            (Errors::UnterminatedString { line } | Errors::UnterminatedChar { line }, _) => *line,
+            (_, Some(context)) => match context.span {
+                Some(span) => span.line,
+                None => return self,
+            },
+            _ => return self,
+        };
+        let mut context = self
+            .context
+            .take()
+            .unwrap_or_else(|| ErrorContext::of(&self.kind));
+        context.path = Some(path.to_string());
+        context.span.get_or_insert(SourceSpan::on_line(line));
+        self.trace.into = Some(IntoLangStackTrace::at(scope, path, line));
+        self.context = Some(context);
         self
     }
 

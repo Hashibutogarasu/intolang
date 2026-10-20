@@ -1,4 +1,4 @@
-use anyhow::Result;
+use errors::Result;
 use types::{Keyword, Punct, Storage};
 
 use crate::{Cursor, Expr, TypeRef};
@@ -33,7 +33,7 @@ impl Declaration {
 }
 
 impl TryFrom<&mut Cursor<'_>> for Declaration {
-    type Error = anyhow::Error;
+    type Error = errors::Error;
 
     fn try_from(cursor: &mut Cursor<'_>) -> Result<Self> {
         let constant = cursor.eat_keyword(Keyword::Const);

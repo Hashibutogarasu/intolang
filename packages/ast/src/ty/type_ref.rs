@@ -1,4 +1,4 @@
-use anyhow::Result;
+use errors::Result;
 use parser::TypeLexeme;
 use std::collections::HashSet;
 use std::fmt;
@@ -83,7 +83,7 @@ impl From<&str> for TypeRef {
 }
 
 impl TryFrom<&mut Cursor<'_>> for TypeRef {
-    type Error = anyhow::Error;
+    type Error = errors::Error;
 
     fn try_from(cursor: &mut Cursor<'_>) -> Result<Self> {
         Self::parse(cursor, true)

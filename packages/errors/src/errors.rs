@@ -98,6 +98,28 @@ declare_errors! {
         Codegen { message: String } = 0xA001,
         #[error("{message}")]
         Io { message: String } = 0xB001,
+        #[error("Could not read {path}: {reason}")]
+        Read { path: String, reason: String } = 0xB002,
+        #[error("Could not write {path}: {reason}")]
+        Write { path: String, reason: String } = 0xB003,
+        #[error("Could not {action} {path}: {reason}")]
+        FileAction { action: String, path: String, reason: String } = 0xB004,
+        #[error("A bundle path cannot be empty")]
+        BundlePathEmpty = 0xB101,
+        #[error("`{path}` is absolute; a bundle path is relative")]
+        BundlePathAbsolute { path: String } = 0xB102,
+        #[error("`{path}` holds a character a bundle path cannot hold")]
+        BundlePathCharacter { path: String } = 0xB103,
+        #[error("`{path}` has an empty component")]
+        BundlePathEmptyComponent { path: String } = 0xB104,
+        #[error("`{path}` has the component `{component}`")]
+        BundlePathDotComponent { path: String, component: String } = 0xB105,
+        #[error("`{path}` is already in the bundle")]
+        BundleDuplicate { path: String } = 0xB106,
+        #[error("`{path}` is a file, not a directory")]
+        BundleNotDirectory { path: String } = 0xB107,
+        #[error("`{path}` nests too deep")]
+        BundleTooDeep { path: String } = 0xB108,
         #[error("{message}")]
         Internal { message: String } = 0xC001,
         #[error("{message}")]

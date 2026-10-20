@@ -1,5 +1,5 @@
 use anyhow::{Result, anyhow};
-use ast::{Item, Program, Stmt, SyntaxError};
+use ast::{Item, Program, Stmt};
 use parser::PathLexeme;
 use std::path::Path;
 
@@ -61,7 +61,7 @@ fn lower_entry(
 ) -> Result<String> {
     let program = source
         .parse::<Program>()
-        .map_err(|error| SyntaxError::bind(error, source_path))?;
+        .map_err(|error| error.bound_to(source_path))?;
     let mut env = prepare(&program, packages_dir, source_path)?;
     env.strict_calls = test.is_some();
 

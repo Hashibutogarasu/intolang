@@ -1,4 +1,4 @@
-use anyhow::Result;
+use errors::Result;
 use types::{Keyword, Punct};
 
 use super::attribute::Attribute;
@@ -22,7 +22,7 @@ impl MacroDecl {
 }
 
 impl TryFrom<&mut Cursor<'_>> for MacroDecl {
-    type Error = anyhow::Error;
+    type Error = errors::Error;
 
     fn try_from(cursor: &mut Cursor<'_>) -> Result<Self> {
         let line = cursor.line();

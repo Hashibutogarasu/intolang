@@ -1,5 +1,5 @@
 use anyhow::Result;
-use ast::{Program, SyntaxError};
+use ast::Program;
 use moduler::NativeFunction;
 use parser::PathLexeme;
 use std::path::Path;
@@ -12,6 +12,6 @@ pub fn lower_library(
 ) -> Result<Vec<NativeFunction>> {
     let program = source
         .parse::<Program>()
-        .map_err(|error| SyntaxError::bind(error, &PathLexeme::from(source_path).to_string()))?;
+        .map_err(|error| error.bound_to(&PathLexeme::from(source_path).to_string()))?;
     moduler::lower_library(&program, source_path, packages_dir)
 }

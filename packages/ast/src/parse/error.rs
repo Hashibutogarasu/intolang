@@ -1,4 +1,4 @@
-use errors::{Error, ErrorContext, Errors, IntoLangStackTrace, SourceSpan, SyntaxContext};
+use errors::{Error, ErrorContext, Errors, SourceSpan, SyntaxContext};
 use std::fmt;
 use types::Span;
 
@@ -6,6 +6,8 @@ const MODULE_SCOPE: &str = "module";
 
 /// A syntax error found while building the AST, with the line it occurred on and what the
 /// parser knew about the place: the span of the token, what it expected and what it found.
+/// It becomes an `errors::Error` of the Into language, which is bound to its source path with
+/// `errors::Error::bound_to`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyntaxError {
     pub line: usize,
@@ -60,39 +62,23 @@ impl SyntaxError {
         self
     }
 
-    /// The error as an `errors::Error` of the Into language bound to `path`.
-    pub fn into_error(&self, path: &str) -> Error {
+    pub fn into_error(self) -> Error {
         let kind = Errors::Syntax {
-            message: self.message.clone(),
+            message: self.message,
         };
         let mut syntax = SyntaxContext::in_scope(self.scope);
-        syntax.expected = self.expected.clone();
-        syntax.found = self.found.clone();
-        syntax.hint = self.hint.clone();
-        let span = self.span.unwrap_or_else(|| SourceSpan::on_line(self.line));
-        let context = ErrorContext::of(&kind).at(path, span).with_syntax(syntax);
-        Error::into_lang(kind, IntoLangStackTrace::at(self.scope, path, self.line))
-            .with_context(context)
+        syntax.expected = self.expected;
+        syntax.found = self.found;
+        syntax.hint = self.hint;
+        let mut context = ErrorContext::of(&kind).with_syntax(syntax);
+        context.span = Some(self.span.unwrap_or_else(|| SourceSpan::on_line(self.line)));
+        Error::new(kind).with_context(context)
     }
+}
 
-    /// Bind a parse failure to the source path it occurred in. Failures of the
-    /// tokenizer that know their line are bound too; others pass through.
-    pub fn bind(error: anyhow::Error, path: &str) -> anyhow::Error {
-        if let Some(syntax) = error.downcast_ref::<Self>() {
-            return syntax.into_error(path).into();
-        }
-        if let Some(found) = error.downcast_ref::<Error>() {
-            let line = match found.kind() {
-                Errors::UnterminatedString { line } | Errors::UnterminatedChar { line } => *line,
-                _ => return error,
-            };
-            let kind = found.kind().clone();
-            let context = ErrorContext::of(&kind).at(path, SourceSpan::on_line(line));
-            return Error::into_lang(kind, IntoLangStackTrace::at(MODULE_SCOPE, path, line))
-                .with_context(context)
-                .into();
-        }
-        error
+impl From<SyntaxError> for Error {
+    fn from(error: SyntaxError) -> Self {
+        error.into_error()
     }
 }
 
