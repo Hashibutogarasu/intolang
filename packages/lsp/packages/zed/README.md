@@ -13,9 +13,9 @@ Install this directory with `zed: install dev extension`.
 
 ## Debugging from this repository
 
-Open the repository in Zed and press `F5`, then pick `Into: Zed with the language server`. It builds `into-lsp` and `intolang-ipc` with the task `Into: build language server` and starts a second Zed in the foreground on the repository (`.zed/launch-zed.sh`, which needs `zed` on the `PATH`), so the logs of the extension and of the server appear in the debug terminal. `.zed/settings.json` points the server at `dist/debug/into-lsp` and `dist/debug/intolang-ipc`, and at the builtin packages in `packages`; relative paths are relative to the project.
+Open the repository in Zed and press `F5`, then pick `Into: Zed with the language server`. It builds `into-lsp` and `intolang-ipc` with the task `Into: build language server` and starts a second Zed in the foreground on the repository with its own profile in `dist/zed-dev` (`.zed/launch-zed.sh`, which needs `zed`, `zeditor` or `zed-editor` on the `PATH`), so the logs of the extension and of the server appear in the debug terminal. `.zed/settings.json` points the server at `dist/debug/into-lsp` and `dist/debug/intolang-ipc`, and at the builtin packages in `packages`; relative paths are relative to the project.
 
-Install this directory once with `zed: install dev extension`; Zed keeps it for the next starts. `Into: attach to into-lsp` attaches CodeLLDB to a running `into-lsp` or `intolang-ipc` that you pick in the process list.
+Install this directory once in that second Zed with `zed: install dev extension`; its profile keeps it for the next starts. `Into: attach to into-lsp` attaches CodeLLDB to a running `into-lsp` or `intolang-ipc` that you pick in the process list.
 
 ## Settings
 
