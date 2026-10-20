@@ -9,15 +9,14 @@ cargo install --path packages/lsp
 cargo install --path packages/analysis
 ```
 
-Build and try the extension:
+Node.js, npm and pnpm come from the Nix shell of the repository (`nix develop` or `nix develop .#llvm`), so their versions are pinned by `flake.lock`. Build the extension from the repository root:
 
 ```sh
-cd packages/lsp/packages/vscode
-npm install
-npm run compile
+nix develop .#llvm -c pnpm --dir packages/lsp/packages/vscode install
+nix develop .#llvm -c pnpm --dir packages/lsp/packages/vscode run compile
 ```
 
-Then press `F5` in this folder, or run `npm run package` for a `.vsix` file.
+Then press `F5` in this folder, or run `pnpm run package` for a `.vsix` file.
 
 | Setting | Meaning |
 | --- | --- |

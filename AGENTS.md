@@ -78,6 +78,9 @@ reads `src/main/tests/assert.into` of the builtin package.
   shell for building and testing the Rust workspace: LLVM 23, lld, `cargo`/`rustc`,
   `zlib`, `libxml2` and `pkg-config`, without the example and codex dependencies
   and without building the `into` binary in the shell hook.
+- Both shells provide `node`, `npm` and `pnpm` (versions pinned by `flake.lock`) for
+  the VS Code extension; run them through the shell, for example
+  `nix develop .#llvm -c pnpm --dir packages/lsp/packages/vscode run compile`.
 - Native example packages need their system libraries (e.g. `wayland-client`,
   Vulkan loader). C/C++ native modules are compiled with `cc`/`c++` (override via
   the `CC`/`CXX` env vars) and dependencies are resolved through `pkg-config`.
