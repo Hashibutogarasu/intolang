@@ -2,9 +2,9 @@
 
 use analysis::Analyzer;
 use ipc::{
-    Diagnostic, DocumentChange, DocumentClose, DocumentOpen, DocumentQuery, Handler, Hover,
-    InitializeParams, Location, Notification, PROTOCOL_VERSION, Position, Reply, Request, Symbol,
-    TextEdit,
+    CompletionItem, Diagnostic, DocumentChange, DocumentClose, DocumentOpen, DocumentQuery,
+    Handler, Hover, InitializeParams, Location, Notification, PROTOCOL_VERSION, Position, Reply,
+    Request, Symbol, TextEdit,
 };
 
 pub struct Session {
@@ -127,6 +127,16 @@ impl Session {
             .handle(Request::Format(Self::query(uri, Position::default())))
         {
             Ok(Reply::Format(edits)) => edits,
+            other => panic!("unexpected {other:?}"),
+        }
+    }
+
+    pub fn complete(&mut self, uri: &str, position: Position) -> Vec<CompletionItem> {
+        match self
+            .analyzer
+            .handle(Request::Completion(Self::query(uri, position)))
+        {
+            Ok(Reply::Completion(items)) => items,
             other => panic!("unexpected {other:?}"),
         }
     }

@@ -1,9 +1,10 @@
 use ipc::{DocumentQuery, IpcError, Notification, Reply, Request, Transport};
 use lsp_server::{ErrorCode, ResponseError};
 use lsp_types::{
-    DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    DocumentFormattingParams, DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams,
-    GotoDefinitionResponse, HoverParams, PublishDiagnosticsParams,
+    CompletionParams, CompletionResponse, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
+    DidOpenTextDocumentParams, DocumentFormattingParams, DocumentSymbolParams,
+    DocumentSymbolResponse, GotoDefinitionParams, GotoDefinitionResponse, HoverParams,
+    PublishDiagnosticsParams,
 };
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -62,6 +63,23 @@ impl<T: Transport> Server<T> {
                     locations
                         .iter()
                         .filter_map(|found| convert::location(&self.documents, found))
+                        .collect(),
+                ))
+            }
+            "textDocument/completion" => {
+                let params: CompletionParams = parse(params)?;
+                let position = params.text_document_position;
+                let uri = position.text_document.uri.as_str().to_owned();
+                let query = self.query(&uri, position.position);
+                let items = match self.bridge.request(Request::Completion(query)) {
+                    Ok(Reply::Completion(items)) => items,
+                    Ok(_) | Err(BridgeError::Ipc(_)) => Vec::new(),
+                    Err(error) => return Err(failure(error)),
+                };
+                respond(CompletionResponse::Array(
+                    items
+                        .into_iter()
+                        .map(|found| convert::completion(&self.documents, &uri, found))
                         .collect(),
                 ))
             }

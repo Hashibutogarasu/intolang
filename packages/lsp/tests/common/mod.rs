@@ -4,9 +4,9 @@ use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 
 use ipc::{
-    Diagnostic, Documentation, Handler, Hover, InitializeResult, IpcError, Location,
-    MemoryTransport, Notification, Position, Range, Reply, Request, Severity, Symbol, SymbolKind,
-    TextEdit, memory_pair, serve,
+    CompletionItem, CompletionKind, Diagnostic, Documentation, Handler, Hover, InitializeResult,
+    IpcError, Location, MemoryTransport, Notification, Position, Range, Reply, Request, Severity,
+    Symbol, SymbolKind, TextEdit, memory_pair, serve,
 };
 use lsp::{Bridge, Server};
 
@@ -62,6 +62,35 @@ impl Handler for Scripted {
                     container: None,
                     range: range(0, 3),
                     name_range: range(0, 3),
+                },
+            ])),
+            Request::Completion(_) => Ok(Reply::Completion(vec![
+                CompletionItem {
+                    label: "alpha".into(),
+                    kind: CompletionKind::Function,
+                    detail: Some("pub fun alpha()".into()),
+                    documentation: None,
+                    range: range(0, 1),
+                    text: "alpha".into(),
+                    snippet: false,
+                },
+                CompletionItem {
+                    label: "deep".into(),
+                    kind: CompletionKind::Folder,
+                    detail: None,
+                    documentation: None,
+                    range: range(0, 1),
+                    text: "deep/".into(),
+                    snippet: false,
+                },
+                CompletionItem {
+                    label: "(a) => { }".into(),
+                    kind: CompletionKind::Snippet,
+                    detail: None,
+                    documentation: None,
+                    range: range(0, 0),
+                    text: "(${1:a}) => {\n\t$0\n}".into(),
+                    snippet: true,
                 },
             ])),
             Request::Format(_) => Ok(Reply::Format(vec![TextEdit {

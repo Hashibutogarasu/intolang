@@ -144,6 +144,23 @@ impl Handler for Analyzer {
                     None => Vec::new(),
                 }))
             }
+            Request::Completion(query) => {
+                let document = self.document(&query.uri)?;
+                let path = uri_to_path(&query.uri);
+                let source = Source {
+                    uri: &query.uri,
+                    path: path.as_deref(),
+                    text: &document.text,
+                    line_index: &document.line_index,
+                    packages_dir: self.packages_dir(),
+                };
+                Ok(Reply::Completion(features::completion(
+                    &source,
+                    document.analysis.as_ref(),
+                    &self.buffers(),
+                    query.position,
+                )))
+            }
             Request::Format(query) => {
                 let document = self.document(&query.uri)?;
                 Ok(Reply::Format(features::format(

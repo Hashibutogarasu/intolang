@@ -36,7 +36,7 @@ pub fn hover(
             documentation: None,
             range: line_index.range(token),
         }),
-        Resolved::Module { target, token } => Some(Hover {
+        Resolved::Module { target, token, .. } => Some(Hover {
             signature: format!(
                 "package {} {} ({})",
                 target.package.name, target.package.version, target.package.alias

@@ -3,7 +3,8 @@ mod common;
 use common::{Log, URI, server};
 use ipc::Request;
 use lsp_types::{
-    DocumentSymbolResponse, GotoDefinitionResponse, Hover, HoverContents, NumberOrString,
+    CompletionItemKind, CompletionResponse, CompletionTextEdit, DocumentSymbolResponse,
+    GotoDefinitionResponse, Hover, HoverContents, InsertTextFormat, NumberOrString,
     PublishDiagnosticsParams, TextEdit,
 };
 use serde_json::{Value, json};
@@ -141,6 +142,43 @@ fn formatting_answers_text_edits() {
 }
 
 #[test]
+fn completion_answers_edits_that_replace_the_prefix() {
+    let mut server = server(&Log::default());
+    open(&mut server, "😀ab\n");
+    let value = server.request("textDocument/completion", at(0, 2)).unwrap();
+    let CompletionResponse::Array(items) = serde_json::from_value(value).unwrap() else {
+        panic!("an array expected");
+    };
+    assert_eq!(items.len(), 3);
+    assert_eq!(items[0].label, "alpha");
+    assert_eq!(items[0].kind, Some(CompletionItemKind::FUNCTION));
+    assert_eq!(
+        items[0].insert_text_format,
+        Some(InsertTextFormat::PLAIN_TEXT)
+    );
+    let Some(CompletionTextEdit::Edit(edit)) = &items[0].text_edit else {
+        panic!("a text edit expected");
+    };
+    assert_eq!(edit.new_text, "alpha");
+    assert_eq!(edit.range.start.character, 0);
+    assert_eq!(edit.range.end.character, 2);
+}
+
+#[test]
+fn a_folder_asks_for_the_next_suggestions_and_a_snippet_says_so() {
+    let mut server = server(&Log::default());
+    open(&mut server, "ab\n");
+    let value = server.request("textDocument/completion", at(0, 0)).unwrap();
+    let CompletionResponse::Array(items) = serde_json::from_value(value).unwrap() else {
+        panic!("an array expected");
+    };
+    assert_eq!(items[1].kind, Some(CompletionItemKind::FOLDER));
+    assert!(items[1].command.is_some());
+    assert!(items[0].command.is_none());
+    assert_eq!(items[2].insert_text_format, Some(InsertTextFormat::SNIPPET));
+}
+
+#[test]
 fn an_unknown_method_and_bad_parameters_are_errors() {
     let mut server = server(&Log::default());
     let error = server
@@ -157,6 +195,11 @@ fn an_unknown_method_and_bad_parameters_are_errors() {
 fn the_capabilities_name_what_the_server_answers() {
     let capabilities = lsp::capabilities();
     assert!(capabilities.hover_provider.is_some());
+    let completion = capabilities.completion_provider.unwrap();
+    assert_eq!(
+        completion.trigger_characters.unwrap(),
+        [".", "/", ":", "\""]
+    );
     assert!(capabilities.definition_provider.is_some());
     assert!(capabilities.document_symbol_provider.is_some());
     assert!(capabilities.document_formatting_provider.is_some());

@@ -10,9 +10,9 @@ pub use client::Client;
 pub use handler::Handler;
 pub use message::{IpcError, Message, Notification, Reply, Request};
 pub use protocol::{
-    Diagnostic, DocumentChange, DocumentClose, DocumentOpen, DocumentQuery, Documentation, Hover,
-    InitializeParams, InitializeResult, Location, Position, Range, RelatedDiagnostic, Severity,
-    Symbol, SymbolKind, TextEdit,
+    CompletionItem, CompletionKind, Diagnostic, DocumentChange, DocumentClose, DocumentOpen,
+    DocumentQuery, Documentation, Hover, InitializeParams, InitializeResult, Location, Position,
+    Range, RelatedDiagnostic, Severity, Symbol, SymbolKind, TextEdit,
 };
 pub use serve::serve;
 pub use transport::{Lines, MemoryTransport, Transport, memory_pair};

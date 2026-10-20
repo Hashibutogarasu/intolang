@@ -75,11 +75,51 @@ fn the_import_string_jumps_to_the_module_file() {
     let base = packages();
     let mut editor = session_with(Some(base.to_str().unwrap()));
     editor.open(URI, PROGRAM);
-    let locations = editor.definition(URI, position_of(PROGRAM, "util://", 0));
+    let locations = editor.definition(URI, position_of(PROGRAM, "tools", 0));
     assert_eq!(locations.len(), 1);
     assert_eq!(
         locations[0].uri,
         path_to_uri(&base.join("util/src/main/tools.into"))
+    );
+    fs::remove_dir_all(base).unwrap();
+}
+
+#[test]
+fn the_scheme_of_an_import_jumps_to_the_package_manifest() {
+    let base = packages();
+    let mut editor = session_with(Some(base.to_str().unwrap()));
+    editor.open(URI, PROGRAM);
+    for needle in ["util://", "://"] {
+        let locations = editor.definition(URI, position_of(PROGRAM, needle, 0));
+        assert_eq!(locations.len(), 1);
+        assert_eq!(
+            locations[0].uri,
+            path_to_uri(&base.join("util/into-package.json"))
+        );
+    }
+    fs::remove_dir_all(base).unwrap();
+}
+
+#[test]
+fn a_directory_of_the_path_jumps_to_the_folder() {
+    let base = packages();
+    fs::create_dir_all(base.join("util/src/main/deep")).unwrap();
+    fs::write(
+        base.join("util/src/main/deep/leaf.into"),
+        "pub fun leaf(): Int32 {\n    return 1;\n}\n",
+    )
+    .unwrap();
+    let program = "import \"util://deep/leaf\";\n";
+    let mut editor = session_with(Some(base.to_str().unwrap()));
+    editor.open(URI, program);
+    let folder = editor.definition(URI, position_of(program, "deep", 0));
+    assert_eq!(folder.len(), 1);
+    assert_eq!(folder[0].uri, path_to_uri(&base.join("util/src/main/deep")));
+    let file = editor.definition(URI, position_of(program, "leaf\"", 0));
+    assert_eq!(file.len(), 1);
+    assert_eq!(
+        file[0].uri,
+        path_to_uri(&base.join("util/src/main/deep/leaf.into"))
     );
     fs::remove_dir_all(base).unwrap();
 }
@@ -107,7 +147,7 @@ fn an_export_is_resolved_like_an_import() {
     let text = "export \"util://tools/half\";\nexport \"util://std/print\";\n";
     editor.open(&info, text);
     let module = path_to_uri(&base.join("util/src/main/tools.into"));
-    let jump = editor.definition(&info, position_of(text, "util://tools", 0));
+    let jump = editor.definition(&info, position_of(text, "tools", 0));
     assert_eq!(jump[0].uri, module);
     let hover = editor.hover(&info, position_of(text, "export", 0)).unwrap();
     assert_eq!(hover.signature, "package util 0.1.0 (util)");
@@ -120,7 +160,7 @@ fn a_module_without_a_file_jumps_to_the_list_of_exports() {
     let mut editor = session_with(Some(base.to_str().unwrap()));
     let program = "import \"util://std\";\n";
     editor.open(URI, program);
-    let locations = editor.definition(URI, position_of(program, "util://", 0));
+    let locations = editor.definition(URI, position_of(program, "std", 0));
     assert_eq!(locations.len(), 1);
     assert_eq!(
         locations[0].uri,
@@ -171,7 +211,7 @@ fn an_import_jumps_into_a_module_nested_in_a_package() {
 "#;
     let mut editor = session_with(Some(base.to_str().unwrap()));
     editor.open(URI, program);
-    let locations = editor.definition(URI, position_of(program, "\"cpp://", 0));
+    let locations = editor.definition(URI, position_of(program, "time\"", 0));
     assert_eq!(locations.len(), 1);
     assert_eq!(
         locations[0].uri,

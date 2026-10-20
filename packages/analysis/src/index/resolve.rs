@@ -10,6 +10,14 @@ use crate::analyzer::Analysis;
 const ROOT_CLASS: &str = "Object";
 const MAX_PARENTS: usize = 16;
 
+/// Where in the address of an `import` or `export` the cursor lies.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ModulePart {
+    Whole,
+    Scheme,
+    Path { prefix: String },
+}
+
 pub enum Resolved<'a> {
     Symbol {
         module: Option<usize>,
@@ -19,6 +27,7 @@ pub enum Resolved<'a> {
     Module {
         target: ImportTarget,
         token: Span,
+        part: ModulePart,
     },
     Native {
         native: &'a NativeRef,
@@ -57,13 +66,13 @@ pub fn resolve<'a>(
             if let Some(native) = link_attribute(analysis, position) {
                 return Some(native);
             }
-            module(analysis, token, token, packages_dir?)
+            module(analysis, token, token, offset, packages_dir?)
         }
         TokenKind::Identifier(word) if matches!(word.as_str(), "import" | "export") => {
             let uri = tokens
                 .get(position + 1)
                 .filter(|next| matches!(next.kind, TokenKind::String(_)))?;
-            module(analysis, token, uri, packages_dir?)
+            module(analysis, token, uri, offset, packages_dir?)
         }
         TokenKind::Identifier(word) if word == "break" => {
             enclosing_loop(tokens, position).map(|keyword| Resolved::Keyword {
@@ -246,19 +255,59 @@ fn module<'a>(
     analysis: &Analysis,
     token: &Token,
     uri: &Token,
+    offset: usize,
     packages_dir: &Path,
 ) -> Option<Resolved<'a>> {
     let within = |decl: &&ast::UseDecl| {
         decl.uri_span.0.start <= uri.span.start && uri.span.end <= decl.uri_span.0.end
     };
-    let target = match analysis.program.imports().find(within) {
-        Some(decl) => moduler::import_target(decl, packages_dir),
-        None => moduler::export_target(analysis.program.exports().find(within)?, packages_dir),
+    let (decl, target) = match analysis.program.imports().find(within) {
+        Some(decl) => (decl, moduler::import_target(decl, packages_dir)),
+        None => {
+            let decl = analysis.program.exports().find(within)?;
+            (decl, moduler::export_target(decl, packages_dir))
+        }
+    };
+    let part = if token.span == uri.span {
+        module_part(&decl.uri, offset.saturating_sub(uri.span.start + 1))
+    } else {
+        ModulePart::Whole
     };
     Some(Resolved::Module {
         target: target.ok()??,
         token: token.span,
+        part,
     })
+}
+
+/// The part of the address `uri` that the character `at` lies in.
+fn module_part(uri: &str, at: usize) -> ModulePart {
+    let Some((scheme, rest)) = uri.split_once("://") else {
+        return ModulePart::Scheme;
+    };
+    let mut scheme_length = scheme.chars().count() + "://".len();
+    let mut path = rest;
+    if scheme == moduler::BUILTIN_SCHEME {
+        let alias = rest.split('/').next().unwrap_or_default();
+        scheme_length += alias.chars().count();
+        path = rest[alias.len()..].strip_prefix('/').unwrap_or("");
+        if rest.len() > alias.len() {
+            scheme_length += 1;
+        }
+    }
+    if at < scheme_length || path.is_empty() {
+        return ModulePart::Scheme;
+    }
+    let path: Vec<char> = path.chars().collect();
+    let inside = at - scheme_length;
+    let end = path
+        .iter()
+        .skip(inside)
+        .position(|character| *character == '/')
+        .map_or(path.len(), |distance| inside + distance);
+    ModulePart::Path {
+        prefix: path[..end.min(path.len())].iter().collect(),
+    }
 }
 
 fn is_member(tokens: &[Token], position: usize) -> bool {
@@ -267,11 +316,15 @@ fn is_member(tokens: &[Token], position: usize) -> bool {
 
 type Found<'a> = Option<(Option<usize>, &'a Symbol)>;
 
-struct Scope<'a> {
+pub struct Scope<'a> {
     analysis: &'a Analysis,
 }
 
 impl<'a> Scope<'a> {
+    pub fn new(analysis: &'a Analysis) -> Self {
+        Self { analysis }
+    }
+
     fn indexes(&self) -> impl Iterator<Item = (Option<usize>, &'a Index)> {
         std::iter::once((None, &self.analysis.index)).chain(
             self.analysis
@@ -357,12 +410,64 @@ impl<'a> Scope<'a> {
             }
         }
         segments.reverse();
-        let mut current = self.root_type(segments[0], line)?;
-        for segment in &segments[1..] {
-            let (_, symbol) = self.member(&current, segment)?;
+        self.type_of_path(&segments, line)
+    }
+
+    /// The class of the value `a.b.c` names, found from the declared types.
+    pub fn type_of_path<S: AsRef<str>>(&self, segments: &[S], line: usize) -> Option<String> {
+        let (first, rest) = segments.split_first()?;
+        let mut current = self.root_type(first.as_ref(), line)?;
+        for segment in rest {
+            let (_, symbol) = self.member(&current, segment.as_ref())?;
             current = base_type(symbol.ty.as_deref()?);
         }
         Some(current)
+    }
+
+    /// The member of the class `class` or of its parents named `name`.
+    pub fn member_of(&self, class: &str, name: &str) -> Found<'a> {
+        self.member(class, name)
+    }
+
+    /// The symbol `name` stands for at the 1 based `line`.
+    pub fn named(&self, name: &str, line: usize) -> Found<'a> {
+        self.name(name, line)
+    }
+
+    /// The members of the class `class`, its parents and `Object`.
+    pub fn members_of(&self, class: &str) -> Vec<(Option<usize>, &'a Symbol)> {
+        let mut found = Vec::new();
+        let mut current = Some(class.to_owned());
+        for _ in 0..MAX_PARENTS {
+            let Some(class) = current else { break };
+            found.extend(self.indexes().flat_map(|(module, index)| {
+                index.members(&class).map(move |symbol| (module, symbol))
+            }));
+            current = self.parent_of(&class);
+        }
+        found.extend(
+            self.indexes()
+                .flat_map(|(module, index)| index.members(ROOT_CLASS).map(move |s| (module, s))),
+        );
+        found
+    }
+
+    /// Every symbol a name may stand for at the 1 based `line`: the locals, the
+    /// top-level names of the document and the public ones of its modules.
+    pub fn visible(&self, line: usize) -> Vec<(Option<usize>, &'a Symbol)> {
+        let mut found: Vec<_> = self
+            .analysis
+            .index
+            .visible_at(line)
+            .map(|symbol| (None, symbol))
+            .collect();
+        found.extend(self.indexes().flat_map(|(module, index)| {
+            index
+                .top_levels()
+                .filter(move |symbol| module.is_none() || symbol.public)
+                .map(move |symbol| (module, symbol))
+        }));
+        found
     }
 
     fn root_type(&self, name: &str, line: usize) -> Option<String> {

@@ -1,4 +1,5 @@
 mod analyzer;
+mod completion;
 mod docs;
 mod features;
 mod foreign;

@@ -90,6 +90,6 @@ init {
 fn a_nested_package_import_jumps_to_its_module() {
     let mut editor = session_with(Some(&packages()));
     let diagnostics = editor.open(URI, PROGRAM);
-    let locations = editor.definition(URI, position_of(PROGRAM, "\"cpp://", 0));
+    let locations = editor.definition(URI, position_of(PROGRAM, "time\"", 0));
     assert_eq!(locations.len(), 1, "{locations:?} {diagnostics:?}");
 }

@@ -6,7 +6,7 @@ use ipc::SymbolKind;
 use types::{Literal, Span};
 
 use super::signature;
-use super::symbol::{Index, NativeRef, Symbol};
+use super::symbol::{Index, NativeRef, ParamInfo, Symbol};
 use crate::docs::DocComments;
 
 impl Index {
@@ -77,6 +77,7 @@ impl Builder<'_> {
             local: false,
             owner: self.owner,
             native: None,
+            params: Vec::new(),
         }
     }
 
@@ -140,6 +141,7 @@ impl Builder<'_> {
             container: container.map(str::to_owned),
             signature: signature::function(decl),
             ty: decl.return_type.as_ref().map(ToString::to_string),
+            params: param_infos(&decl.params),
             public: decl.is_public || container.is_some(),
             ..self.symbol(
                 &decl.name,
@@ -170,6 +172,7 @@ impl Builder<'_> {
         self.push(Symbol {
             container: container.map(str::to_owned),
             signature: signature::event(decl),
+            params: param_infos(&decl.params),
             public: decl.is_public || container.is_some(),
             ..self.symbol(&decl.name, SymbolKind::Event, decl.name_span.0, decl.line)
         });
@@ -278,6 +281,16 @@ impl Builder<'_> {
             Expr::Literal(_) | Expr::Path(_) => {}
         }
     }
+}
+
+fn param_infos(params: &[Param]) -> Vec<ParamInfo> {
+    params
+        .iter()
+        .map(|param| ParamInfo {
+            name: param.name.clone(),
+            ty: param.ty.as_ref().map(ToString::to_string),
+        })
+        .collect()
 }
 
 fn native_reference(decl: &FunctionDecl) -> Option<NativeRef> {
