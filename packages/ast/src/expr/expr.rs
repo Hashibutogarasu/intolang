@@ -556,7 +556,7 @@ fn array(cursor: &mut Cursor<'_>) -> Result<Expr> {
             continue;
         }
         if cursor.peek_symbol(0) != Some(']') {
-            return Err(cursor.error("Expected `]` to close the array"));
+            return Err(cursor.error_expecting("`]`", "Expected `]` to close the array"));
         }
         cursor.bump();
         return Ok(Expr::Array(items));
@@ -571,13 +571,16 @@ fn object(cursor: &mut Cursor<'_>) -> Result<Expr> {
             return Ok(Expr::Object(entries));
         }
         let Some(key) = cursor.peek_string(0).map(str::to_owned) else {
-            return Err(cursor.error("Expected a text key or `}` in the object"));
+            return Err(cursor.error_expecting(
+                "a text key or `}`",
+                "Expected a text key or `}` in the object",
+            ));
         };
         cursor.bump();
         cursor.expect_punct(Punct::Colon, "`:` after the key")?;
         entries.push((key, Expr::try_from(&mut *cursor)?));
         if !cursor.eat_punct(Punct::Comma) && !cursor.is_punct(Punct::RightBrace) {
-            return Err(cursor.error("Expected `,` or `}` in the object"));
+            return Err(cursor.error_expecting("`,` or `}`", "Expected `,` or `}` in the object"));
         }
     }
 }

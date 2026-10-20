@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, bail};
+use errors::{Error, Errors, Result};
 use std::fmt;
 use std::str::FromStr;
 use types::{Span, Token, TokenKind};
@@ -37,7 +37,7 @@ impl FromStr for SymbolLexeme {
         let mut chars = text.chars();
         match (chars.next(), chars.next()) {
             (Some(symbol), None) => Ok(symbol.into()),
-            _ => bail!("`{text}` is not a single symbol"),
+            _ => Err(Errors::not_lexeme(text, "a single symbol").into()),
         }
     }
 }

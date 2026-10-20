@@ -2,6 +2,7 @@ mod catalog;
 mod context;
 mod error;
 mod errors;
+mod lexeme;
 mod report;
 mod trace;
 

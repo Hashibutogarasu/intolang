@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, bail};
+use errors::{Error, Errors, Result};
 use std::fmt;
 use std::str::FromStr;
 use types::{Span, Token, TokenKind};
@@ -26,7 +26,7 @@ impl FromStr for CommentLexeme {
 
     fn from_str(text: &str) -> Result<Self> {
         if !text.starts_with("//") || text.contains('\n') {
-            bail!("`{text}` is not a line comment");
+            return Err(Errors::not_lexeme(text, "a line comment").into());
         }
         Ok(Self {
             text: text.to_owned(),

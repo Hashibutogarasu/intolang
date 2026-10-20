@@ -31,7 +31,7 @@ impl TryFrom<&mut Cursor<'_>> for EnumDecl {
         cursor.eat_keyword(Keyword::Enum);
         let (name, _) = cursor.expect_ident("an enum name")?;
         if !cursor.is_punct(Punct::LeftBrace) {
-            return Err(SyntaxError::new(cursor.line(), "Expected `{` in enum declaration").into());
+            return Err(cursor.error_expecting("`{`", "Expected `{` in enum declaration"));
         }
         cursor.bump();
         let mut variants = Vec::new();
@@ -40,9 +40,7 @@ impl TryFrom<&mut Cursor<'_>> for EnumDecl {
                 break;
             }
             if cursor.at_end() {
-                return Err(
-                    SyntaxError::new(cursor.line(), "Expected `}` in enum declaration").into(),
-                );
+                return Err(cursor.error_expecting("`}`", "Expected `}` in enum declaration"));
             }
             let (variant, variant_line) = cursor.expect_ident("an enum variant name")?;
             let value = if cursor.eat_punct(Punct::Assign) {
@@ -55,7 +53,9 @@ impl TryFrom<&mut Cursor<'_>> for EnumDecl {
                 value,
             });
             if !cursor.eat_punct(Punct::Comma) && !cursor.is_punct(Punct::RightBrace) {
-                return Err(cursor.error("Expected `,` or `}` in enum declaration"));
+                return Err(
+                    cursor.error_expecting("`,` or `}`", "Expected `,` or `}` in enum declaration")
+                );
             }
         }
         Ok(Self {

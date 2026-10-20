@@ -61,7 +61,40 @@ impl<'a> Cursor<'a> {
     }
 
     pub fn error(&self, message: impl Into<String>) -> Error {
-        SyntaxError::new(self.line(), message).into()
+        self.syntax_error(message).into()
+    }
+
+    /// An error that names the construct the parser expected at the next token.
+    pub fn error_expecting(&self, expected: &str, message: impl Into<String>) -> Error {
+        self.syntax_error(message).expecting(expected).into()
+    }
+
+    /// A syntax error at the next token, with the token found there.
+    pub fn syntax_error(&self, message: impl Into<String>) -> SyntaxError {
+        let error = SyntaxError::new(self.line(), message).found(self.describe_next());
+        match self.peek().or_else(|| self.tokens.last()) {
+            Some(token) => error.at_span(token.span),
+            None => error,
+        }
+    }
+
+    /// The error of an expected construct: the message is `Expected {what}`.
+    fn expected(&self, what: &str) -> Error {
+        self.syntax_error(format!("Expected {what}"))
+            .expecting(what)
+            .into()
+    }
+
+    fn describe_next(&self) -> String {
+        match self.peek().map(|token| &token.kind) {
+            None => "end of input".to_string(),
+            Some(TokenKind::Identifier(word)) => format!("`{word}`"),
+            Some(TokenKind::Number(number)) => format!("`{number}`"),
+            Some(TokenKind::Symbol(symbol)) => format!("`{symbol}`"),
+            Some(TokenKind::String(_)) => "a string".to_string(),
+            Some(TokenKind::Char(_)) => "a character".to_string(),
+            Some(TokenKind::Comment(_)) => "a comment".to_string(),
+        }
     }
 
     /// Whether the token at `offset` starts exactly where the one before it
@@ -104,7 +137,7 @@ impl<'a> Cursor<'a> {
         if self.is_punct(punct) {
             return Ok(self.bump().expect("token checked above"));
         }
-        Err(self.error(format!("Expected {what}")))
+        Err(self.expected(what))
     }
 
     pub fn peek_word(&self, offset: usize) -> Option<&'a str> {
@@ -148,7 +181,7 @@ impl<'a> Cursor<'a> {
                 self.index += 1;
                 Ok(found)
             }
-            _ => Err(self.error(format!("Expected {what}"))),
+            _ => Err(self.expected(what)),
         }
     }
 
@@ -167,7 +200,7 @@ impl<'a> Cursor<'a> {
         if ends {
             Ok(())
         } else {
-            Err(self.error("Expected `;`"))
+            Err(self.expected("`;`"))
         }
     }
 }

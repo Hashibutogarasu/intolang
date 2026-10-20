@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, bail};
+use errors::{Error, Errors, Result};
 use std::fmt;
 use std::str::FromStr;
 use types::MessageTag;
@@ -54,7 +54,12 @@ impl FromStr for TagLexeme {
             "NATIVE_OWNERSHIP" => MessageTag::Ownership,
             "NATIVE_IF_STATE" => MessageTag::IfState,
             "NATIVE_THROW" => MessageTag::Throw,
-            other => bail!("Unknown message tag `{other}`"),
+            other => {
+                return Err(Errors::UnknownMessageTag {
+                    tag: other.to_string(),
+                }
+                .into());
+            }
         }))
     }
 }

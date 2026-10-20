@@ -161,7 +161,7 @@ impl CodegenContext {
 
 /// Decode the lowercase hexadecimal text a message uses for strings.
 pub(crate) fn decode_hex(value: &str) -> Result<Vec<u8>> {
-    value.parse::<Hex>()?.try_into()
+    Ok(Vec::<u8>::try_from(value.parse::<Hex>()?)?)
 }
 
 fn int_predicate(operator: ComparisonOperator) -> llvm::LLVMIntPredicate {

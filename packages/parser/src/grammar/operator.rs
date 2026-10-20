@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, bail};
+use errors::{Error, Errors, Result};
 use std::fmt;
 use std::str::FromStr;
 use types::{ArithmeticOperator, ComparisonOperator, CompoundOperator, LogicalOperator};
@@ -21,7 +21,7 @@ impl FromStr for ArithmeticLexeme {
             "^" | "xor" => ArithmeticOperator::BitXor,
             "<<" | "shl" => ArithmeticOperator::ShiftLeft,
             ">>" | "shr" => ArithmeticOperator::ShiftRight,
-            other => bail!("Unsupported arithmetic operator `{other}`"),
+            other => return Err(Errors::unsupported("arithmetic operator", other).into()),
         }))
     }
 }
@@ -91,7 +91,7 @@ impl FromStr for LogicalLexeme {
         Ok(Self(match text {
             "&&" => LogicalOperator::And,
             "||" => LogicalOperator::Or,
-            other => bail!("`{other}` is not a logical operator"),
+            other => return Err(Errors::not_lexeme(other, "a logical operator").into()),
         }))
     }
 }
@@ -140,7 +140,7 @@ impl FromStr for CompoundLexeme {
             "&&" => CompoundOperator::And,
             "||" => CompoundOperator::Or,
             "=>" => CompoundOperator::Arrow,
-            other => bail!("`{other}` is not a compound operator"),
+            other => return Err(Errors::not_lexeme(other, "a compound operator").into()),
         }))
     }
 }
@@ -191,7 +191,7 @@ impl FromStr for ComparisonLexeme {
             "<=" => ComparisonOperator::LessEqual,
             ">" => ComparisonOperator::Greater,
             ">=" => ComparisonOperator::GreaterEqual,
-            other => bail!("Unsupported comparison operator `{other}`"),
+            other => return Err(Errors::unsupported("comparison operator", other).into()),
         }))
     }
 }

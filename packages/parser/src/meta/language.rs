@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, bail};
+use errors::{Error, Errors, Result};
 use std::fmt;
 use std::str::FromStr;
 use types::Language;
@@ -13,7 +13,7 @@ impl FromStr for LanguageLexeme {
         match text {
             "c" => Ok(Self(Language::C)),
             "cpp" => Ok(Self(Language::Cpp)),
-            other => bail!("Unsupported native language `{other}`"),
+            other => Err(Errors::unsupported("native language", other).into()),
         }
     }
 }

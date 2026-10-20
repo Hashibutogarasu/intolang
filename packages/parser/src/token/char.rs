@@ -1,4 +1,4 @@
-use anyhow::{Error, bail};
+use errors::{Error, Errors};
 use std::fmt;
 use std::str::FromStr;
 use types::{Span, Token, TokenKind};
@@ -35,7 +35,10 @@ impl FromStr for CharLexeme {
                 value,
                 span: Span::on_line(1),
             }),
-            _ => bail!("A character literal holds exactly one character: '{raw}'"),
+            _ => Err(Errors::InvalidCharLiteral {
+                raw: raw.to_string(),
+            }
+            .into()),
         }
     }
 }

@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, bail};
+use errors::{Error, Errors, Result};
 use std::convert::Infallible;
 use std::fmt;
 use std::str::FromStr;
@@ -19,7 +19,7 @@ impl StringBody {
 impl FromStr for StringBody {
     type Err = Infallible;
 
-    fn from_str(raw: &str) -> Result<Self, Infallible> {
+    fn from_str(raw: &str) -> std::result::Result<Self, Infallible> {
         let mut output = String::new();
         let mut chars = raw.chars();
         while let Some(ch) = chars.next() {
@@ -100,7 +100,7 @@ impl FromStr for LiteralLexeme {
         if let Ok(value) = text.parse::<i64>() {
             return Ok(Self(Literal::Int(value)));
         }
-        bail!("`{text}` is not a literal")
+        Err(Errors::not_lexeme(text, "a literal").into())
     }
 }
 

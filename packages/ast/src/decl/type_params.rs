@@ -18,7 +18,7 @@ pub(super) fn parse_type_params(cursor: &mut Cursor<'_>) -> Result<Vec<String>> 
         }
     }
     if cursor.peek_symbol(0) != Some('>') {
-        return Err(cursor.error("Expected `>` after the type parameters"));
+        return Err(cursor.error_expecting("`>`", "Expected `>` after the type parameters"));
     }
     cursor.bump();
     Ok(type_params)

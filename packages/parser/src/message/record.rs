@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, bail};
+use errors::{Error, Errors, Result};
 use std::fmt;
 use std::str::FromStr;
 use types::{FIELD_SEPARATOR, MessageTag, RECORD_SEPARATOR};
@@ -45,7 +45,7 @@ impl FromStr for Record {
 
     fn from_str(line: &str) -> Result<Self> {
         let Some(body) = line.strip_prefix(RECORD_SEPARATOR) else {
-            bail!("Not a directive line");
+            return Err(Errors::NotDirectiveLine.into());
         };
         let mut parts = body.trim_end_matches('\n').split(FIELD_SEPARATOR);
         let tag = parts.next().unwrap_or_default().parse::<TagLexeme>()?;

@@ -1,4 +1,4 @@
-use anyhow::Error;
+use errors::Error;
 use std::fmt;
 use std::str::FromStr;
 use types::{Span, Token, TokenKind};

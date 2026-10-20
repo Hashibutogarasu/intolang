@@ -26,7 +26,7 @@ impl TypeRef {
             cursor.bump();
             let element = TypeRef::try_from(&mut *cursor)?;
             if cursor.peek_symbol(0) != Some(']') {
-                return Err(cursor.error("Expected `]` to close the array type"));
+                return Err(cursor.error_expecting("`]`", "Expected `]` to close the array type"));
             }
             cursor.bump();
             format!("[{}]", element.0)
@@ -50,7 +50,9 @@ impl TypeRef {
                 text.push_str(&argument.0);
             }
             if cursor.peek_symbol(0) != Some('>') {
-                return Err(cursor.error("Expected `>` to close the type arguments"));
+                return Err(
+                    cursor.error_expecting("`>`", "Expected `>` to close the type arguments")
+                );
             }
             cursor.bump();
             text.push('>');
