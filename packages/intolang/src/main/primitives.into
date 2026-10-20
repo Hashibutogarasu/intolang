@@ -1,3 +1,37 @@
+/// A value that is either `true` or `false`.
+pub Boolean() {}
+
+/// A single character, written between single quotes.
+pub Char() {}
+
+/// A signed 8-bit integer.
+pub Int8() {}
+
+/// A signed 16-bit integer.
+pub Int16() {}
+
+/// A signed 32-bit integer.
+pub Int32() {}
+
+/// A signed 64-bit integer.
+pub Int64() {}
+
+/// A 32-bit floating point number.
+pub Float32() {}
+
+/// A 64-bit floating point number.
+pub Float64() {}
+
+/// The result of a function that gives nothing back.
+pub Void() {}
+
+/// The address of a value in native memory.
+pub Pointer() {}
+
+/// The path of a file or a directory.
+pub Path() {}
+
+/// A sequence of characters, written between double quotes.
 pub String() {
     #[link("c", "src/ffi/string.c", "into_string_concat")]
     pub static fun concat(left: String, right: String): String;

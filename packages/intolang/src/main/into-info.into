@@ -2,7 +2,7 @@ export "builtin://std/print";
 export "builtin://std/println";
 export "builtin://list";
 export "builtin://object";
-export "builtin://string";
+export "builtin://primitives";
 export "builtin://hex";
 export "builtin://callback";
 export "builtin://type";
