@@ -20,6 +20,13 @@ impl zed::Extension for IntoExtension {
             .and_then(|settings| settings.binary)
             .and_then(|binary| binary.path);
         let command = configured
+            .map(|path| {
+                if path.contains('/') && !path.starts_with('/') {
+                    format!("{}/{path}", worktree.root_path())
+                } else {
+                    path
+                }
+            })
             .or_else(|| worktree.which(SERVER))
             .ok_or_else(|| format!("{SERVER} was not found on the PATH"))?;
         Ok(Command {

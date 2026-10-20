@@ -1,0 +1,11 @@
+{
+  "lsp": {
+    "into-lsp": {
+      "binary": { "path": "dist/debug/into-lsp" },
+      "initialization_options": {
+        "analyzerPath": "dist/debug/intolang-ipc",
+        "packagesDir": "packages"
+      }
+    }
+  }
+}
