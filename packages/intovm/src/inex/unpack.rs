@@ -1,5 +1,5 @@
-use anyhow::{Context, Result};
 use bundle::Entry;
+use errors::{Errors, Result};
 use std::path::Path;
 
 use super::model::Inex;
@@ -11,13 +11,13 @@ impl Inex {
             let target = directory.join(path.as_str());
             match entry {
                 Entry::Directory => std::fs::create_dir_all(&target)
-                    .with_context(|| format!("Could not create {}", target.display()))?,
+                    .map_err(|error| Errors::file_action("create", &target, error))?,
                 Entry::File { mode, .. } => {
                     if let Some(parent) = target.parent() {
                         std::fs::create_dir_all(parent)?;
                     }
                     std::fs::write(&target, self.bundle.read(path.as_str()).unwrap_or_default())
-                        .with_context(|| format!("Could not unpack {}", target.display()))?;
+                        .map_err(|error| Errors::file_action("unpack", &target, error))?;
                     #[cfg(unix)]
                     {
                         use std::os::unix::fs::PermissionsExt;

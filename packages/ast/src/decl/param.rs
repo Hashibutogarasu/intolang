@@ -1,4 +1,4 @@
-use anyhow::Result;
+use errors::Result;
 use types::{Literal, Punct};
 
 use crate::{Cursor, Expr, TypeRef};
@@ -46,7 +46,7 @@ impl Param {
 }
 
 impl TryFrom<&mut Cursor<'_>> for Param {
-    type Error = anyhow::Error;
+    type Error = errors::Error;
 
     fn try_from(cursor: &mut Cursor<'_>) -> Result<Self> {
         let (name, _) = cursor.expect_ident("a parameter name")?;

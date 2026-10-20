@@ -1,8 +1,16 @@
-use anyhow::{Error, Result, bail};
+use errors::{Error, Errors, Result};
 use std::collections::HashSet;
 use std::fmt;
 use std::str::FromStr;
 use types::Type;
+
+fn needs(construct: &str, needs: &str) -> Error {
+    Errors::TypeNeeds {
+        construct: construct.to_string(),
+        needs: needs.to_string(),
+    }
+    .into()
+}
 
 /// A type as written in source. Bare identifiers resolve to generic
 /// parameters only through [`TypeLexeme::with_generics`].
@@ -13,12 +21,12 @@ impl TypeLexeme {
     pub fn with_generics(text: &str, params: &HashSet<String>) -> Result<Self> {
         let text = text.trim();
         if text.is_empty() {
-            bail!("Expected a type name");
+            return Err(Errors::ExpectedTypeName.into());
         }
         if let Some(inner) = text.strip_suffix('&') {
             let inner = inner.trim();
             if inner.is_empty() {
-                bail!("Reference type `&` needs a referent type");
+                return Err(needs("Reference type `&`", "a referent type"));
             }
             let inner = Self::with_generics(inner, params)?;
             return Ok(Self(Type::Reference(Box::new(inner.0))));
@@ -26,7 +34,7 @@ impl TypeLexeme {
         if let Some(inner) = text.strip_suffix('*') {
             let inner = inner.trim();
             if inner.is_empty() {
-                bail!("Pointer type `*` needs a pointee type");
+                return Err(needs("Pointer type `*`", "a pointee type"));
             }
             let inner = Self::with_generics(inner, params)?;
             return Ok(Self(Type::PointerTo(Box::new(inner.0))));
@@ -37,7 +45,7 @@ impl TypeLexeme {
         {
             let inner = inner.trim();
             if inner.is_empty() {
-                bail!("Array type `[]` needs an element type");
+                return Err(needs("Array type `[]`", "an element type"));
             }
             let inner = Self::with_generics(inner, params)?;
             return Ok(Self(Type::List(Box::new(inner.0))));
@@ -48,7 +56,7 @@ impl TypeLexeme {
         {
             let inner = inner.trim();
             if inner.is_empty() {
-                bail!("List type `List<>` needs an element type");
+                return Err(needs("List type `List<>`", "an element type"));
             }
             let inner = Self::with_generics(inner, params)?;
             return Ok(Self(Type::List(Box::new(inner.0))));
@@ -58,12 +66,12 @@ impl TypeLexeme {
         {
             let base = base.trim();
             if base.is_empty() {
-                bail!("Type arguments need a type name before `<`");
+                return Err(Errors::TypeArgumentsNeedName.into());
             }
             let mut arguments = Vec::new();
             for argument in split_arguments(inner) {
                 if argument.is_empty() {
-                    bail!("Type `{base}<>` needs a type argument");
+                    return Err(needs(&format!("Type `{base}<>`"), "a type argument"));
                 }
                 arguments.push(Self::with_generics(argument, params)?.0);
             }

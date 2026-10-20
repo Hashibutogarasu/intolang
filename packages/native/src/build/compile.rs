@@ -1,7 +1,8 @@
-use anyhow::{Context, Result, bail};
+use errors::{Errors, Result};
 use std::path::{Path, PathBuf};
 use types::Language;
 
+use super::failure::{tool_failure, tool_not_run};
 use super::manifest::native_dependencies;
 use super::pkg_config::pkg_config_flags;
 use super::sources::collect_sources;
@@ -35,8 +36,8 @@ pub fn compile_sources(message: &str, output: &Path, packages_dir: &Path) -> Res
             let path = pkg_config_flags(std::slice::from_ref(library), "--variable=libdir")?
                 .into_iter()
                 .next()
-                .with_context(|| {
-                    format!("pkg-config returned no library directory for `{library}`")
+                .ok_or_else(|| Errors::PkgConfigNoDirectory {
+                    library: library.clone(),
                 })?;
             if !build.library_paths.contains(&path) {
                 build.library_paths.push(path);
@@ -57,7 +58,7 @@ pub fn compile_sources(message: &str, output: &Path, packages_dir: &Path) -> Res
             output.with_file_name(format!(".intolang-native-{}-{index}.o", std::process::id()));
         let (variable, default) = toolchain(source.language);
         let command = std::env::var(variable).unwrap_or_else(|_| default.into());
-        let result = std::process::Command::new(command)
+        let result = std::process::Command::new(&command)
             .arg("-fPIC")
             .arg("-c")
             .args(pkg_config_flags(&dependencies, "--cflags")?)
@@ -65,18 +66,15 @@ pub fn compile_sources(message: &str, output: &Path, packages_dir: &Path) -> Res
             .arg("-o")
             .arg(&object)
             .output()
-            .with_context(|| {
-                format!(
-                    "Could not compile native module source {}",
-                    source.path.display()
-                )
-            })?;
+            .map_err(|error| tool_not_run(&command, &error))?;
         if !result.status.success() {
-            bail!(
-                "Native module compilation failed for {}:\n{}",
-                source.path.display(),
-                String::from_utf8_lossy(&result.stderr)
-            );
+            return Err(tool_failure(
+                Errors::NativeModuleCompilationFailed {
+                    path: source.path.display().to_string(),
+                },
+                &command,
+                &result.stderr,
+            ));
         }
         build.objects.push(object);
     }

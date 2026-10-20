@@ -1,5 +1,15 @@
-use anyhow::Result;
-use clap::{ArgMatches, Command as ClapCommand};
+use clap::{ArgMatches, Command as ClapCommand, FromArgMatches};
+use errors::{Errors, Result};
+
+/// The typed arguments of a command, parsed from its matches.
+pub(super) fn arguments<T: FromArgMatches>(matches: &ArgMatches) -> Result<T> {
+    T::from_arg_matches(matches).map_err(|error| {
+        Errors::Internal {
+            message: error.to_string(),
+        }
+        .into()
+    })
+}
 
 /// A CLI command.
 ///

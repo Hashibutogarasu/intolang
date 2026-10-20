@@ -1,4 +1,4 @@
-use anyhow::{Result, bail};
+use errors::{Errors, Result};
 use types::ComparisonOperator;
 
 use crate::value::Value;
@@ -28,7 +28,7 @@ pub fn constant(ty: &str, text: &str) -> Result<Value> {
 pub fn operate(ty: &str, operation: &str, left: &Value, right: &Value) -> Result<Value> {
     if is_float(ty) {
         let (Some(a), Some(b)) = (left.float(), right.float()) else {
-            bail!("Arithmetic needs numbers");
+            return Err(errors::Error::from(Errors::ArithmeticNeedsNumbersVm));
         };
         let result = match operation {
             "add" => a + b,
@@ -36,7 +36,13 @@ pub fn operate(ty: &str, operation: &str, left: &Value, right: &Value) -> Result
             "mul" => a * b,
             "div" => a / b,
             "rem" => a % b,
-            other => bail!("Unsupported arithmetic operation `{other}`"),
+            other => {
+                return Err(errors::Error::from(
+                    Errors::UnsupportedArithmeticOperation {
+                        operation: other.to_string(),
+                    },
+                ));
+            }
         };
         return Ok(Value::Float(if ty == "Float32" {
             result as f32 as f64
@@ -45,7 +51,7 @@ pub fn operate(ty: &str, operation: &str, left: &Value, right: &Value) -> Result
         }));
     }
     let (Some(a), Some(b)) = (left.int(), right.int()) else {
-        bail!("Arithmetic needs numbers");
+        return Err(errors::Error::from(Errors::ArithmeticNeedsNumbersVm));
     };
     let result = match operation {
         "add" => a.wrapping_add(b),
@@ -53,13 +59,13 @@ pub fn operate(ty: &str, operation: &str, left: &Value, right: &Value) -> Result
         "mul" => a.wrapping_mul(b),
         "div" => {
             if b == 0 {
-                bail!("Division by zero");
+                return Err(errors::Error::from(Errors::DivisionByZero));
             }
             a.wrapping_div(b)
         }
         "rem" => {
             if b == 0 {
-                bail!("Division by zero");
+                return Err(errors::Error::from(Errors::DivisionByZero));
             }
             a.wrapping_rem(b)
         }
@@ -68,7 +74,13 @@ pub fn operate(ty: &str, operation: &str, left: &Value, right: &Value) -> Result
         "xor" => a ^ b,
         "shl" => a.wrapping_shl(u32::try_from(b).unwrap_or(u32::MAX)),
         "shr" => a.wrapping_shr(u32::try_from(b).unwrap_or(u32::MAX)),
-        other => bail!("Unsupported arithmetic operation `{other}`"),
+        other => {
+            return Err(errors::Error::from(
+                Errors::UnsupportedArithmeticOperation {
+                    operation: other.to_string(),
+                },
+            ));
+        }
     };
     Ok(Value::Int(wrap(ty, result)))
 }
@@ -77,7 +89,10 @@ pub fn operate(ty: &str, operation: &str, left: &Value, right: &Value) -> Result
 pub fn convert(from: &str, to: &str, value: &Value) -> Result<Value> {
     if is_float(to) {
         let Some(number) = value.float() else {
-            bail!("Cannot cast {from} to {to}");
+            return Err(errors::Error::from(Errors::CannotCast {
+                from: from.to_string(),
+                to: to.to_string(),
+            }));
         };
         return Ok(Value::Float(if to == "Float32" {
             number as f32 as f64
@@ -88,7 +103,12 @@ pub fn convert(from: &str, to: &str, value: &Value) -> Result<Value> {
     let number = match value {
         Value::Int(number) => *number,
         Value::Float(number) => *number as i64,
-        _ => bail!("Cannot cast {from} to {to}"),
+        _ => {
+            return Err(errors::Error::from(Errors::CannotCast {
+                from: from.to_string(),
+                to: to.to_string(),
+            }));
+        }
     };
     Ok(Value::Int(wrap(to, number)))
 }
@@ -103,7 +123,7 @@ pub fn compare(operator: ComparisonOperator, left: &Value, right: &Value) -> Res
                 Some(ordering) => ordering,
                 None => return Ok(operator == ComparisonOperator::NotEqual),
             },
-            _ => bail!("Values of different kinds cannot be compared"),
+            _ => return Err(errors::Error::from(Errors::KindsNotComparable)),
         },
     };
     Ok(match operator {

@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, bail};
+use errors::{Error, Errors, Result};
 use std::fmt;
 use std::str::FromStr;
 
@@ -35,7 +35,12 @@ impl FromStr for Property {
             "isBorrowed" => Property::Borrowed,
             "isMoved" => Property::Moved,
             "isDestroyed" => Property::Destroyed,
-            other => bail!("Unknown binding property `{other}`"),
+            other => {
+                return Err(Errors::UnknownProperty {
+                    name: other.to_string(),
+                }
+                .into());
+            }
         })
     }
 }

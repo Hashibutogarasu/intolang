@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, bail};
+use errors::{Error, Errors, Result};
 use native::StateCheck;
 use parser::Record;
 
@@ -22,10 +22,9 @@ impl TryFrom<&Record> for NativeIfState {
 
 impl Codegen for NativeIfState {
     fn generate(&self, _ctx: &mut CodegenContext) -> Result<CodegenResult> {
-        bail!(
-            "`{}.{}` can only be read by code that runs in the Into VM",
-            self.check.slot,
-            self.check.property
-        )
+        Err(errors::Error::from(Errors::IfStateNeedsVm {
+            slot: self.check.slot.clone(),
+            property: self.check.property.to_string(),
+        }))
     }
 }

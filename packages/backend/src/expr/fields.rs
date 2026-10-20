@@ -1,4 +1,5 @@
 use ast::{Expr, Path};
+use errors::{Errors, Result};
 use native::FieldLoad;
 use types::{Literal, Type};
 
@@ -43,7 +44,7 @@ impl Lowerer<'_> {
         &mut self,
         holder: &str,
         name: &str,
-    ) -> Result<(String, Type), String> {
+    ) -> Result<(String, Type)> {
         let call = Expr::Call {
             callee: Path::from(vec![holder.to_owned(), "get".to_owned()]),
             args: vec![Expr::Literal(Literal::String(name.to_owned()))],
@@ -52,9 +53,10 @@ impl Lowerer<'_> {
         let target = self.fresh_slot(&Type::Pointer);
         let (_, ty, native) = self.declaration_value(&call, None, &env.type_params, &target)?;
         if !native {
-            return Err(format!(
-                "`get` of the dynamic value `{holder}` has no value"
-            ));
+            return Err(Errors::DynamicGetNoValue {
+                holder: holder.to_string(),
+            }
+            .into());
         }
         self.state
             .values
@@ -65,7 +67,7 @@ impl Lowerer<'_> {
     /// Read `holder.field`, a field of the instance a binding holds, into a
     /// new slot; `holder.a.b` reads the field `b` of the instance in the field
     /// `a`. Returns `None` when the path does not start with a field.
-    pub fn lower_field_read(&mut self, path: &Path) -> Result<Option<(String, Type)>, String> {
+    pub fn lower_field_read(&mut self, path: &Path) -> Result<Option<(String, Type)>> {
         let [holder, fields @ ..] = path.segments() else {
             return Ok(None);
         };
@@ -101,11 +103,14 @@ impl Lowerer<'_> {
                 if position == 0 {
                     return Ok(None);
                 }
-                return Err(format!("`{class}` has no field `{field}`"));
+                return Err(Errors::NoField {
+                    class: class.to_string(),
+                    field: field.to_string(),
+                }
+                .into());
             };
             self.ensure_usable(holder)?;
-            let written =
-                parse_type(&definition.ty, &env.type_params).map_err(|error| error.to_string())?;
+            let written = parse_type(&definition.ty, &env.type_params)?;
             let ty = self.bind_arguments(&receiver_type, written);
             let target = self.fresh_slot(&ty);
             emit::field_load(

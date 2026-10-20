@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, anyhow};
+use errors::{Error, Errors, Result};
 use parser::Record;
 use types::MessageTag;
 
@@ -25,7 +25,7 @@ impl TryFrom<&Record> for FunctionRef {
 
     fn try_from(record: &Record) -> Result<Self> {
         let [target, name, ..] = record.fields() else {
-            return Err(anyhow!("Malformed NATIVE_FUNCTION_REF record"));
+            return Err(Errors::malformed_record("NATIVE_FUNCTION_REF").into());
         };
         Ok(Self {
             target: target.clone(),
@@ -57,7 +57,7 @@ impl TryFrom<&Record> for IndirectCall {
 
     fn try_from(record: &Record) -> Result<Self> {
         let [slot, args @ ..] = record.fields() else {
-            return Err(anyhow!("Malformed NATIVE_CALL_INDIRECT record"));
+            return Err(Errors::malformed_record("NATIVE_CALL_INDIRECT").into());
         };
         Ok(Self {
             slot: slot.clone(),

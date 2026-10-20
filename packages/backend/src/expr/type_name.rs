@@ -1,4 +1,4 @@
-use anyhow::Result;
+use errors::Result;
 use parser::TypeLexeme;
 use std::collections::HashSet;
 use types::Type;

@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow, bail};
+use errors::{Errors, Result};
 use native::{Comparison, NativeArg, Operand};
 use parser::Hex;
 use std::ffi::CString;
@@ -60,7 +60,9 @@ impl CodegenContext {
             let right = match &comparison.operand {
                 Operand::Slot(name) => self.load_slot(name)?,
                 Operand::Number(value) => self.const_for_type(ty, value)?,
-                Operand::Str(_) => bail!("A comparison cannot use a string operand"),
+                Operand::Str(_) => {
+                    return Err(errors::Error::from(Errors::ComparisonStringOperand));
+                }
             };
             let is_float = matches!(
                 LLVMGetTypeKind(ty),
@@ -115,16 +117,22 @@ impl CodegenContext {
                     }
                     NativeArg::Field { slot, class, index } => {
                         let instance = self.load_slot(slot)?;
-                        let layout = *self
-                            .named_types
-                            .get(class)
-                            .ok_or_else(|| anyhow!("Unknown native class `{class}`"))?;
+                        let layout = *self.named_types.get(class).ok_or_else(|| {
+                            errors::Error::from(Errors::UnknownNativeClass {
+                                class: class.to_string(),
+                            })
+                        })?;
                         let field_type = self
                             .class_fields
                             .get(class)
                             .and_then(|fields| fields.get(*index))
                             .map(|(_, ty)| *ty)
-                            .ok_or_else(|| anyhow!("Class `{class}` has no field {index}"))?;
+                            .ok_or_else(|| {
+                                errors::Error::from(Errors::ClassNoFieldIndex {
+                                    class: class.to_string(),
+                                    index: *index,
+                                })
+                            })?;
                         let address = LLVMBuildStructGEP2(
                             self.builder,
                             layout,
@@ -142,7 +150,9 @@ impl CodegenContext {
                     }
                     NativeArg::Slot(name) => {
                         let slot = self.slots.get(name).ok_or_else(|| {
-                            anyhow!("Native pointer argument `{name}` has no value")
+                            errors::Error::from(Errors::PointerArgumentNoValue {
+                                name: name.to_string(),
+                            })
                         })?;
                         params.push(slot.ty);
                         values.push(LLVMBuildLoad2(
@@ -161,7 +171,7 @@ impl CodegenContext {
 
 /// Decode the lowercase hexadecimal text a message uses for strings.
 pub(crate) fn decode_hex(value: &str) -> Result<Vec<u8>> {
-    value.parse::<Hex>()?.try_into()
+    Ok(Vec::<u8>::try_from(value.parse::<Hex>()?)?)
 }
 
 fn int_predicate(operator: ComparisonOperator) -> llvm::LLVMIntPredicate {

@@ -1,5 +1,5 @@
-use anyhow::Result;
 use ast::{Expr, Path};
+use errors::{Error, Errors, Result};
 use native::NativeArg;
 use types::{Literal, MessageTag};
 
@@ -17,7 +17,7 @@ impl Lowerer<'_> {
         if let Expr::Await(awaited) = expression {
             return self
                 .lower_await(awaited)
-                .map_err(|message| self.diagnostic(line, &message));
+                .map_err(|error| self.diagnostic(line, error));
         }
         let Expr::Call { callee, args } = expression else {
             return Ok(());
@@ -30,7 +30,7 @@ impl Lowerer<'_> {
         let console = name == PRINT || name == PRINTLN;
         if self
             .lower_indirect_call(name, args)
-            .map_err(|message| self.diagnostic(line, &message))?
+            .map_err(|error| self.diagnostic(line, error))?
         {
             return Ok(());
         }
@@ -39,25 +39,25 @@ impl Lowerer<'_> {
         }
         if self
             .lower_event_handler_call(name, args)
-            .map_err(|message| self.diagnostic(line, &message))?
+            .map_err(|error| self.diagnostic(line, error))?
         {
             return Ok(());
         }
         let key = self
             .pick_overload(name, args)
-            .map_err(|message| self.diagnostic(line, &message))?;
+            .map_err(|error| self.diagnostic(line, error))?;
         if let Some(inner) = env.user_functions.get(&key) {
             return self
                 .inline_user_function(inner, None, args, 0)
                 .map(|_| ())
-                .map_err(|message| self.diagnostic(line, &message));
+                .map_err(|error| self.diagnostic(line, error));
         }
         if env.imported_functions.contains(name)
             && let Some(link) = env.native_links.get(&key)
         {
             return self
                 .emit_link_call(MessageTag::LinkAssign, link, args.to_vec(), "", false)
-                .map_err(|message| self.diagnostic(line, &message));
+                .map_err(|error| self.diagnostic(line, error));
         }
         if !console && env.imported_functions.contains(name) && args.len() <= 1 {
             return self.lower_native_call(line, name, args.first());
@@ -66,17 +66,23 @@ impl Lowerer<'_> {
             return self.lower_print(line, name == PRINTLN, args);
         }
         if env.strict_calls {
-            return Err(self.diagnostic(line, &format!("Function `{name}` is not imported")));
+            return Err(self.diagnostic(
+                line,
+                Errors::FunctionNotImported {
+                    function: name.to_string(),
+                }
+                .into(),
+            ));
         }
         Ok(())
     }
 
     fn lower_method_call(&mut self, line: usize, callee: &Path, args: &[Expr]) -> Result<()> {
         let env = self.env;
-        let fail = |this: &Self, message: String| this.diagnostic(line, &message);
+        let fail = |this: &Self, error: Error| this.diagnostic(line, error);
         let handled = self
             .lower_event_call(callee, args, "")
-            .map_err(|message| fail(self, message))?;
+            .map_err(|error| fail(self, error))?;
         if !matches!(handled, RuntimeCall::NotRuntime) {
             return Ok(());
         }
@@ -84,52 +90,54 @@ impl Lowerer<'_> {
             let key = self.method_key(&class, &method);
             let key = self
                 .pick_overload(&key, args)
-                .map_err(|message| fail(self, message))?;
+                .map_err(|error| fail(self, error))?;
             if let Some(inner) = env.user_functions.get(&key) {
                 return self
                     .inline_user_function(inner, None, args, 0)
                     .map(|_| ())
-                    .map_err(|message| fail(self, message));
+                    .map_err(|error| fail(self, error));
             }
-            let link = env
-                .native_links
-                .get(&key)
-                .ok_or_else(|| fail(self, format!("Undefined static method `{key}`")))?;
+            let link = env.native_links.get(&key).ok_or_else(|| {
+                fail(
+                    self,
+                    Errors::UndefinedStaticMethod { key: key.clone() }.into(),
+                )
+            })?;
             return self
                 .emit_link_call(MessageTag::LinkAssign, link, args.to_vec(), "", false)
-                .map_err(|message| fail(self, message));
+                .map_err(|error| fail(self, error));
         }
         let (receiver, receiver_type) = self
             .resolve_receiver(callee)
-            .map_err(|message| fail(self, message))?;
+            .map_err(|error| fail(self, error))?;
         let class = base_type_name(&receiver_type.name()).to_owned();
         let method = callee.last();
         if self
             .lower_list_method(&receiver, &receiver_type, method, args, "")
-            .map_err(|message| fail(self, message))?
+            .map_err(|error| fail(self, error))?
             .is_some()
         {
             return Ok(());
         }
         if self
             .lower_pointer_method(&receiver, &receiver_type, method, args, "")
-            .map_err(|message| fail(self, message))?
+            .map_err(|error| fail(self, error))?
             .is_some()
         {
             return Ok(());
         }
         self.check_receiver_call(&receiver, method)
-            .map_err(|message| fail(self, message))?;
+            .map_err(|error| fail(self, error))?;
         if self.give_back_reference(&receiver, method) {
             return Ok(());
         }
         let key = self.method_key(&class, method);
         let key = self
             .pick_overload(&key, args)
-            .map_err(|message| fail(self, message))?;
+            .map_err(|error| fail(self, error))?;
         if let Some(inner) = env.user_functions.get(&key) {
             self.inline_user_function(inner, Some(receiver.clone()), args, 0)
-                .map_err(|message| fail(self, message))?;
+                .map_err(|error| fail(self, error))?;
             self.apply_receiver_call(&receiver, method);
             return Ok(());
         }
@@ -138,12 +146,12 @@ impl Lowerer<'_> {
                 self.apply_receiver_call(&receiver, method);
                 return Ok(());
             }
-            return Err(fail(self, format!("Undefined method `{key}`")));
+            return Err(fail(self, Errors::UndefinedMethod { key }.into()));
         };
         let mut combined = vec![Expr::ident(receiver.clone())];
         combined.extend_from_slice(args);
         self.emit_link_call(MessageTag::LinkAssign, link, combined, "", true)
-            .map_err(|message| fail(self, message))?;
+            .map_err(|error| fail(self, error))?;
         self.apply_receiver_call(&receiver, method);
         Ok(())
     }
@@ -171,9 +179,13 @@ impl Lowerer<'_> {
                 match found {
                     Some(value) => Some(NativeArg::Int(*value)),
                     None => {
-                        return Err(
-                            self.diagnostic(line, &format!("Undefined enum variant `{path}`"))
-                        );
+                        return Err(self.diagnostic(
+                            line,
+                            Errors::UndefinedEnumVariant {
+                                arg: path.to_string(),
+                            }
+                            .into(),
+                        ));
                     }
                 }
             }
@@ -187,7 +199,10 @@ impl Lowerer<'_> {
         let Some(value) = value else {
             return Err(self.diagnostic(
                 line,
-                &format!("Native call `{symbol}` expects a string or 32-bit integer argument"),
+                Errors::NativeCallArgument {
+                    symbol: symbol.to_string(),
+                }
+                .into(),
             ));
         };
         emit::native_call(&mut self.state.output, symbol, &value);

@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::ffi::CString;
 use std::ptr;
 
-use anyhow::Result;
+use errors::Result;
 
 use crate::llvm;
 use llvm::core::*;

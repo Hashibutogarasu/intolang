@@ -5,7 +5,7 @@ edition = "2024"
 build = "build.rs"
 
 [dependencies]
-anyhow = "1.0.104"
+errors = { version = "0.1.0", path = "../../packages/errors" }
 llvm-sys = "231.0.1"
 lld = { path = "../../packages/lld" }
 backend = { path = "../../packages/backend" }

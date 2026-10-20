@@ -1,4 +1,4 @@
-use anyhow::{Error, Result};
+use errors::{Error, Result};
 use native::FunctionDefinition;
 use parser::Record;
 

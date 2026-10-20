@@ -1,4 +1,5 @@
 use ast::{Expr, Path};
+use errors::{Errors, Result};
 use types::Type;
 
 use super::events::RuntimeCall;
@@ -12,19 +13,23 @@ const EMIT: &str = "emit";
 
 impl Lowerer<'_> {
     /// What a declared event, or the event of a class member, declares.
-    pub fn event_info(&self, event: &str) -> Result<EventInfo, String> {
+    pub fn event_info(&self, event: &str) -> Result<EventInfo> {
         self.state
             .member_events
             .get(event)
             .or_else(|| self.env.events.get(event))
             .cloned()
-            .ok_or_else(|| format!("Unknown event `{event}`"))
+            .ok_or_else(|| {
+                errors::Error::from(Errors::UnknownEvent {
+                    event: event.to_string(),
+                })
+            })
     }
 
     /// The event the whole path names when it reaches an event that a class
     /// declares, through the fields of a binding such as `http.on.response`.
     /// The event belongs to the binding, and is named by the path.
-    pub fn member_event(&mut self, segments: &[String]) -> Result<Option<String>, String> {
+    pub fn member_event(&mut self, segments: &[String]) -> Result<Option<String>> {
         if segments.len() < 2 {
             return Ok(None);
         }
@@ -57,8 +62,7 @@ impl Lowerer<'_> {
             }) else {
                 return Ok(None);
             };
-            let written =
-                parse_type(&field.ty, &env.type_params).map_err(|error| error.to_string())?;
+            let written = parse_type(&field.ty, &env.type_params)?;
             current = self.bind_arguments(&current, written);
         }
         Ok(None)
@@ -66,7 +70,7 @@ impl Lowerer<'_> {
 
     /// Remember the event of a member the first time it is reached, and
     /// register the handler its body forms.
-    fn reach_member_event(&mut self, key: &str, info: &EventInfo) -> Result<(), String> {
+    fn reach_member_event(&mut self, key: &str, info: &EventInfo) -> Result<()> {
         if self
             .state
             .member_events
@@ -93,7 +97,7 @@ impl Lowerer<'_> {
         callee: &Path,
         args: &[Expr],
         assigned_to: &str,
-    ) -> Result<Option<RuntimeCall>, String> {
+    ) -> Result<Option<RuntimeCall>> {
         let segments = callee.segments();
         if let Some(event) = self.member_event(segments)? {
             self.ensure_member_alive(&segments[0], &event)?;
@@ -142,7 +146,7 @@ impl Lowerer<'_> {
     }
 
     /// Register the lambda that `event(handler)` gives to a declared event.
-    pub fn lower_event_handler_call(&mut self, name: &str, args: &[Expr]) -> Result<bool, String> {
+    pub fn lower_event_handler_call(&mut self, name: &str, args: &[Expr]) -> Result<bool> {
         if self.state.values.contains_key(name)
             || !self.env.events.contains_key(name)
             || !matches!(args, [Expr::Lambda { .. }])
@@ -150,16 +154,22 @@ impl Lowerer<'_> {
             return Ok(false);
         }
         if self.state.destroyed_events.contains(name) {
-            return Err(format!("`{name}` was destroyed"));
+            return Err(Errors::Destroyed {
+                name: name.to_string(),
+            }
+            .into());
         }
         self.register_handler(name, args, "")?;
         Ok(true)
     }
 
-    fn ensure_member_alive(&self, holder: &str, event: &str) -> Result<(), String> {
+    fn ensure_member_alive(&self, holder: &str, event: &str) -> Result<()> {
         self.ensure_usable(holder)?;
         if self.state.destroyed_events.contains(event) {
-            return Err(format!("`{event}` was destroyed"));
+            return Err(Errors::Destroyed {
+                name: event.to_string(),
+            }
+            .into());
         }
         Ok(())
     }

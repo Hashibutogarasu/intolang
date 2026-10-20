@@ -1,4 +1,5 @@
 use ast::Expr;
+use errors::{Errors, Result};
 use std::collections::HashSet;
 use types::Type;
 
@@ -23,28 +24,32 @@ impl Lowerer<'_> {
         value: &Expr,
         class: &str,
         assigned_to: &str,
-    ) -> Result<Type, String> {
+    ) -> Result<Type> {
         let (source, source_type) = self.cast_source(value)?;
         let key = self
             .find_cast_handler(&source_type.name(), class)
-            .ok_or_else(|| format!("no cast from {} to {class}", source_type.name()))?;
+            .ok_or_else(|| {
+                errors::Error::from(Errors::NoCast {
+                    from: source_type.name(),
+                    to: class.to_string(),
+                })
+            })?;
         let ty = Type::Named(class.to_owned());
         emit::construct(&mut self.state.output, assigned_to, class);
         self.state
             .values
             .insert(assigned_to.to_owned(), Variable::temporary(ty.clone()));
         let env = self.env;
-        let handler = env
-            .user_functions
-            .get(&key)
-            .ok_or_else(|| format!("Undefined cast handler `{key}`"))?;
+        let handler = env.user_functions.get(&key).ok_or_else(|| {
+            errors::Error::from(Errors::UndefinedCastHandler { key: key.clone() })
+        })?;
         self.inline_user_function(handler, None, &[source, Expr::ident(assigned_to)], 0)?;
         Ok(ty)
     }
 
     /// The expression that stands for the value being cast, and its type. A
     /// scalar is computed into a slot.
-    fn cast_source(&mut self, value: &Expr) -> Result<(Expr, Type), String> {
+    fn cast_source(&mut self, value: &Expr) -> Result<(Expr, Type)> {
         let declared = self.type_of(value)?;
         if declared.is_numeric() || matches!(declared, Type::Char | Type::Boolean) {
             let numeric = self.lower_numeric(value)?;
@@ -59,7 +64,10 @@ impl Lowerer<'_> {
         if value.as_ident().is_some() {
             return Ok((value.clone(), declared));
         }
-        Err(format!("`{value}` cannot be cast"))
+        Err(Errors::CannotBeCast {
+            value: value.to_string(),
+        }
+        .into())
     }
 
     /// The handler for a cast from `from` to `class`: the concrete

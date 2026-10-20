@@ -1,4 +1,4 @@
-use ast::{Program, SyntaxError};
+use ast::Program;
 use types::Language;
 
 fn program(source: &str) -> Program {
@@ -95,9 +95,9 @@ fn rejects_legacy_class_fields() {
 "#
     .parse::<Program>()
     .unwrap_err();
-    let syntax = error.downcast_ref::<SyntaxError>().unwrap();
-    assert_eq!(syntax.line, 2);
-    assert!(syntax.message.contains("pub into: <Type> <name>"));
+    let context = error.resolved_context();
+    assert_eq!(context.span.unwrap().line, 2);
+    assert!(context.message.contains("pub into: <Type> <name>"));
 }
 
 #[test]

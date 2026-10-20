@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, bail};
+use errors::{Error, Errors, Result};
 use std::fmt;
 use std::str::FromStr;
 use types::Keyword;
@@ -37,7 +37,7 @@ impl FromStr for KeywordLexeme {
             "default" => Keyword::Default,
             "override" => Keyword::Override,
             "as" => Keyword::As,
-            other => bail!("`{other}` is not a keyword"),
+            other => return Err(Errors::not_lexeme(other, "a keyword").into()),
         }))
     }
 }

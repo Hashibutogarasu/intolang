@@ -1,4 +1,4 @@
-use anyhow::Result;
+use errors::Result;
 use std::fmt;
 use types::Punct;
 
@@ -52,7 +52,7 @@ impl From<Vec<String>> for Path {
 }
 
 impl TryFrom<&mut Cursor<'_>> for Path {
-    type Error = anyhow::Error;
+    type Error = errors::Error;
 
     fn try_from(cursor: &mut Cursor<'_>) -> Result<Self> {
         let (first, _) = cursor.expect_ident("a name")?;

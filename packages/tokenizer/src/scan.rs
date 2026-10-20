@@ -1,4 +1,4 @@
-use anyhow::{Result, bail};
+use errors::{Errors, Result};
 use parser::{CharLexeme, CommentLexeme, IdentLexeme, NumberLexeme, StringLexeme, SymbolLexeme};
 use types::{Span, Token};
 
@@ -66,7 +66,7 @@ pub(crate) fn scan(source: &str, keep_comments: bool) -> Result<Vec<Token>> {
                 }
             }
             if !closed {
-                bail!("Unterminated string at line {start_line}");
+                return Err(Errors::UnterminatedString { line: start_line }.into());
             }
             let raw: String = chars[body_start..index].iter().collect();
             index += 1;
@@ -86,7 +86,7 @@ pub(crate) fn scan(source: &str, keep_comments: bool) -> Result<Vec<Token>> {
                 end += if chars[end] == '\\' { 2 } else { 1 };
             }
             if chars.get(end) != Some(&'\'') {
-                bail!("Unterminated character literal at line {line}");
+                return Err(Errors::UnterminatedChar { line }.into());
             }
             let raw: String = chars[start + 1..end].iter().collect();
             let span = Span {

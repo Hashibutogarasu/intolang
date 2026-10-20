@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, bail};
+use errors::{Error, Errors, Result};
 use std::fmt;
 use std::str::FromStr;
 use types::{Span, Token, TokenKind};
@@ -30,7 +30,7 @@ impl FromStr for NumberLexeme {
 
     fn from_str(text: &str) -> Result<Self> {
         if text.is_empty() || !text.chars().all(|ch| ch.is_ascii_digit()) {
-            bail!("`{text}` is not a number");
+            return Err(Errors::not_lexeme(text, "a number").into());
         }
         Ok(Self {
             text: text.to_owned(),

@@ -1,5 +1,5 @@
-use anyhow::Result;
 use ast::{EventDecl, FunctionDecl, Program};
+use errors::{Error, Errors, Result};
 use std::collections::HashMap;
 
 use crate::context::{ClassInfo, Classes, EVENT, LISTENER, MemberInfo, OBJECT, TASK, THREAD};
@@ -142,15 +142,18 @@ fn event_info(event: &EventDecl) -> MemberInfo {
 }
 
 /// The parent chain of `name`, nearest first, ending with `Object`.
-pub fn ancestors<'a>(classes: &'a Classes, name: &str) -> Result<Vec<&'a ClassInfo>, String> {
+pub fn ancestors<'a>(classes: &'a Classes, name: &str) -> Result<Vec<&'a ClassInfo>> {
     let mut chain: Vec<&ClassInfo> = Vec::new();
     let mut current = name.to_owned();
     loop {
-        let class = classes
-            .get(&current)
-            .ok_or_else(|| format!("Unknown class `{current}`"))?;
+        let class = classes.get(&current).ok_or_else(|| Errors::UnknownClass {
+            name: current.clone(),
+        })?;
         if chain.iter().any(|seen| seen.name == class.name) {
-            return Err(format!("Class `{name}` inherits from itself"));
+            return Err(Errors::ClassInheritsItself {
+                name: name.to_string(),
+            }
+            .into());
         }
         let parent = class
             .parent
@@ -170,19 +173,19 @@ pub fn ancestors<'a>(classes: &'a Classes, name: &str) -> Result<Vec<&'a ClassIn
 /// existence, abstract and `override` rules.
 pub fn check_inheritance(classes: &Classes, declared: &[ClassInfo], path: &str) -> Result<()> {
     for class in declared {
-        let fail = |line: usize, message: String| {
-            diagnostic(path, line, &format!("class `{}`", class.name), &message)
+        let fail = |line: usize, error: Error| {
+            diagnostic(path, line, &format!("class `{}`", class.name), error)
         };
         if class.name == OBJECT {
-            return Err(fail(class.line, "`Object` is a built-in class".to_owned()));
+            return Err(fail(class.line, Errors::ObjectIsBuiltin.into()));
         }
-        let chain = ancestors(classes, &class.name).map_err(|message| fail(class.line, message))?;
+        let chain = ancestors(classes, &class.name).map_err(|error| fail(class.line, error))?;
         check_members(class, &chain, MemberKind::Method)
-            .map_err(|(line, message)| fail(line, message))?;
+            .map_err(|(line, error)| fail(line, error))?;
         check_members(class, &chain, MemberKind::Event)
-            .map_err(|(line, message)| fail(line, message))?;
+            .map_err(|(line, error)| fail(line, error))?;
         if !class.is_abstract {
-            check_implemented(class, &chain).map_err(|message| fail(class.line, message))?;
+            check_implemented(class, &chain).map_err(|error| fail(class.line, error))?;
         }
     }
     Ok(())
@@ -214,28 +217,28 @@ fn check_members(
     class: &ClassInfo,
     chain: &[&ClassInfo],
     kind: MemberKind,
-) -> Result<(), (usize, String)> {
+) -> std::result::Result<(), (usize, Error)> {
     let members = kind.members(class);
     for (index, member) in members.iter().enumerate() {
         let name = &member.name;
+        let fail = |error: Errors| (member.line, Error::from(error));
         if members[..index].iter().any(|other| {
             other.name == *name
                 && other.type_params == member.type_params
                 && other.params == member.params
         }) {
-            return Err((member.line, format!("Duplicate {} `{name}`", kind.noun())));
+            return Err(fail(Errors::DuplicateMember {
+                noun: kind.noun().to_string(),
+                name: name.clone(),
+            }));
         }
         if member.is_abstract && !class.is_abstract {
-            return Err((
-                member.line,
-                format!("Abstract member `{name}` must be declared in an abstract class"),
-            ));
+            return Err(fail(Errors::AbstractMemberOutsideAbstractClass {
+                name: name.clone(),
+            }));
         }
         if member.is_abstract && (member.has_body || member.is_native) {
-            return Err((
-                member.line,
-                format!("Abstract member `{name}` cannot have a body"),
-            ));
+            return Err(fail(Errors::AbstractMemberHasBody { name: name.clone() }));
         }
         let inherited = chain.iter().find_map(|ancestor| {
             kind.members(ancestor)
@@ -245,43 +248,36 @@ fn check_members(
         });
         match (inherited, member.is_override) {
             (None, true) => {
-                return Err((
-                    member.line,
-                    format!("`{name}` is marked `override` but overrides nothing"),
-                ));
+                return Err(fail(Errors::OverrideOverridesNothing {
+                    name: name.clone(),
+                }));
             }
             (Some((ancestor, parent)), false) => {
-                let message = if parent.is_open() {
-                    format!(
-                        "`{name}` hides a member of `{}`; add `override`",
-                        ancestor.name
-                    )
+                let error = if parent.is_open() {
+                    Errors::MemberHidesInherited {
+                        name: name.clone(),
+                        ancestor: ancestor.name.clone(),
+                    }
                 } else {
-                    format!(
-                        "`{name}` of `{}` is final and cannot be redeclared",
-                        ancestor.name
-                    )
+                    Errors::MemberFinalRedeclared {
+                        name: name.clone(),
+                        ancestor: ancestor.name.clone(),
+                    }
                 };
-                return Err((member.line, message));
+                return Err(fail(error));
             }
             (Some((ancestor, parent)), true) => {
                 if !parent.is_open() {
-                    return Err((
-                        member.line,
-                        format!(
-                            "`{name}` of `{}` is final and cannot be overridden",
-                            ancestor.name
-                        ),
-                    ));
+                    return Err(fail(Errors::MemberFinalOverridden {
+                        name: name.clone(),
+                        ancestor: ancestor.name.clone(),
+                    }));
                 }
                 if !signature_matches(kind, class, ancestor, parent, member) {
-                    return Err((
-                        member.line,
-                        format!(
-                            "`{name}` does not match the signature of `{}.{name}`",
-                            ancestor.name
-                        ),
-                    ));
+                    return Err(fail(Errors::SignatureMismatch {
+                        name: name.clone(),
+                        ancestor: ancestor.name.clone(),
+                    }));
                 }
             }
             (None, false) => {}
@@ -316,7 +312,7 @@ fn signature_matches(
 }
 
 /// A non-abstract class must give every inherited abstract member a body.
-fn check_implemented(class: &ClassInfo, chain: &[&ClassInfo]) -> Result<(), String> {
+fn check_implemented(class: &ClassInfo, chain: &[&ClassInfo]) -> Result<()> {
     for kind in [MemberKind::Method, MemberKind::Event] {
         let mut effective: HashMap<&str, bool> = HashMap::new();
         for owner in chain.iter().rev().copied().chain(std::iter::once(class)) {
@@ -330,10 +326,11 @@ fn check_implemented(class: &ClassInfo, chain: &[&ClassInfo]) -> Result<(), Stri
             .collect();
         missing.sort_unstable();
         if let Some(name) = missing.first() {
-            return Err(format!(
-                "Class `{}` does not implement the abstract member `{name}`",
-                class.name
-            ));
+            return Err(Errors::AbstractMemberNotImplemented {
+                class: class.name.clone(),
+                name: (*name).to_string(),
+            }
+            .into());
         }
     }
     Ok(())

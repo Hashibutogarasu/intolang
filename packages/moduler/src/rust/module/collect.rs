@@ -1,5 +1,5 @@
-use anyhow::{Context, Result};
 use ast::Program;
+use errors::Result;
 use std::collections::HashSet;
 use std::path::Path;
 
@@ -30,7 +30,7 @@ fn collect(
         let contents = std::fs::read_to_string(&module_path).unwrap_or_default();
         let module_program = contents
             .parse::<Program>()
-            .with_context(|| format!("Could not parse module {}", module_path.display()))?;
+            .map_err(|error| error.bound_to(&module_path.display().to_string()))?;
         collect(&module_program, packages_dir, seen, out)?;
         let manifest_contents = std::fs::read_to_string(root.join("into-package.json"))?;
         let manifest: serde_json::Value = serde_json::from_str(&manifest_contents)?;

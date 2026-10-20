@@ -1,4 +1,4 @@
-use anyhow::Result;
+use errors::Result;
 use intovm::{ProcessInfo, ProcessState, TraceEntry, Vm, VmOptions};
 
 use super::evaluate::eval_with;

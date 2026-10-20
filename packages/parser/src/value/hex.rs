@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, bail};
+use errors::{Error, Errors, Result};
 use std::fmt;
 use std::str::FromStr;
 
@@ -33,7 +33,7 @@ impl FromStr for Hex {
 
     fn from_str(text: &str) -> Result<Self> {
         if !text.len().is_multiple_of(2) || !text.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-            bail!("Invalid native string argument encoding");
+            return Err(Errors::InvalidHexEncoding.into());
         }
         Ok(Hex(text.to_owned()))
     }
@@ -45,7 +45,10 @@ impl TryFrom<Hex> for Vec<u8> {
     fn try_from(hex: Hex) -> Result<Self> {
         (0..hex.0.len())
             .step_by(2)
-            .map(|index| Ok(u8::from_str_radix(&hex.0[index..index + 2], 16)?))
+            .map(|index| {
+                u8::from_str_radix(&hex.0[index..index + 2], 16)
+                    .map_err(|_| Errors::InvalidHexEncoding.into())
+            })
             .collect()
     }
 }

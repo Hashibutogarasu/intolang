@@ -1,4 +1,4 @@
-use anyhow::{Error, Result};
+use errors::{Error, Result};
 use std::ops::Deref;
 use std::str::FromStr;
 use types::Token;

@@ -1,9 +1,10 @@
-use anyhow::{Context, Result};
-use clap::{ArgMatches, Args as ClapArgs, Command as ClapCommand, FromArgMatches};
+use clap::{ArgMatches, Args as ClapArgs, Command as ClapCommand};
+use errors::{Errors, Result};
 use moduler::{Project, find_by_alias, is_builtin};
+use progress::Progress;
 use std::path::PathBuf;
 
-use crate::commands::command::Command;
+use crate::commands::command::{Command, arguments};
 
 #[derive(ClapArgs)]
 struct InstallArgs {
@@ -27,33 +28,44 @@ impl Command for Install {
     }
 
     fn execute(&self, matches: &ArgMatches) -> Result<()> {
-        let args = InstallArgs::from_arg_matches(matches)?;
+        let args = arguments::<InstallArgs>(matches)?;
+        let progress = Progress::start("Looking for the project", 1);
         let project = Project::new(std::env::current_dir()?);
         let embedded = compiler::builtin_packages_dir();
         match args.source {
             Some(source) => {
+                progress.step(&format!("Installing {}", source.display()));
                 let source = match source.to_str() {
                     Some(name) if is_builtin(name) && !source.exists() => {
-                        find_by_alias(&embedded, moduler::BUILTIN_ALIAS)?
-                            .context("The compiler does not embed the builtin package")?
+                        find_by_alias(&embedded, moduler::BUILTIN_ALIAS)?.ok_or_else(|| {
+                            Errors::PackageNotEmbedded {
+                                alias: moduler::BUILTIN_ALIAS.to_string(),
+                            }
+                        })?
                     }
                     _ => source,
                 };
                 let package = project.install(&source, &embedded)?;
-                progress::report(&format!("Installed {} {}", package.alias, package.version));
+                progress.finish(&format!("Installed {} {}", package.alias, package.version));
             }
             None => {
-                for restoration in project.restore(&embedded)? {
-                    let status = if restoration.installed {
-                        "Installed"
-                    } else {
-                        "Up to date"
-                    };
-                    progress::report(&format!(
-                        "{status} {} {}",
-                        restoration.package.alias, restoration.package.version
-                    ));
-                }
+                progress.step("Restoring the packages");
+                let restored = project
+                    .restore(&embedded)?
+                    .into_iter()
+                    .map(|restoration| {
+                        let status = if restoration.installed {
+                            "Installed"
+                        } else {
+                            "Up to date"
+                        };
+                        format!(
+                            "{status} {} {}",
+                            restoration.package.alias, restoration.package.version
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                progress.finish(&restored.join(", "));
             }
         }
         Ok(())

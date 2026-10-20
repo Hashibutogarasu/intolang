@@ -1,4 +1,4 @@
-use anyhow::Error;
+use errors::Error;
 
 use super::env::Env;
 use super::state::State;
@@ -19,14 +19,9 @@ impl<'a> Lowerer<'a> {
         Self { env, state }
     }
 
-    /// A diagnostic bound to the entry source path and the current scope.
-    pub fn diagnostic(&self, line: usize, message: &str) -> Error {
-        diagnostic(
-            &self.env.source_path,
-            line,
-            self.state.scope_name(),
-            message,
-        )
+    /// An error bound to the entry source path and the current scope.
+    pub fn diagnostic(&self, line: usize, error: Error) -> Error {
+        diagnostic(&self.env.source_path, line, self.state.scope_name(), error)
     }
 
     pub fn into_output(self) -> String {

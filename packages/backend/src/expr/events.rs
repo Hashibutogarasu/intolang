@@ -1,4 +1,5 @@
 use ast::{Expr, Param, Path, Stmt};
+use errors::{Errors, Result};
 use std::mem;
 use types::Type;
 
@@ -29,7 +30,7 @@ impl Lowerer<'_> {
         callee: &Path,
         args: &[Expr],
         assigned_to: &str,
-    ) -> Result<RuntimeCall, String> {
+    ) -> Result<RuntimeCall> {
         if let Some(handled) = self.lower_member_event_call(callee, args, assigned_to)? {
             return Ok(handled);
         }
@@ -77,7 +78,7 @@ impl Lowerer<'_> {
     }
 
     /// Register the default handlers the bodies of declared events form.
-    pub fn register_default_handlers(&mut self) -> Result<(), String> {
+    pub fn register_default_handlers(&mut self) -> Result<()> {
         let env = self.env;
         let mut names: Vec<&String> = env.events.keys().collect();
         names.sort();
@@ -110,15 +111,18 @@ impl Lowerer<'_> {
             .map(|variable| variable.value.clone())
     }
 
-    fn ensure_event_alive(&self, receiver: &str, event: &str) -> Result<(), String> {
+    fn ensure_event_alive(&self, receiver: &str, event: &str) -> Result<()> {
         self.ensure_usable(receiver)?;
         if self.state.destroyed_events.contains(event) {
-            return Err(format!("`{receiver}` was destroyed"));
+            return Err(Errors::Destroyed {
+                name: receiver.to_string(),
+            }
+            .into());
         }
         Ok(())
     }
 
-    fn destroy_listener(&mut self, receiver: &str, event: &str) -> Result<(), String> {
+    fn destroy_listener(&mut self, receiver: &str, event: &str) -> Result<()> {
         self.check_receiver_call(receiver, DESTROY)?;
         emit::event_off(&mut self.state.output, event, receiver);
         self.apply_receiver_call(receiver, DESTROY);
@@ -130,17 +134,21 @@ impl Lowerer<'_> {
         event: &str,
         args: &[Expr],
         assigned_to: &str,
-    ) -> Result<(), String> {
+    ) -> Result<()> {
         let [Expr::Lambda { params, body }] = args else {
-            return Err(format!("`{event}.on` expects one lambda handler"));
+            return Err(Errors::HandlerNeedsLambda {
+                event: event.to_string(),
+            }
+            .into());
         };
         let info = self.event_info(event)?;
         if params.len() != info.params.len() {
-            return Err(format!(
-                "The handler of `{event}` takes {} parameter(s) but the lambda declares {}",
-                info.params.len(),
-                params.len()
-            ));
+            return Err(Errors::HandlerParameterCount {
+                event: event.to_string(),
+                expected: info.params.len(),
+                declared: params.len(),
+            }
+            .into());
         }
         let declared = info.params;
         let locals: Vec<String> = params.iter().map(|param| param.name.clone()).collect();
@@ -159,15 +167,16 @@ impl Lowerer<'_> {
         declared: &[Param],
         locals: &[String],
         body: &[Stmt],
-    ) -> Result<(), String> {
+    ) -> Result<()> {
         let env = self.env;
         let mut params = Vec::new();
         for (param, local) in declared.iter().zip(locals) {
-            let written = param
-                .ty
-                .as_ref()
-                .ok_or_else(|| format!("The event parameter `{}` needs a type", param.name))?;
-            let ty = parse_type(written.as_str(), &env.type_params).map_err(|e| e.to_string())?;
+            let written = param.ty.as_ref().ok_or_else(|| {
+                errors::Error::from(Errors::EventParameterNeedsType {
+                    param: param.name.clone(),
+                })
+            })?;
+            let ty = parse_type(written.as_str(), &env.type_params)?;
             params.push((local.clone(), ty));
         }
         let captures: Vec<String> = mentioned_names(body)
@@ -202,7 +211,7 @@ impl Lowerer<'_> {
         self.state.scopes.push(Vec::new());
 
         self.state.returning.push(Type::Void);
-        let lowered = self.lower_block(body).map_err(|error| error.to_string());
+        let lowered = self.lower_block(body);
         self.state.returning.pop();
         let owned = self.state.scopes.pop().unwrap_or_default();
         lowered?;
@@ -221,14 +230,15 @@ impl Lowerer<'_> {
         Ok(())
     }
 
-    pub(super) fn emit_event(&mut self, event: &str, args: &[Expr]) -> Result<(), String> {
+    pub(super) fn emit_event(&mut self, event: &str, args: &[Expr]) -> Result<()> {
         let declared = self.event_info(event)?.params;
         if args.len() != declared.len() {
-            return Err(format!(
-                "`{event}` takes {} argument(s) but received {}",
-                declared.len(),
-                args.len()
-            ));
+            return Err(Errors::ArgumentCount {
+                name: event.to_string(),
+                expected: declared.len(),
+                received: args.len(),
+            }
+            .into());
         }
         let mut native = Vec::new();
         for (param, arg) in declared.iter().zip(args) {
@@ -249,29 +259,34 @@ impl Lowerer<'_> {
             .is_ok_and(|chain| chain.iter().any(|ancestor| ancestor.name == *expected))
     }
 
-    fn check_event_argument(&self, event: &str, param: &Param, arg: &Expr) -> Result<(), String> {
-        let written = param
-            .ty
-            .as_ref()
-            .ok_or_else(|| format!("The event parameter `{}` needs a type", param.name))?;
-        let expected =
-            parse_type(written.as_str(), &self.env.type_params).map_err(|e| e.to_string())?;
+    fn check_event_argument(&self, event: &str, param: &Param, arg: &Expr) -> Result<()> {
+        let written = param.ty.as_ref().ok_or_else(|| {
+            errors::Error::from(Errors::EventParameterNeedsType {
+                param: param.name.clone(),
+            })
+        })?;
+        let expected = parse_type(written.as_str(), &self.env.type_params)?;
         let expected = expected.referent();
         let actual = self
             .type_of(arg)
-            .map_err(|_| format!("Unknown event argument `{arg}`"))?
+            .map_err(|_| {
+                errors::Error::from(Errors::UnknownEventArgument {
+                    arg: arg.to_string(),
+                })
+            })?
             .referent()
             .clone();
         if &actual != expected
             && !(actual == Type::String && *expected == Type::Path)
             && !self.inherits_from(&actual, expected)
         {
-            return Err(format!(
-                "`{event}` expects `{}` for `{}` but received `{}`",
-                expected.name(),
-                param.name,
-                actual.name()
-            ));
+            return Err(Errors::EventArgumentType {
+                event: event.to_string(),
+                expected: expected.name(),
+                param: param.name.clone(),
+                actual: actual.name(),
+            }
+            .into());
         }
         Ok(())
     }

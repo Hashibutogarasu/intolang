@@ -1,5 +1,5 @@
-use anyhow::{Error, Result, bail};
 use ast::UseDecl;
+use errors::{Error, Errors, Result};
 use std::fmt;
 use std::str::FromStr;
 
@@ -17,7 +17,10 @@ impl FromStr for ImportSpec {
 
     fn from_str(uri: &str) -> Result<Self> {
         let Some((scheme, path)) = uri.split_once("://") else {
-            bail!("`{uri}` is not a module URI");
+            return Err(Errors::NotModuleUri {
+                uri: uri.to_string(),
+            }
+            .into());
         };
         let (alias, module) = if scheme == BUILTIN_SCHEME {
             let mut segments = path.split('/');
@@ -27,7 +30,10 @@ impl FromStr for ImportSpec {
             (scheme.to_owned(), path.to_owned())
         };
         if alias.is_empty() || module.is_empty() {
-            bail!("`{uri}` does not name a module");
+            return Err(Errors::ImportNameMissing {
+                uri: uri.to_string(),
+            }
+            .into());
         }
         Ok(Self { alias, module })
     }

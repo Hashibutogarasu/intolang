@@ -1,5 +1,5 @@
-use anyhow::Result;
 use ast::{Stmt, StmtKind};
+use errors::{Errors, Result};
 use types::MessageTag;
 
 use crate::context::Lowerer;
@@ -29,7 +29,7 @@ impl Lowerer<'_> {
             StmtKind::While { condition, body } => self.lower_while(line, condition, body),
             StmtKind::Break => {
                 if self.state.loop_depth == 0 {
-                    return Err(self.diagnostic(line, "`break` must be inside a while loop"));
+                    return Err(self.diagnostic(line, Errors::BreakOutsideLoop.into()));
                 }
                 self.release_for_break(line)?;
                 emit::bare(&mut self.state.output, MessageTag::Break);
@@ -43,7 +43,7 @@ impl Lowerer<'_> {
             }
             StmtKind::Return(value) => self
                 .lower_function_return(value.as_ref())
-                .map_err(|message| self.diagnostic(line, &message)),
+                .map_err(|error| self.diagnostic(line, error)),
         }
     }
 }

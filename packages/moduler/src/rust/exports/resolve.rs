@@ -1,5 +1,5 @@
-use anyhow::{Context, Result, anyhow, bail};
 use ast::Program;
+use errors::{Errors, Result};
 use std::collections::HashSet;
 use std::path::Path;
 
@@ -15,18 +15,19 @@ pub fn resolve(program: &Program, packages_dir: &Path) -> Result<HashSet<String>
     let mut imported_functions = HashSet::new();
     for loaded in &modules {
         let info_path = loaded.package().root.join("src/main/into-info.into");
-        let info = std::fs::read_to_string(&info_path)
-            .map_err(|_| anyhow!("Package `{}` has no into-info.into", loaded.module.alias))?;
+        let info = std::fs::read_to_string(&info_path).map_err(|_| Errors::PackageNoInfo {
+            alias: loaded.module.alias.clone(),
+        })?;
         let info = info
             .parse::<Program>()
-            .with_context(|| format!("Could not parse {}", info_path.display()))?;
+            .map_err(|error| error.bound_to(&info_path.display().to_string()))?;
         let exports = module_exports(&info, loaded)?;
         if exports.is_empty() {
-            bail!(
-                "Package `{}` does not export module `{}`",
-                loaded.module.alias,
-                loaded.module.name
-            );
+            return Err(Errors::ModuleNotExported {
+                alias: loaded.module.alias.clone(),
+                module: loaded.module.name.clone(),
+            }
+            .into());
         }
         imported_functions.extend(exports);
     }

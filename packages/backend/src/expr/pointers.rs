@@ -1,4 +1,5 @@
 use ast::Expr;
+use errors::{Errors, Result};
 use native::{MemoryLoad, MemoryStore, Operand};
 use types::Type;
 
@@ -54,16 +55,18 @@ impl Lowerer<'_> {
         method: &str,
         args: &[Expr],
         assigned_to: &str,
-    ) -> Result<Option<Option<Type>>, String> {
+    ) -> Result<Option<Option<Type>>> {
         let Some((element, store)) = Self::pointer_access(receiver_type, method) else {
             return Ok(None);
         };
         let expected = if store { 2 } else { 1 };
         if args.len() != expected {
-            return Err(format!(
-                "`{method}` takes {expected} argument(s) but received {}",
-                args.len()
-            ));
+            return Err(Errors::ArgumentCount {
+                name: method.to_string(),
+                expected,
+                received: args.len(),
+            }
+            .into());
         }
         self.ensure_usable(receiver)?;
         let index = Operand::Slot(self.scalar_slot(&args[0], &Type::Int64)?);
@@ -81,7 +84,10 @@ impl Lowerer<'_> {
             return Ok(Some(None));
         }
         if assigned_to.is_empty() {
-            return Err(format!("`{method}` gives a value that has to be used"));
+            return Err(Errors::ValueMustBeUsed {
+                method: method.to_string(),
+            }
+            .into());
         }
         emit::memory_load(
             &mut self.state.output,
@@ -96,11 +102,13 @@ impl Lowerer<'_> {
     }
 
     /// The operand that writes `value` as an item of type `element`.
-    fn pointer_value(&mut self, value: &Expr, element: &Type) -> Result<Operand, String> {
+    fn pointer_value(&mut self, value: &Expr, element: &Type) -> Result<Operand> {
         if *element == Type::Pointer {
-            let name = value
-                .as_ident()
-                .ok_or_else(|| format!("Expected a pointer but received `{value}`"))?;
+            let name = value.as_ident().ok_or_else(|| {
+                errors::Error::from(Errors::ExpectedPointer {
+                    value: value.to_string(),
+                })
+            })?;
             self.ensure_usable(name)?;
             return Ok(Operand::Slot(name.to_owned()));
         }

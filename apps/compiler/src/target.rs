@@ -1,6 +1,7 @@
-use anyhow::{Result, anyhow};
+use codegen::{llvm_failure, read_message};
+use errors::Result;
+use std::ptr;
 use std::sync::Once;
-use std::{ffi::CStr, ptr};
 
 use crate::llvm;
 use llvm::core::LLVMDisposeMessage;
@@ -24,18 +25,14 @@ pub(super) unsafe fn host_target_machine() -> Result<*mut LLVMOpaqueTargetMachin
         let mut target = ptr::null_mut();
         let mut error = ptr::null_mut();
         if LLVMGetTargetFromTriple(triple, &mut target, &mut error) != 0 {
-            let description = if error.is_null() {
-                "unknown target error".into()
-            } else {
-                CStr::from_ptr(error).to_string_lossy().into_owned()
-            };
-            if !error.is_null() {
-                LLVMDisposeMessage(error);
-            }
+            let description = read_message(error, "unknown target error");
             LLVMDisposeMessage(cpu);
             LLVMDisposeMessage(features);
             LLVMDisposeMessage(triple);
-            return Err(anyhow!("Failed to get target from triple: {description}"));
+            return Err(llvm_failure(
+                "Failed to get target from triple",
+                description,
+            ));
         }
 
         let machine = LLVMCreateTargetMachine(

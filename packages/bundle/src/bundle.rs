@@ -1,4 +1,4 @@
-use anyhow::{Result, bail};
+use errors::{Errors, Result};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
@@ -21,7 +21,10 @@ impl Bundle {
     pub fn add_file(&mut self, path: &str, contents: impl AsRef<[u8]>, mode: u32) -> Result<()> {
         let path = BundlePath::try_from(path)?;
         if self.entries.contains_key(&path) {
-            bail!("`{path}` is already in the bundle");
+            return Err(Errors::BundleDuplicate {
+                path: path.to_string(),
+            }
+            .into());
         }
         self.add_parents(&path)?;
         let contents = contents.as_ref();
@@ -49,7 +52,12 @@ impl Bundle {
         let path = BundlePath::try_from(path)?;
         match self.entries.get(&path) {
             Some(Entry::Directory) => return Ok(()),
-            Some(Entry::File { .. }) => bail!("`{path}` is a file, not a directory"),
+            Some(Entry::File { .. }) => {
+                return Err(Errors::BundleNotDirectory {
+                    path: path.to_string(),
+                }
+                .into());
+            }
             None => {}
         }
         self.add_parents(&path)?;
@@ -66,7 +74,12 @@ impl Bundle {
         }
         for parent in parents.into_iter().rev() {
             match self.entries.get(&parent) {
-                Some(Entry::File { .. }) => bail!("`{parent}` is a file, not a directory"),
+                Some(Entry::File { .. }) => {
+                    return Err(Errors::BundleNotDirectory {
+                        path: parent.to_string(),
+                    }
+                    .into());
+                }
                 Some(Entry::Directory) => {}
                 None => {
                     self.entries.insert(parent, Entry::Directory);

@@ -1,8 +1,9 @@
-use anyhow::{Context, Result, bail};
+use errors::{Errors, Result};
 use std::path::{Path, PathBuf};
 use types::Language;
 
 use super::compile::toolchain;
+use super::failure::{tool_failure, tool_not_run};
 use super::pkg_config::pkg_config_flags;
 
 /// A native source to compile into a shared library.
@@ -39,18 +40,15 @@ pub fn compile_shared_library(sources: &[SharedSource], output: &Path) -> Result
             .arg("-o")
             .arg(&object)
             .output()
-            .with_context(|| {
-                format!(
-                    "native call requires a compiler: could not run `{command}` for {}",
-                    source.path.display()
-                )
-            })?;
+            .map_err(|error| tool_not_run(&command, &error))?;
         if !result.status.success() {
-            bail!(
-                "Native source compilation failed for {}:\n{}",
-                source.path.display(),
-                String::from_utf8_lossy(&result.stderr)
-            );
+            return Err(tool_failure(
+                Errors::NativeSourceCompilationFailed {
+                    path: source.path.display().to_string(),
+                },
+                &command,
+                &result.stderr,
+            ));
         }
         objects.push(object);
     }
@@ -63,15 +61,16 @@ pub fn compile_shared_library(sources: &[SharedSource], output: &Path) -> Result
         .arg(output)
         .args(pkg_config_flags(&dependencies, "--libs")?)
         .output()
-        .with_context(|| format!("native call requires a compiler: could not run `{command}`"))?;
+        .map_err(|error| tool_not_run(&command, &error))?;
     for object in &objects {
         std::fs::remove_file(object).ok();
     }
     if !result.status.success() {
-        bail!(
-            "Linking the native library failed:\n{}",
-            String::from_utf8_lossy(&result.stderr)
-        );
+        return Err(tool_failure(
+            Errors::NativeLibraryLinkFailed,
+            &command,
+            &result.stderr,
+        ));
     }
     Ok(())
 }

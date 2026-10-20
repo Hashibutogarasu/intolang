@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, anyhow};
+use errors::{Error, Errors, Result};
 use parser::Record;
 use types::MessageTag;
 
@@ -27,7 +27,7 @@ impl TryFrom<&Record> for CastAssign {
 
     fn try_from(record: &Record) -> Result<Self> {
         let [target, source, from, to, ..] = record.fields() else {
-            return Err(anyhow!("Malformed NATIVE_CAST record"));
+            return Err(Errors::malformed_record("NATIVE_CAST").into());
         };
         Ok(Self {
             target: target.clone(),

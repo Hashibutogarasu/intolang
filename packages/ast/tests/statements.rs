@@ -1,4 +1,4 @@
-use ast::{Declaration, Expr, Item, Program, StmtKind, SyntaxError};
+use ast::{Declaration, Expr, Item, Program, StmtKind};
 use types::{ArithmeticOperator, ComparisonOperator, Literal, Storage};
 
 fn statements(source: &str) -> Vec<StmtKind> {
@@ -164,7 +164,7 @@ fn reports_syntax_errors_with_lines() {
 f(;"#
         .parse::<Program>()
         .unwrap_err();
-    assert_eq!(error.downcast_ref::<SyntaxError>().unwrap().line, 2);
+    assert_eq!(error.resolved_context().span.unwrap().line, 2);
     let error = "}".parse::<Program>().unwrap_err();
     assert!(error.to_string().contains("Unexpected closing brace"));
     assert!("init {".parse::<Program>().is_err());
@@ -178,10 +178,10 @@ fn rejects_nested_function_declarations() {
 "#
     .parse::<Program>()
     .unwrap_err();
-    let syntax = error.downcast_ref::<SyntaxError>().unwrap();
-    assert_eq!(syntax.line, 2);
-    assert_eq!(syntax.scope, "function body");
-    assert!(syntax.message.contains("cannot be nested"));
+    let context = error.resolved_context();
+    assert_eq!(context.span.unwrap().line, 2);
+    assert_eq!(context.syntax.unwrap().scope, "function body");
+    assert!(context.message.contains("cannot be nested"));
     assert!(matches!(
         "pub fun outer() { init { f(); } }"
             .parse::<Program>()

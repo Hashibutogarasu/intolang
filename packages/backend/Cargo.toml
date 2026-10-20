@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-anyhow = "1.0.104"
+errors = { version = "0.1.0", path = "../errors" }
 moduler = { path = "../moduler" }
 ast = { version = "0.1.0", path = "../ast" }
 native = { version = "0.1.0", path = "../native" }

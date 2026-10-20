@@ -21,9 +21,10 @@ It is a Cargo workspace (Rust edition 2024).
 
 | Path | Crate / contents | Role |
 | --- | --- | --- |
-| `src/` | `intolang` (root) | CLI entrypoint (`main.rs`) and `src/commands/*` (`new`, `build`, `install`, `format`, `inex`) |
+| `src/` | `intolang` (root) | CLI entrypoint (`main.rs`) and `src/commands/*` (`new`, `build`, `install`, `format`, `inex`, `error_format`) |
 | `apps/compiler/` | `compiler` | Drives `codegen`: target machine, object emission, native source compilation (`native`), links via `lld`; embeds resources in `build.rs` |
-| `packages/bundle/` | `bundle` | A file tree in memory (`Bundle`, `BundlePath`, `Entry`): normalized relative paths, equal contents stored once, trees and packages added from directories; no LLVM and no dependency on the other crates |
+| `packages/errors/` | `errors` | Every error of the toolchain: the `Errors` enum (message and hex code of each variant), `Error`/`Result`, the stack-trace layers, the JSON-compatible `ErrorContext` and the human/JSON reports; a leaf crate without LLVM that every other crate may depend on |
+| `packages/bundle/` | `bundle` | A file tree in memory (`Bundle`, `BundlePath`, `Entry`): normalized relative paths, equal contents stored once, trees and packages added from directories; no LLVM and depends only on `errors` |
 | `packages/codegen/` | `codegen` | LLVM code generation from the lowered message: one node per record under `src/native/`, shared LLVM state in `src/context/` |
 | `apps/compiler/res/` | — | `packages/intolang` runtime and `templates/hello_world` used by `into new` |
 | `packages/types/` | `types` | Language type structures only (tokens, keywords, `Type`, message tags); no tokenizing or formatting behaviour |
@@ -41,7 +42,7 @@ It is a Cargo workspace (Rust edition 2024).
 | `packages/ps/` | package, alias `ps` | `Process`, `Signal`, `Usage`, the `started`, `exited` and `signalReceived` events, `dispatch` and `exit` |
 | `packages/system/modules/{c,cpp,json}/` | native packages | Language system modules (C stdio, C++ http/filesystem/time/string, JSON) |
 | `packages/{fs,path,ffmpeg,sdl2,wayland,vulkan}/` | native packages | File access, paths, FFmpeg decoding, SDL2 audio, Wayland windows and Vulkan rendering |
-| `examples/` | Into projects | Sample programs (`HelloWorld`, `Fibonacci`, `Json`, `Networking`, `Memory`, `Ownership`, `Process`, `NativeLib`, `Types`, `Bad Apple!!`) |
+| `examples/` | Into projects | Sample programs (`HelloWorld`, `Fibonacci`, `Json`, `Networking`, `Memory`, `Ownership`, `Process`, `NativeLib`, `Types`, `Bad Apple!!`) and `examples/Errors/*`, projects that fail on purpose with the code and message listed in its README |
 | `dist/` | Cargo target dir | Git-ignored; the flake sets `CARGO_TARGET_DIR=$PWD/dist` |
 
 Each Into package has an `into-package.json` manifest, `src/main/`, and build
@@ -69,7 +70,10 @@ reads `src/main/tests/assert.into` of the builtin package.
 - **LLVM 23** and **LLD**. The compiler expects `LLVM_SYS_231_PREFIX` to point at
   an LLVM dev tree. `nix develop` (see `flake.nix`) provisions LLVM 23, lld,
   `cargo`/`rustc`, Wayland/Vulkan headers, `pkg-config`, `yt-dlp`/`ffmpeg`
-  (for example assets), plus the `codex` CLI.
+  (for example assets), plus the `codex` CLI. `nix develop .#llvm` is the small
+  shell for building and testing the Rust workspace: LLVM 23, lld, `cargo`/`rustc`,
+  `zlib`, `libxml2` and `pkg-config`, without the example and codex dependencies
+  and without building the `into` binary in the shell hook.
 - Native example packages need their system libraries (e.g. `wayland-client`,
   Vulkan loader). C/C++ native modules are compiled with `cc`/`c++` (override via
   the `CC`/`CXX` env vars) and dependencies are resolved through `pkg-config`.
@@ -352,6 +356,15 @@ has a test in the `tests/` directory of the crate that implements it.
   which runs.
 - Legacy single-dash flags are accepted and normalized: `-test`, `-run`,
   `-format`, `-depth`.
+- The progress line of a command (`progress::Progress`) shows a spinner in its
+  brackets and a green check mark when `finish` ends it. A `Progress` that is
+  dropped before `finish`, as when the build fails, keeps its last message and
+  shows a red cross instead (`[✗]`, also on a stream that is not a terminal).
+  `build`, `install` and `uninstall` start their `Progress` before they look for
+  the manifest, the project or the package, so a package that is not found fails
+  inside it. The CLI writes the first line of a failure (the notes and the message)
+  in the same line format with `progress::fail`, through `ErrorReport::emit_with`;
+  the stack trace and the error code follow it.
 - `build --vm` writes an `.inex` file instead of calling LLVM and the linker,
   for executables only; `run --vm` builds it and runs it. `build --test` runs the
   tests in the VM.
@@ -437,13 +450,39 @@ and links an executable, `InexTarget` makes a `Bundle` of the project
   and exports `COMPILER_BUNDLED_RES`. It re-runs when `res/`,
   `packages/intolang`, `packages/system/modules`, or workspace packages change —
   so edits to bundled packages take effect after a rebuild.
-- Diagnostics use `anyhow`; the backend wraps errors in an
-  `Into language backtrace:` format via `parser::diagnostic`.
+- Errors are values of `errors::Errors`, carried by `errors::Error`; `anyhow` is
+  not a dependency. Each variant has its message (`#[error]`) and its code, a hex
+  discriminant written in the enum (`Syntax { .. } = 0x0001`). `Errors::Unknown`
+  (`0xFFFF`) is the only variant without a code. The variants belong to two
+  domains declared in `declare_errors!`:
+  - `IntoLang` (`0x0001..=0x7FFF`): errors of the user's Into program. `0x0xxx`
+    lexing and syntax, `0x1xxx` names and types, `0x2xxx` ownership, `0x3xxx`
+    events and signals, `0x4xxx` classes and enums, `0x6xxx` VM run time, `0x7xxx`
+    the test runner. Their stack trace goes Into → Rust → Native → raw panic; the
+    Into layer (`IntoLangStackTrace`) is the one `Into language backtrace:` format.
+  - `Compiler` (`0x8000..=0xFFFE`): errors of the toolchain. `0x8xxx` packages and
+    manifests, `0x9xxx` native build and records, `0xAxxx` codegen, LLVM and LLD,
+    `0xBxxx` IO, bundle, inex and the CLI, `0xCxxx` internal inconsistencies. They
+    never carry the Into layer: Rust → Native (only when an external tool or
+    library failed, with its stderr as the output) → raw panic.
+  - To add an error, add a variant with the next free code to the right domain in
+    `packages/errors/src/errors.rs` (messages are written once, there), raise it
+    with `Errors::X { .. }.into()` and add a test where its crate keeps its tests.
+    `tests/catalog.rs` of `errors` checks that codes are unique and in range.
+    Do not add variants that only wrap a `String`.
+  - `errors::Context` adds notes (`.context(..)`, `.with_context(..)`) that print
+    before the message, outermost first. Syntax errors collect an `ErrorContext`
+    (path, `SourceSpan`, expected, found, hint), the shape a future LSP reads.
+  - The CLI writes a failure through `ErrorReport`, chosen once by
+    `ReportFormat::reporter()`: `--error-format human` (the default, stderr, with
+    `error code: 0x....`) or `--error-format json` (stdout, one object with
+    `context`, `notes` and `trace`). `errors::install_panic_hook()` keeps the raw
+    panic information.
 
 ## Conventions and gotchas
 
-- Edition 2024; use `anyhow` for errors in the tool, `serde`/`serde_json` for
-  manifests. No comments unless necessary.
+- Edition 2024; use `errors::Result` and `errors::Errors` for errors, `serde`/`serde_json`
+  for manifests. No comments unless necessary.
 - `mod.rs` (and `lib.rs` of the library crates under `packages/`) only declare
   modules and decide what is re-exported; they hold no logic. Group files into
   directories by responsibility rather than keeping them flat.
@@ -467,7 +506,8 @@ and links an executable, `InexTarget` makes a `Bundle` of the project
 - The formatter uses 4-space block indentation and collapses consecutive blank
   lines; `//` are line comments (ignore braces inside strings/comments).
 - There is no CI configuration, test script, or lint config beyond `cargo`
-  defaults; run `cargo fmt` / `cargo clippy` / `cargo test` manually.
+  defaults; run `cargo fmt` / `cargo clippy` / `cargo test` manually. The nix
+  shells carry the `clippy` and `rustfmt` that match their `rustc`.
 - Only commit when explicitly asked. `dist/`, `.into/`, and `target/` are
   generated and git-ignored.
 - Do not propose next steps, follow-up actions, or "what to do next" in

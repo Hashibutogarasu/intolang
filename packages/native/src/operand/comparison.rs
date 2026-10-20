@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, anyhow};
+use errors::{Error, Errors, Result};
 use parser::{ComparisonLexeme, Record};
 use types::{ComparisonOperator, MessageTag};
 
@@ -30,7 +30,7 @@ impl TryFrom<&Record> for Comparison {
 
     fn try_from(record: &Record) -> Result<Self> {
         let [left, operator, operand, type_name, ..] = record.fields() else {
-            return Err(anyhow!("Malformed comparison record"));
+            return Err(Errors::malformed_record("comparison").into());
         };
         Ok(Self {
             left: left.clone(),

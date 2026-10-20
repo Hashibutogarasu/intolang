@@ -1,6 +1,7 @@
 mod assets;
 mod compile;
 mod embed;
+mod failure;
 mod manifest;
 mod pkg_config;
 mod shared;

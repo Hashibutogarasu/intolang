@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, anyhow};
+use errors::{Error, Errors, Result};
 use parser::Record;
 use types::MessageTag;
 
@@ -31,7 +31,7 @@ impl TryFrom<&Record> for FieldAssign {
 
     fn try_from(record: &Record) -> Result<Self> {
         let [slot, class, index, ty, operand, ..] = record.fields() else {
-            return Err(anyhow!("Malformed NATIVE_FIELD_ASSIGN record"));
+            return Err(Errors::malformed_record("NATIVE_FIELD_ASSIGN").into());
         };
         Ok(Self {
             slot: slot.clone(),

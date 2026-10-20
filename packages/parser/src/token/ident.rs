@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, bail};
+use errors::{Error, Errors, Result};
 use std::fmt;
 use std::str::FromStr;
 use types::{Span, Token, TokenKind};
@@ -32,10 +32,10 @@ impl FromStr for IdentLexeme {
         let mut chars = text.chars();
         match chars.next() {
             Some(first) if first.is_ascii_alphabetic() || first == '_' => {}
-            _ => bail!("`{text}` is not an identifier"),
+            _ => return Err(Errors::not_lexeme(text, "an identifier").into()),
         }
         if !chars.all(|ch| ch.is_ascii_alphanumeric() || ch == '_') {
-            bail!("`{text}` is not an identifier");
+            return Err(Errors::not_lexeme(text, "an identifier").into());
         }
         Ok(Self {
             text: text.to_owned(),

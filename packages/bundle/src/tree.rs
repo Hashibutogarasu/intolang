@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, bail};
+use errors::{Errors, Result};
 use std::path::Path;
 
 use crate::Bundle;
@@ -49,12 +49,16 @@ impl Bundle {
         depth: usize,
     ) -> Result<()> {
         if depth > MAX_DEPTH {
-            bail!("`{}` nests too deep", directory.display());
+            return Err(Errors::BundleTooDeep {
+                path: directory.display().to_string(),
+            }
+            .into());
         }
         let mut names = std::fs::read_dir(directory)
-            .with_context(|| format!("Could not read {}", directory.display()))?
+            .map_err(|error| Errors::read(directory, error))?
             .map(|entry| entry.map(|entry| entry.file_name().to_string_lossy().into_owned()))
-            .collect::<std::io::Result<Vec<_>>>()?;
+            .collect::<std::io::Result<Vec<_>>>()
+            .map_err(|error| Errors::read(directory, error))?;
         names.sort();
         for name in names {
             let child = if relative.is_empty() {
@@ -71,14 +75,12 @@ impl Bundle {
                 format!("{mount}/{child}")
             };
             let path = directory.join(&name);
-            let metadata = std::fs::metadata(&path)
-                .with_context(|| format!("Could not read {}", path.display()))?;
+            let metadata = std::fs::metadata(&path).map_err(|error| Errors::read(&path, error))?;
             if metadata.is_dir() {
                 self.add_directory(&target)?;
                 self.walk(&path, mount, &child, skip, depth + 1)?;
             } else {
-                let contents = std::fs::read(&path)
-                    .with_context(|| format!("Could not read {}", path.display()))?;
+                let contents = std::fs::read(&path).map_err(|error| Errors::read(&path, error))?;
                 self.add_file(&target, contents, mode_of(&metadata))?;
             }
         }

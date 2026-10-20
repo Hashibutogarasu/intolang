@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, anyhow, bail};
+use errors::{Error, Errors, Result};
 use parser::Record;
 use types::{MessageTag, Storage};
 
@@ -20,7 +20,12 @@ impl StorageKind {
             "local" => Storage::Local,
             "now" => Storage::Now,
             "late" => Storage::Late,
-            other => bail!("Unknown storage `{other}`"),
+            other => {
+                return Err(Errors::UnknownStorage {
+                    name: other.to_string(),
+                }
+                .into());
+            }
         }))
     }
 }
@@ -102,8 +107,13 @@ impl TryFrom<&Record> for OwnershipChange {
             "destroyed" => Self::Destroyed(name()),
             "detached" => Self::Detached(name()),
             "unload" => Self::Unload(name()),
-            "" => return Err(anyhow!("Malformed NATIVE_OWNERSHIP record")),
-            other => bail!("Unknown ownership change `{other}`"),
+            "" => return Err(Errors::malformed_record("NATIVE_OWNERSHIP").into()),
+            other => {
+                return Err(Errors::UnknownOwnershipChange {
+                    name: other.to_string(),
+                }
+                .into());
+            }
         })
     }
 }

@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, anyhow};
+use errors::{Error, Errors, Result};
 use parser::Record;
 
 use crate::{Codegen, CodegenContext, CodegenResult};
@@ -31,7 +31,11 @@ impl TryFrom<&Record> for NativeHandlerBegin {
                 field
                     .split_once(':')
                     .map(|(name, ty)| (name.to_owned(), ty.to_owned()))
-                    .ok_or_else(|| anyhow!("Malformed handler parameter `{field}`"))
+                    .ok_or_else(|| {
+                        errors::Error::from(Errors::MalformedHandlerParameter {
+                            field: field.to_string(),
+                        })
+                    })
             })
             .collect::<Result<_>>()?;
         Ok(Self {

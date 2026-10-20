@@ -1,4 +1,5 @@
 use ast::Expr;
+use errors::{Errors, Result};
 use native::{Comparison, Operand};
 use types::{ComparisonOperator, Literal, MessageTag, Type};
 
@@ -61,7 +62,7 @@ impl Lowerer<'_> {
         left: &Expr,
         op: ComparisonOperator,
         right: &Expr,
-    ) -> Result<(), String> {
+    ) -> Result<()> {
         let (left, op, right) = if left.as_ident().is_none() && right.as_ident().is_some() {
             (right, mirrored(op), left)
         } else {
@@ -75,9 +76,10 @@ impl Lowerer<'_> {
                     && (value.ty.is_numeric() || matches!(value.ty, Type::Boolean | Type::Char))
             });
         let Some((name, variable)) = variable else {
-            return Err(format!(
-                "{label} condition requires an integer or float value"
-            ));
+            return Err(Errors::ConditionNeedsNumber {
+                label: label.to_string(),
+            }
+            .into());
         };
         let operand = match right {
             Expr::Literal(Literal::Bool(flag)) if variable.ty == Type::Boolean => {
@@ -88,8 +90,11 @@ impl Lowerer<'_> {
         let condition = Comparison {
             left: name.to_owned(),
             operator: op,
-            operand: operand
-                .ok_or_else(|| format!("{label} condition requires a numeric literal or value"))?,
+            operand: operand.ok_or_else(|| {
+                errors::Error::from(Errors::ConditionNeedsLiteral {
+                    label: label.to_string(),
+                })
+            })?,
             type_name: variable.ty.name(),
         };
         emit::comparison(&mut self.state.output, tag, &condition);

@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use errors::{Errors, Result};
 use std::ffi::c_void;
 use std::rc::Rc;
 
@@ -23,7 +23,9 @@ struct Binary {
 fn path(args: &[Value], index: usize) -> Result<std::path::PathBuf> {
     match args.get(index) {
         Some(Value::Str(bytes)) => Ok(String::from_utf8_lossy(bytes).into_owned().into()),
-        other => Err(anyhow!("{other:?} is not a path")),
+        other => Err(errors::Error::from(Errors::NotAPath {
+            value: format!("{:?}", other),
+        })),
     }
 }
 

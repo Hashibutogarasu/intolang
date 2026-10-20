@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, anyhow};
+use errors::{Error, Errors, Result};
 use native::{FunctionRef, IndirectCall};
 use parser::Record;
 use std::ffi::CString;
@@ -29,10 +29,9 @@ impl Codegen for NativeFunctionRef {
             let name = CString::new(self.reference.name.as_str())?;
             let function = LLVMGetNamedFunction(ctx.module, name.as_ptr());
             if function.is_null() {
-                return Err(anyhow!(
-                    "Reference to the undefined function `{}`",
-                    self.reference.name
-                ));
+                return Err(errors::Error::from(Errors::UndefinedFunctionReference {
+                    name: self.reference.name.to_string(),
+                }));
             }
             let pointer = LLVMPointerType(LLVMInt8TypeInContext(ctx.context), 0);
             ctx.store_slot(&self.reference.target, pointer, function);

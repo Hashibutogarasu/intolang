@@ -1,3 +1,4 @@
+use errors::{Errors, Result};
 use native::OwnershipChange;
 use types::Type;
 
@@ -14,24 +15,34 @@ pub const DESTROY: &str = "destroy";
 
 impl Lowerer<'_> {
     /// Fail when `name` no longer holds a usable instance.
-    pub fn ensure_usable(&self, name: &str) -> Result<(), String> {
+    pub fn ensure_usable(&self, name: &str) -> Result<()> {
         let Some(variable) = self.state.values.get(name) else {
             return Ok(());
         };
         match variable.tracking.state {
             Ownership::Live => Ok(()),
-            Ownership::Moved => Err(format!("`{name}` was moved")),
-            Ownership::Destroyed => Err(format!("`{name}` was destroyed")),
-            Ownership::Detached => Err(format!("`{name}` was detached")),
+            Ownership::Moved => Err(Errors::Moved {
+                name: name.to_string(),
+            }
+            .into()),
+            Ownership::Destroyed => Err(Errors::Destroyed {
+                name: name.to_string(),
+            }
+            .into()),
+            Ownership::Detached => Err(Errors::Detached {
+                name: name.to_string(),
+            }
+            .into()),
         }
     }
 
     /// Fail when a binding that others borrow from would give up its instance.
-    fn ensure_not_borrowed(&self, name: &str) -> Result<(), String> {
+    fn ensure_not_borrowed(&self, name: &str) -> Result<()> {
         match self.state.values.get(name) {
-            Some(variable) if variable.tracking.borrowed_by > 0 => {
-                Err(format!("`{name}` is borrowed"))
+            Some(variable) if variable.tracking.borrowed_by > 0 => Err(Errors::Borrowed {
+                name: name.to_string(),
             }
+            .into()),
             _ => Ok(()),
         }
     }
@@ -86,13 +97,15 @@ impl Lowerer<'_> {
     }
 
     /// Check a method call on the binding `receiver` before it is lowered.
-    pub fn check_receiver_call(&self, receiver: &str, method: &str) -> Result<(), String> {
+    pub fn check_receiver_call(&self, receiver: &str, method: &str) -> Result<()> {
         self.ensure_usable(receiver)?;
         if self.is_reference_binding(receiver) {
             if self.consumes(receiver, method) {
-                return Err(format!(
-                    "`{receiver}` does not own its instance (`{method}` requires ownership)"
-                ));
+                return Err(Errors::NotOwned {
+                    receiver: receiver.to_string(),
+                    method: method.to_string(),
+                }
+                .into());
             }
             return Ok(());
         }
@@ -175,7 +188,7 @@ impl Lowerer<'_> {
         receiver_type: &Type,
         method: &str,
         assigned_to: &str,
-    ) -> Result<Type, String> {
+    ) -> Result<Type> {
         self.check_receiver_call(receiver, method)?;
         let class = base_type_name(&receiver_type.name()).to_owned();
         let referent = receiver_type.referent().clone();
@@ -208,7 +221,12 @@ impl Lowerer<'_> {
                     owner.tracking.borrowed_by += 1;
                 }
             }
-            other => return Err(format!("`{other}` does not produce a value")),
+            other => {
+                return Err(Errors::ProducesNoValue {
+                    value: other.to_string(),
+                }
+                .into());
+            }
         }
         self.state.pending_tracking = Some(tracking);
         Ok(if method == BORROW {

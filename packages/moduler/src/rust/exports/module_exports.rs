@@ -1,5 +1,5 @@
-use anyhow::{Result, bail};
 use ast::Program;
+use errors::{Errors, Result};
 use std::collections::HashSet;
 
 use super::public_items::public_items;
@@ -26,7 +26,7 @@ pub fn module_exports(info: &Program, loaded: &LoadedModule) -> Result<HashSet<S
             .split('/')
             .any(|part| part.is_empty() || part == "..")
         {
-            bail!("Invalid export path in into-info.into: {}", spec.path);
+            return Err(Errors::ExportPathInvalid { path: spec.path }.into());
         }
         let module_source = module
             .package

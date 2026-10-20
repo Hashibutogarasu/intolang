@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, anyhow};
+use errors::{Error, Errors, Result};
 use native::FieldLoad;
 use parser::Record;
 
@@ -33,12 +33,17 @@ impl Codegen for NativeFieldLoad {
                 .get(class)
                 .and_then(|fields| fields.get(self.load.index))
                 .map(|(_, ty)| *ty)
-                .ok_or_else(|| anyhow!("Unknown field index for class `{class}`"))?;
+                .ok_or_else(|| {
+                    errors::Error::from(Errors::UnknownFieldIndex {
+                        class: class.to_string(),
+                    })
+                })?;
             let object = ctx.load_slot(&self.load.slot)?;
-            let struct_type = *ctx
-                .named_types
-                .get(class)
-                .ok_or_else(|| anyhow!("Unknown native class `{class}`"))?;
+            let struct_type = *ctx.named_types.get(class).ok_or_else(|| {
+                errors::Error::from(Errors::UnknownNativeClass {
+                    class: class.to_string(),
+                })
+            })?;
             let field_pointer = LLVMBuildStructGEP2(
                 ctx.builder,
                 struct_type,

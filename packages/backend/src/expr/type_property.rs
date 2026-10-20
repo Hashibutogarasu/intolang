@@ -1,4 +1,5 @@
 use ast::{Expr, Path};
+use errors::{Errors, Result};
 use native::{FieldAssign, Operand};
 use types::Type;
 
@@ -56,7 +57,7 @@ impl Lowerer<'_> {
 
     /// Lower `value.type` to a new instance of `Type` that holds the name of
     /// the type of `value`.
-    pub fn lower_type_property(&mut self, path: &Path) -> Result<Option<(String, Type)>, String> {
+    pub fn lower_type_property(&mut self, path: &Path) -> Result<Option<(String, Type)>> {
         if !self.is_type_property(path) {
             return Ok(None);
         }
@@ -73,7 +74,7 @@ impl Lowerer<'_> {
                     .filter(|field| !field.is_static)
                     .position(|field| field.name == "name")
             })
-            .ok_or_else(|| "The class `Type` has no field `name`".to_owned())?;
+            .ok_or_else(|| errors::Error::from(Errors::TypeClassNoName))?;
         let result = Type::Named(TYPE_CLASS.to_owned());
         let slot = self.fresh_slot(&result);
         emit::construct(&mut self.state.output, &slot, TYPE_CLASS);

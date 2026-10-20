@@ -11,3 +11,4 @@ pub(crate) use context::CodegenContext;
 pub(crate) use node::{Codegen, CodegenResult, Text};
 
 pub use driver::{generate, generate_library};
+pub use support::{llvm_failure, read_message};

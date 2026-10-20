@@ -1,0 +1,13 @@
+{
+  "LICENCE": "MIT",
+  "alias": "out-of-scope",
+  "builtConfig": {
+    "dist": "./dist"
+  },
+  "name": "Out Of Scope",
+  "packages": {
+    "builtin": "0.0.1"
+  },
+  "runs": "src/main/out-of-scope.into",
+  "version": "0.0.1"
+}

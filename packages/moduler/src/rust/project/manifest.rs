@@ -1,4 +1,4 @@
-use anyhow::{Context, Error, Result, bail};
+use errors::{Error, Errors, Result};
 use serde_json::{Map, Value};
 use std::fmt;
 use std::path::Path;
@@ -14,22 +14,33 @@ pub struct ProjectManifest {
 
 impl ProjectManifest {
     pub fn load(path: &Path) -> Result<Self> {
-        let contents = std::fs::read_to_string(path)
-            .with_context(|| format!("Could not find project manifest: {}", path.display()))?;
-        contents
-            .parse()
-            .with_context(|| format!("Invalid project manifest: {}", path.display()))
+        let contents = std::fs::read_to_string(path).map_err(|error| Errors::ManifestNotFound {
+            path: path.display().to_string(),
+            reason: error.to_string(),
+        })?;
+        contents.parse().map_err(|error: Error| {
+            Errors::ManifestInvalid {
+                path: path.display().to_string(),
+                reason: error.kind().to_string(),
+            }
+            .into()
+        })
     }
 
     fn dependencies(&mut self) -> Result<&mut Map<String, Value>> {
         let Some(manifest) = self.value.as_object_mut() else {
-            bail!("A project manifest must be a JSON object");
+            return Err(Errors::ManifestNotObject.into());
         };
         manifest
             .entry(DEPENDENCIES)
             .or_insert_with(|| Value::Object(Map::new()))
             .as_object_mut()
-            .with_context(|| format!("Project manifest `{DEPENDENCIES}` must be an object"))
+            .ok_or_else(|| {
+                Errors::ManifestFieldNotObject {
+                    field: DEPENDENCIES.to_string(),
+                }
+                .into()
+            })
     }
 
     pub fn set_dependency(&mut self, alias: &PackageAlias, version: &str) -> Result<bool> {

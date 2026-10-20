@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use errors::{Errors, Result};
 use parser::Record;
 
 use crate::llvm;
@@ -22,7 +22,7 @@ impl Codegen for NativeLoopEnd {
             let (condition, exit) = ctx
                 .loop_blocks
                 .pop()
-                .ok_or_else(|| anyhow!("Native loop end has no matching loop"))?;
+                .ok_or_else(|| errors::Error::from(Errors::LoopEndWithoutLoop))?;
             LLVMBuildBr(ctx.builder, condition);
             LLVMPositionBuilderAtEnd(ctx.builder, exit);
             Ok(CodegenResult::unit())

@@ -1,4 +1,4 @@
-use anyhow::{Error, Result};
+use errors::{Error, Errors, Result};
 use native::Operand;
 use parser::Record;
 
@@ -39,7 +39,9 @@ impl Codegen for NativeArith {
             let right = match &self.operand {
                 Operand::Slot(name) => ctx.load_slot(name)?,
                 Operand::Number(value) => ctx.const_for_type(ty, value)?,
-                Operand::Str(_) => anyhow::bail!("Arithmetic cannot use a string operand"),
+                Operand::Str(_) => {
+                    return Err(errors::Error::from(Errors::ArithmeticStringOperand));
+                }
             };
             let is_float = matches!(
                 LLVMGetTypeKind(ty),
@@ -52,7 +54,13 @@ impl Codegen for NativeArith {
                     "mul" => LLVMBuildFMul(ctx.builder, left, right, ctx.empty.as_ptr()),
                     "div" => LLVMBuildFDiv(ctx.builder, left, right, ctx.empty.as_ptr()),
                     "rem" => LLVMBuildFRem(ctx.builder, left, right, ctx.empty.as_ptr()),
-                    other => anyhow::bail!("Unsupported arithmetic operation `{other}`"),
+                    other => {
+                        return Err(errors::Error::from(
+                            Errors::UnsupportedArithmeticOperation {
+                                operation: other.to_string(),
+                            },
+                        ));
+                    }
                 }
             } else {
                 match self.operation.as_str() {
@@ -66,7 +74,13 @@ impl Codegen for NativeArith {
                     "xor" => LLVMBuildXor(ctx.builder, left, right, ctx.empty.as_ptr()),
                     "shl" => LLVMBuildShl(ctx.builder, left, right, ctx.empty.as_ptr()),
                     "shr" => LLVMBuildAShr(ctx.builder, left, right, ctx.empty.as_ptr()),
-                    other => anyhow::bail!("Unsupported arithmetic operation `{other}`"),
+                    other => {
+                        return Err(errors::Error::from(
+                            Errors::UnsupportedArithmeticOperation {
+                                operation: other.to_string(),
+                            },
+                        ));
+                    }
                 }
             };
             ctx.store_slot(&self.assigned, ty, result);

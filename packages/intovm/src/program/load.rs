@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow, bail};
+use errors::{Errors, Result};
 use native::{
     CastAssign, CompareAssign, Comparison, FieldAssign, FieldLoad, FunctionCall,
     FunctionDefinition, FunctionRef, FunctionReturn, IndirectCall, LinkCall, MemoryLoad,
@@ -44,7 +44,7 @@ impl Program {
             program.push_record(&record, &mut open)?;
         }
         if !open.is_empty() {
-            bail!("The message ends inside an unfinished block");
+            return Err(errors::Error::from(Errors::MessageUnfinishedBlock));
         }
         Ok(program)
     }
@@ -81,7 +81,9 @@ impl Program {
         match record.tag() {
             MessageTag::Class => {
                 let Some((name, fields)) = record.fields().split_first() else {
-                    bail!("Malformed NATIVE_CLASS record");
+                    return Err(errors::Error::from(Errors::malformed_record(
+                        "NATIVE_CLASS",
+                    )));
                 };
                 self.classes.insert(
                     name.clone(),
@@ -168,7 +170,10 @@ impl Program {
             MessageTag::IfElse => {
                 let jump = self.here();
                 let Some(Open::If { branch, jump: slot }) = open.last_mut() else {
-                    bail!("NATIVE_IF_ELSE has no matching if");
+                    return Err(errors::Error::from(Errors::NoMatching {
+                        record: "NATIVE_IF_ELSE".to_string(),
+                        expected: "if".to_string(),
+                    }));
                 };
                 let branch = *branch;
                 *slot = Some(jump);
@@ -178,7 +183,10 @@ impl Program {
             }
             MessageTag::IfEnd => {
                 let Some(Open::If { branch, jump }) = open.pop() else {
-                    bail!("NATIVE_IF_END has no matching if");
+                    return Err(errors::Error::from(Errors::NoMatching {
+                        record: "NATIVE_IF_END".to_string(),
+                        expected: "if".to_string(),
+                    }));
                 };
                 let end = self.here();
                 match jump {
@@ -195,7 +203,10 @@ impl Program {
             }
             MessageTag::LoopEnd => {
                 let Some(Open::Loop { start, breaks }) = open.pop() else {
-                    bail!("NATIVE_LOOP_END has no matching loop");
+                    return Err(errors::Error::from(Errors::NoMatching {
+                        record: "NATIVE_LOOP_END".to_string(),
+                        expected: "loop".to_string(),
+                    }));
                 };
                 self.instructions.push(Instr::Jump(start));
                 let exit = self.here();
@@ -211,7 +222,7 @@ impl Program {
                     .rev()
                     .find(|open| matches!(open, Open::Loop { .. }))
                 else {
-                    bail!("NATIVE_BREAK is outside a loop");
+                    return Err(errors::Error::from(Errors::RecordBreakOutsideLoop));
                 };
                 breaks.push(at);
                 self.instructions.push(Instr::Jump(0));
@@ -231,7 +242,11 @@ impl Program {
                         field
                             .split_once(':')
                             .map(|(name, _)| name.to_owned())
-                            .ok_or_else(|| anyhow!("Malformed handler parameter `{field}`"))
+                            .ok_or_else(|| {
+                                errors::Error::from(Errors::MalformedHandlerParameter {
+                                    field: field.to_string(),
+                                })
+                            })
                     })
                     .collect::<Result<_>>()?;
                 let skip = self.here();
@@ -278,7 +293,10 @@ impl Program {
                 .push(Instr::ReturnValue(FunctionReturn::try_from(record)?)),
             MessageTag::HandlerEnd => {
                 let Some(Open::Handler { skip }) = open.pop() else {
-                    bail!("NATIVE_HANDLER_END has no matching handler");
+                    return Err(errors::Error::from(Errors::NoMatching {
+                        record: "NATIVE_HANDLER_END".to_string(),
+                        expected: "handler".to_string(),
+                    }));
                 };
                 self.instructions.push(Instr::Return);
                 let after = self.here();
@@ -296,7 +314,7 @@ impl Program {
                     .iter()
                     .skip(1)
                     .map(|field| field.parse())
-                    .collect::<Result<_>>()?,
+                    .collect::<std::result::Result<Vec<_>, errors::Error>>()?,
             }),
             MessageTag::EventOff => self.instructions.push(Instr::EventOff {
                 event: record.get(0).to_owned(),

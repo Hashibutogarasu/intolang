@@ -1,19 +1,34 @@
+use errors::{Error, ErrorContext, Errors, SourceSpan, SyntaxContext};
 use std::fmt;
+use types::Span;
 
-/// A syntax error found while building the AST, with the line it occurred on.
+const MODULE_SCOPE: &str = "module";
+
+/// A syntax error found while building the AST, with the line it occurred on and what the
+/// parser knew about the place: the span of the token, what it expected and what it found.
+/// It becomes an `errors::Error` of the Into language, which is bound to its source path with
+/// `errors::Error::bound_to`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyntaxError {
     pub line: usize,
     pub scope: &'static str,
     pub message: String,
+    pub span: Option<SourceSpan>,
+    pub expected: Vec<String>,
+    pub found: Option<String>,
+    pub hint: Option<String>,
 }
 
 impl SyntaxError {
     pub fn new(line: usize, message: impl Into<String>) -> Self {
         Self {
             line,
-            scope: "module",
+            scope: MODULE_SCOPE,
             message: message.into(),
+            span: None,
+            expected: Vec::new(),
+            found: None,
+            hint: None,
         }
     }
 
@@ -22,12 +37,48 @@ impl SyntaxError {
         self
     }
 
-    /// The error in the Into language backtrace format for `path`.
-    pub fn backtrace(&self, path: &str) -> String {
-        format!(
-            "{}\n\nInto language backtrace:\n  0: {} at {path}:{}",
-            self.message, self.scope, self.line
-        )
+    pub fn at_span(mut self, span: Span) -> Self {
+        self.span = Some(SourceSpan {
+            line: span.line,
+            end_line: span.end_line,
+            start: span.start,
+            end: span.end,
+        });
+        self
+    }
+
+    pub fn expecting(mut self, expected: impl Into<String>) -> Self {
+        self.expected.push(expected.into());
+        self
+    }
+
+    pub fn found(mut self, found: impl Into<String>) -> Self {
+        self.found = Some(found.into());
+        self
+    }
+
+    pub fn hint(mut self, hint: impl Into<String>) -> Self {
+        self.hint = Some(hint.into());
+        self
+    }
+
+    pub fn into_error(self) -> Error {
+        let kind = Errors::Syntax {
+            message: self.message,
+        };
+        let mut syntax = SyntaxContext::in_scope(self.scope);
+        syntax.expected = self.expected;
+        syntax.found = self.found;
+        syntax.hint = self.hint;
+        let mut context = ErrorContext::of(&kind).with_syntax(syntax);
+        context.span = Some(self.span.unwrap_or_else(|| SourceSpan::on_line(self.line)));
+        Error::new(kind).with_context(context)
+    }
+}
+
+impl From<SyntaxError> for Error {
+    fn from(error: SyntaxError) -> Self {
+        error.into_error()
     }
 }
 

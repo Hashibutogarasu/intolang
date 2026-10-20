@@ -1,4 +1,6 @@
-use anyhow::{Context, Result, bail};
+use errors::{Errors, Result};
+
+use super::failure::{tool_failure, tool_not_run};
 
 /// Run `pkg-config <flag> <dependencies...>` and split its output into words.
 pub fn pkg_config_flags(dependencies: &[String], flag: &str) -> Result<Vec<String>> {
@@ -9,13 +11,15 @@ pub fn pkg_config_flags(dependencies: &[String], flag: &str) -> Result<Vec<Strin
         .arg(flag)
         .args(dependencies)
         .output()
-        .context("Could not run pkg-config for declared native dependencies")?;
+        .map_err(|error| tool_not_run("pkg-config", &error))?;
     if !output.status.success() {
-        bail!(
-            "pkg-config failed for native dependencies {:?}: {}",
-            dependencies,
-            String::from_utf8_lossy(&output.stderr)
-        );
+        return Err(tool_failure(
+            Errors::PkgConfigFailed {
+                dependencies: format!("{dependencies:?}"),
+            },
+            "pkg-config",
+            &output.stderr,
+        ));
     }
     Ok(String::from_utf8_lossy(&output.stdout)
         .split_whitespace()

@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, bail};
+use errors::{Error, Errors, Result};
 use std::fmt;
 use std::str::FromStr;
 use types::Punct;
@@ -23,7 +23,9 @@ impl TryFrom<char> for PunctLexeme {
             '.' => Punct::Dot,
             '#' => Punct::Hash,
             '=' => Punct::Assign,
-            other => bail!("`{other}` is not a punctuation symbol"),
+            other => {
+                return Err(Errors::not_lexeme(&other.to_string(), "a punctuation symbol").into());
+            }
         }))
     }
 }
@@ -35,7 +37,7 @@ impl FromStr for PunctLexeme {
         let mut chars = text.chars();
         match (chars.next(), chars.next()) {
             (Some(symbol), None) => symbol.try_into(),
-            _ => bail!("`{text}` is not a punctuation symbol"),
+            _ => Err(Errors::not_lexeme(text, "a punctuation symbol").into()),
         }
     }
 }

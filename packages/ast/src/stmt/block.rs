@@ -1,4 +1,4 @@
-use anyhow::Result;
+use errors::Result;
 use types::Punct;
 
 use super::statement::Stmt;
@@ -21,7 +21,7 @@ pub(crate) fn parse_block(cursor: &mut Cursor<'_>, scope: Scope) -> Result<Vec<S
             return Ok(body);
         }
         if cursor.at_end() {
-            return Err(cursor.error("Expected `}` to close the block"));
+            return Err(cursor.error_expecting("`}`", "Expected `}` to close the block"));
         }
         body.push(Stmt::parse(cursor, scope)?);
     }

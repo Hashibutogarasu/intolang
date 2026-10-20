@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use errors::{Context, Errors, Result};
 use intovm::Inex;
 use progress::Progress;
 use std::path::{Path, PathBuf};
@@ -73,9 +73,12 @@ impl Target for NativeTarget {
         let status = std::process::Command::new(output)
             .current_dir(project.directory)
             .status()
-            .with_context(|| format!("Could not run compiled executable {}", output.display()))?;
+            .map_err(|error| Errors::file_action("run", output, error))?;
         if !status.success() {
-            anyhow::bail!("Program exited with status {status}");
+            return Err(Errors::ProgramFailed {
+                status: status.to_string(),
+            }
+            .into());
         }
         Ok(())
     }
@@ -111,12 +114,8 @@ impl Target for InexTarget {
     }
 
     fn run(&self, project: &Project, output: &Path) -> Result<()> {
-        std::env::set_current_dir(project.directory).with_context(|| {
-            format!(
-                "Could not enter the package {}",
-                project.directory.display()
-            )
-        })?;
+        std::env::set_current_dir(project.directory)
+            .map_err(|error| Errors::file_action("enter", project.directory, error))?;
         inex::run_file(&output.to_path_buf())
     }
 }

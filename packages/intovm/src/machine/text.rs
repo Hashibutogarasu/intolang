@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use errors::{Errors, Result};
 use std::rc::Rc;
 
 use super::Vm;
@@ -7,15 +7,21 @@ use crate::value::Value;
 fn bytes(args: &[Value], index: usize) -> Result<&[u8]> {
     match args.get(index) {
         Some(Value::Str(bytes)) => Ok(bytes),
-        Some(other) => Err(anyhow!("{other:?} is not text")),
-        None => Err(anyhow!("The native call is missing argument {index}")),
+        Some(other) => Err(errors::Error::from(Errors::NotTextValue {
+            value: format!("{:?}", other),
+        })),
+        None => Err(errors::Error::from(Errors::MissingNativeArgument {
+            index: index.to_string(),
+        })),
     }
 }
 
 fn int(args: &[Value], index: usize) -> Result<i64> {
-    args.get(index)
-        .and_then(Value::int)
-        .ok_or_else(|| anyhow!("The native call is missing the integer argument {index}"))
+    args.get(index).and_then(Value::int).ok_or_else(|| {
+        errors::Error::from(Errors::MissingIntegerArgument {
+            index: index.to_string(),
+        })
+    })
 }
 
 fn flag(value: bool) -> Result<Value> {

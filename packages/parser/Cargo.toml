@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-anyhow = "1.0.104"
+errors = { version = "0.1.0", path = "../errors" }
 types = { version = "0.1.0", path = "../types" }

@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use errors::{Errors, Result};
 use native::NativeArg;
 use std::collections::HashMap;
 
@@ -28,7 +28,9 @@ impl Default for EventTable {
 impl Vm {
     pub(super) fn event_on(&mut self, event: &str, listener: &str, handler: &str) -> Result<()> {
         if !self.program.functions.contains_key(handler) {
-            return Err(anyhow!("Unknown event handler `{handler}`"));
+            return Err(errors::Error::from(Errors::UnknownEventHandler {
+                handler: handler.to_string(),
+            }));
         }
         if !listener.is_empty() {
             self.store(listener, Value::Int(0));

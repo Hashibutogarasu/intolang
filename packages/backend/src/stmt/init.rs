@@ -1,5 +1,5 @@
-use anyhow::Result;
 use ast::Stmt;
+use errors::Result;
 use native::OwnershipChange;
 
 use crate::context::Lowerer;

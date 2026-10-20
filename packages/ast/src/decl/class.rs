@@ -1,4 +1,4 @@
-use anyhow::Result;
+use errors::Result;
 use types::{Keyword, Literal, Punct};
 
 use super::attribute::Attribute;
@@ -95,7 +95,7 @@ fn skip_brackets(cursor: &Cursor<'_>, offset: usize) -> usize {
 }
 
 impl TryFrom<&mut Cursor<'_>> for ClassDecl {
-    type Error = anyhow::Error;
+    type Error = errors::Error;
 
     fn try_from(cursor: &mut Cursor<'_>) -> Result<Self> {
         let attributes = Attribute::parse_all(cursor)?;

@@ -61,7 +61,7 @@ fn call(symbol: &str, return_type: &str, assigned_to: &str, args: &[&str]) -> St
     record(LinkAssign, &fields)
 }
 
-fn run(message: String) -> anyhow::Result<String> {
+fn run(message: String) -> errors::Result<String> {
     let mut vm = Vm::new(VmOptions::default());
     vm.load_inex(&program(message, SOURCE))?;
     vm.run()?;

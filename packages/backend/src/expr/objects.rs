@@ -1,4 +1,5 @@
 use ast::{Expr, Path, TypeRef};
+use errors::{Errors, Result};
 use types::{Literal, Type};
 
 use crate::context::{Lowerer, Variable};
@@ -24,14 +25,10 @@ impl Lowerer<'_> {
 
     /// Lower an object literal to a new `Json` object held by the slot
     /// `assigned_to`, with an entry stored for each key.
-    pub fn lower_object(
-        &mut self,
-        entries: &[(String, Expr)],
-        assigned_to: &str,
-    ) -> Result<Type, String> {
+    pub fn lower_object(&mut self, entries: &[(String, Expr)], assigned_to: &str) -> Result<Type> {
         let env = self.env;
         if !env.class_fields.contains_key(JSON_CLASS) {
-            return Err("An object literal needs the class `Json`".to_owned());
+            return Err(Errors::ObjectNeedsJson.into());
         }
         let json = Type::Named(JSON_CLASS.to_owned());
         let make = Expr::Call {
@@ -41,7 +38,7 @@ impl Lowerer<'_> {
         let (_, made, native) =
             self.declaration_value(&make, None, &env.type_params, assigned_to)?;
         if !native {
-            return Err("`Json.object` has no value".to_owned());
+            return Err(Errors::JsonObjectNoValue.into());
         }
         self.state
             .values
@@ -50,7 +47,10 @@ impl Lowerer<'_> {
             let value = self.object_entry(value)?;
             let ty = self.type_of(&value)?;
             let setter = Self::json_setter(ty.referent()).ok_or_else(|| {
-                format!("The value `{value}` of the entry `{key}` cannot be stored in an object")
+                errors::Error::from(Errors::ObjectEntryNotStorable {
+                    value: value.to_string(),
+                    key: key.to_string(),
+                })
             })?;
             let value = if ty == Type::Char {
                 Expr::Cast {
@@ -69,7 +69,7 @@ impl Lowerer<'_> {
 
     /// An expression a setter can take for the value of an entry: a nested
     /// object or array is built into a slot first.
-    fn object_entry(&mut self, value: &Expr) -> Result<Expr, String> {
+    fn object_entry(&mut self, value: &Expr) -> Result<Expr> {
         if !matches!(value, Expr::Object(_) | Expr::Array(_)) {
             return Ok(value.clone());
         }

@@ -1,5 +1,5 @@
-use anyhow::Result;
 use ast::{Expr, Path};
+use errors::{Errors, Result};
 use native::{CastAssign, FieldAssign, Operand, OwnershipChange};
 use parser::Hex;
 use types::Type;
@@ -15,23 +15,32 @@ impl Lowerer<'_> {
         if let [holder, field] = target.segments() {
             return self
                 .lower_field_assignment(holder, field, value)
-                .map_err(|message| self.diagnostic(line, &message));
+                .map_err(|error| self.diagnostic(line, error));
         }
         let env = self.env;
         let Some(name) = target.as_ident() else {
             return Err(self.diagnostic(
                 line,
-                &format!("Only a name or a field of a name can be assigned, not `{target}`"),
+                Errors::AssignTargetInvalid {
+                    target: target.to_string(),
+                }
+                .into(),
             ));
         };
         let Some(current) = self.state.values.get(name) else {
-            return Err(self.diagnostic(line, &format!("Undefined name `{name}`")));
+            return Err(self.diagnostic(
+                line,
+                Errors::UndefinedName {
+                    name: name.to_string(),
+                }
+                .into(),
+            ));
         };
         let target_type = current.ty.clone();
         let in_slot = current.native;
         let (text, ty, native) = self
             .declaration_value(value, Some(target_type), &env.type_params, name)
-            .map_err(|message| self.diagnostic(line, &message))?;
+            .map_err(|error| self.diagnostic(line, error))?;
         let (text, native) = if in_slot && !native && ty == Type::String {
             let hex = Hex::from(text.as_str()).to_string();
             emit::assign(&mut self.state.output, name, &ty, "s", &hex);
@@ -49,36 +58,40 @@ impl Lowerer<'_> {
         Ok(())
     }
 
-    fn lower_field_assignment(
-        &mut self,
-        holder: &str,
-        field: &str,
-        value: &Expr,
-    ) -> Result<(), String> {
+    fn lower_field_assignment(&mut self, holder: &str, field: &str, value: &Expr) -> Result<()> {
         let env = self.env;
         self.ensure_usable(holder)?;
-        let variable = self
-            .state
-            .values
-            .get(holder)
-            .ok_or_else(|| format!("Undefined name `{holder}`"))?;
+        let variable = self.state.values.get(holder).ok_or_else(|| {
+            errors::Error::from(Errors::UndefinedName {
+                name: holder.to_string(),
+            })
+        })?;
         if !variable.native {
-            return Err(format!("`{holder}` holds no instance"));
+            return Err(Errors::HoldsNoInstance {
+                holder: holder.to_string(),
+            }
+            .into());
         }
         let receiver_type = variable.ty.clone();
         let class = base_type_name(&receiver_type.name()).to_owned();
-        let fields = env
-            .class_fields
-            .get(&class)
-            .ok_or_else(|| format!("`{class}` has no field `{field}`"))?;
+        let fields = env.class_fields.get(&class).ok_or_else(|| {
+            errors::Error::from(Errors::NoField {
+                class: class.clone(),
+                field: field.to_string(),
+            })
+        })?;
         let (index, definition) = fields
             .iter()
             .filter(|definition| !definition.is_static)
             .enumerate()
             .find(|(_, definition)| definition.name == field)
-            .ok_or_else(|| format!("`{class}` has no field `{field}`"))?;
-        let written =
-            parse_type(&definition.ty, &env.type_params).map_err(|error| error.to_string())?;
+            .ok_or_else(|| {
+                errors::Error::from(Errors::NoField {
+                    class: class.clone(),
+                    field: field.to_string(),
+                })
+            })?;
+        let written = parse_type(&definition.ty, &env.type_params)?;
         let field_type = self.bind_arguments(&receiver_type, written);
         let operand = self.field_operand(field, &field_type, value)?;
         emit::field_assign(
@@ -102,7 +115,7 @@ impl Lowerer<'_> {
         field: &str,
         field_type: &Type,
         value: &Expr,
-    ) -> Result<Operand, String> {
+    ) -> Result<Operand> {
         if let Some(name) = value.as_ident() {
             self.ensure_usable(name)?;
             let held = self
@@ -111,17 +124,19 @@ impl Lowerer<'_> {
                 .get(name)
                 .filter(|variable| variable.native)
                 .ok_or_else(|| {
-                    format!(
-                        "The field `{field}` is a `{}` but `{name}` holds no such value",
-                        field_type.name()
-                    )
+                    errors::Error::from(Errors::FieldHoldsNoValue {
+                        field: field.to_string(),
+                        expected: field_type.name(),
+                        name: name.to_string(),
+                    })
                 })?;
             if !held.ty.is_assignable_to(field_type) {
-                return Err(format!(
-                    "The field `{field}` is a `{}` but received a `{}`",
-                    field_type.name(),
-                    held.ty.name()
-                ));
+                return Err(Errors::FieldReceivedType {
+                    field: field.to_string(),
+                    expected: field_type.name(),
+                    received: held.ty.name(),
+                }
+                .into());
             }
             return Ok(Operand::Slot(name.to_owned()));
         }
@@ -129,20 +144,24 @@ impl Lowerer<'_> {
             value,
             Expr::Array(_) | Expr::Object(_) | Expr::Call { .. } | Expr::Path(_)
         ) {
-            return Err(format!(
-                "Assigning `{value}` to the `{}` field `{field}` is not supported",
-                field_type.name()
-            ));
+            return Err(Errors::FieldAssignUnsupported {
+                value: value.to_string(),
+                ty: field_type.name(),
+                field: field.to_string(),
+            }
+            .into());
         }
         let env = self.env;
         let slot = self.fresh_slot(field_type);
         let (_, built, native) =
             self.declaration_value(value, Some(field_type.clone()), &env.type_params, &slot)?;
         if !native {
-            return Err(format!(
-                "The field `{field}` is a `{}` but received `{value}`",
-                field_type.name()
-            ));
+            return Err(Errors::FieldTypeMismatch {
+                field: field.to_string(),
+                expected: field_type.name(),
+                received: value.to_string(),
+            }
+            .into());
         }
         self.state
             .values
@@ -151,17 +170,14 @@ impl Lowerer<'_> {
     }
 
     /// The operand that stores `value` in a field of type `field_type`.
-    fn field_operand(
-        &mut self,
-        field: &str,
-        field_type: &Type,
-        value: &Expr,
-    ) -> Result<Operand, String> {
-        let mismatch = |received: String| {
-            format!(
-                "The field `{field}` is a `{}` but received `{received}`",
-                field_type.name()
-            )
+    fn field_operand(&mut self, field: &str, field_type: &Type, value: &Expr) -> Result<Operand> {
+        let mismatch = |received: String| -> errors::Error {
+            Errors::FieldTypeMismatch {
+                field: field.to_string(),
+                expected: field_type.name(),
+                received,
+            }
+            .into()
         };
         match field_type {
             Type::String | Type::Path => {

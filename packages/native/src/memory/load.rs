@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, anyhow};
+use errors::{Error, Errors, Result};
 use parser::Record;
 use types::MessageTag;
 
@@ -29,7 +29,7 @@ impl TryFrom<&Record> for MemoryLoad {
 
     fn try_from(record: &Record) -> Result<Self> {
         let [target, pointer, index, ty, ..] = record.fields() else {
-            return Err(anyhow!("Malformed NATIVE_LOAD record"));
+            return Err(Errors::malformed_record("NATIVE_LOAD").into());
         };
         Ok(Self {
             target: target.clone(),

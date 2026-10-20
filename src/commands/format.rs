@@ -1,8 +1,8 @@
-use anyhow::{Context, Result};
-use clap::{ArgMatches, Args, Command as ClapCommand, FromArgMatches};
+use clap::{ArgMatches, Args, Command as ClapCommand};
+use errors::{Errors, Result};
 use std::path::{Path, PathBuf};
 
-use crate::commands::command::Command;
+use crate::commands::command::{Command, arguments};
 
 #[derive(Args)]
 struct FormatArgs {
@@ -25,7 +25,7 @@ impl Command for Format {
     }
 
     fn execute(&self, matches: &ArgMatches) -> Result<()> {
-        let args = FormatArgs::from_arg_matches(matches)?;
+        let args = arguments::<FormatArgs>(matches)?;
         run(args.package, args.depth)
     }
 }
@@ -36,7 +36,10 @@ pub(super) fn run(path: PathBuf, max_depth: Option<usize>) -> Result<()> {
         collect_into_files(&path, &mut files, max_depth, 0)?;
         files.sort();
         if files.is_empty() {
-            anyhow::bail!("No .into files found under {}", path.display());
+            return Err(Errors::NoIntoFiles {
+                path: path.display().to_string(),
+            }
+            .into());
         }
     } else if path
         .extension()
@@ -44,16 +47,13 @@ pub(super) fn run(path: PathBuf, max_depth: Option<usize>) -> Result<()> {
     {
         files.push(path);
     } else {
-        anyhow::bail!("Format mode expects an .into file or directory path");
+        return Err(Errors::FormatExpectsInto.into());
     }
 
     for file in files {
-        let source = std::fs::read_to_string(&file)
-            .with_context(|| format!("Could not read Into source: {}", file.display()))?;
+        let source = std::fs::read_to_string(&file).map_err(|error| Errors::read(&file, error))?;
         let formatted = formatter::format_source(&source);
-        std::fs::write(&file, formatted).with_context(|| {
-            format!("Could not write formatted Into source: {}", file.display())
-        })?;
+        std::fs::write(&file, formatted).map_err(|error| Errors::write(&file, error))?;
         progress::report(&format!("Formatted {}", file.display()));
     }
     Ok(())

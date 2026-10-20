@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use errors::{Errors, Result};
 use native::{OwnershipChange, Property, StateCheck};
 use types::Storage;
 
@@ -52,9 +52,11 @@ impl Vm {
     }
 
     fn binding_mut(&mut self, name: &str) -> Result<&mut Binding> {
-        self.bindings
-            .get_mut(name)
-            .ok_or_else(|| anyhow!("`{name}` has no binding"))
+        self.bindings.get_mut(name).ok_or_else(|| {
+            errors::Error::from(Errors::NoBinding {
+                name: name.to_string(),
+            })
+        })
     }
 
     pub(super) fn apply(&mut self, change: &OwnershipChange) -> Result<()> {

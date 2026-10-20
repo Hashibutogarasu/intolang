@@ -1,4 +1,4 @@
-use anyhow::{Result, bail};
+use errors::{Errors, Result};
 use parser::Record;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -34,7 +34,10 @@ pub fn collect_sources(message: &str, packages_dir: &Path) -> Result<Vec<NativeS
         let package = package_dir(packages_dir, &call.package_alias);
         let path = package.join(&call.source_path);
         if !path.is_file() {
-            bail!("Linked native source does not exist: {}", path.display());
+            return Err(Errors::NativeSourceMissing {
+                path: path.display().to_string(),
+            }
+            .into());
         }
         if seen.insert(path.clone()) {
             sources.push(NativeSource {

@@ -1,4 +1,4 @@
-use anyhow::{Error, Result};
+use errors::{Error, Errors, Result};
 use native::LinkCall;
 use parser::Record;
 use std::ffi::CString;
@@ -36,7 +36,7 @@ impl Codegen for NativeLoopBegin {
             let (mut params, mut function_args) = ctx.native_call_arguments(&call.args)?;
             let expected = ctx.into_type(&call.return_type);
             if expected != LLVMInt1TypeInContext(ctx.context) {
-                anyhow::bail!("Native loop condition must return Boolean");
+                return Err(errors::Error::from(Errors::LoopConditionNotBoolean));
             }
             let function_type =
                 LLVMFunctionType(expected, params.as_mut_ptr(), function_args.len() as u32, 0);

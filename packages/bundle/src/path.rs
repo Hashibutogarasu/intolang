@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, bail};
+use errors::{Error, Errors, Result};
 use std::fmt;
 use std::str::FromStr;
 
@@ -31,19 +31,26 @@ impl TryFrom<&str> for BundlePath {
     type Error = Error;
 
     fn try_from(text: &str) -> Result<Self> {
+        let path = text.to_string();
         if text.is_empty() {
-            bail!("A bundle path cannot be empty");
+            return Err(Errors::BundlePathEmpty.into());
         }
         if text.starts_with('/') {
-            bail!("`{text}` is absolute; a bundle path is relative");
+            return Err(Errors::BundlePathAbsolute { path }.into());
         }
         if text.contains('\\') || text.contains('\0') {
-            bail!("`{text}` holds a character a bundle path cannot hold");
+            return Err(Errors::BundlePathCharacter { path }.into());
         }
         for component in text.split('/') {
             match component {
-                "" => bail!("`{text}` has an empty component"),
-                "." | ".." => bail!("`{text}` has the component `{component}`"),
+                "" => return Err(Errors::BundlePathEmptyComponent { path }.into()),
+                "." | ".." => {
+                    return Err(Errors::BundlePathDotComponent {
+                        path,
+                        component: component.to_string(),
+                    }
+                    .into());
+                }
                 _ => {}
             }
         }

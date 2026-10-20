@@ -1,5 +1,4 @@
-use anyhow::{Result, anyhow};
-use std::ffi::CStr;
+use errors::Result;
 use std::ptr;
 
 use crate::llvm;
@@ -7,6 +6,7 @@ use llvm::analysis::{LLVMVerifierFailureAction, LLVMVerifyModule};
 use llvm::core::*;
 use llvm::*;
 
+use super::message::{llvm_failure, read_message};
 use crate::CodegenContext;
 
 impl CodegenContext {
@@ -32,15 +32,8 @@ pub(crate) unsafe fn verify(module: *mut LLVMModule, context: &str) -> Result<()
             &mut error,
         ) != 0
         {
-            let description = if error.is_null() {
-                "unknown verifier error".into()
-            } else {
-                CStr::from_ptr(error).to_string_lossy().into_owned()
-            };
-            if !error.is_null() {
-                LLVMDisposeMessage(error);
-            }
-            return Err(anyhow!("{context}: {description}"));
+            let description = read_message(error, "unknown verifier error");
+            return Err(llvm_failure(context, description));
         }
         Ok(())
     }

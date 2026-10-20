@@ -1,0 +1,6 @@
+import "intolang://builtin/std";
+
+init {
+    into message: Int32 = "Hello World!";
+    println(message);
+}

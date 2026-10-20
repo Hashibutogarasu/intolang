@@ -1,4 +1,5 @@
 use ast::{Declaration, Expr, Path, Stmt, StmtKind, TypeRef};
+use errors::{Errors, Result};
 use native::{CastAssign, NativeLink};
 use types::{
     ArithmeticOperator, ComparisonOperator, Literal, MessageTag, Storage as Declared, Type,
@@ -48,12 +49,12 @@ impl Storage {
 }
 
 impl<'a> Lowerer<'a> {
-    fn list_link(&self, method: &str) -> Result<&'a NativeLink, String> {
+    fn list_link(&self, method: &str) -> Result<&'a NativeLink> {
         let env = self.env;
         let key = format!("List.{method}");
         env.native_links
             .get(&key)
-            .ok_or_else(|| format!("`{key}` is not available; import \"intolang://builtin/std\""))
+            .ok_or_else(|| errors::Error::from(Errors::NotAvailable { key: key.clone() }))
     }
 
     /// The element type of a list, if the type is one.
@@ -66,7 +67,7 @@ impl<'a> Lowerer<'a> {
 
     /// The expression that stands for `item` stored as an item of a list of
     /// `element`: a converted slot for a scalar, the text, or the binding.
-    fn list_item(&mut self, item: &Expr, element: &Type) -> Result<Expr, String> {
+    fn list_item(&mut self, item: &Expr, element: &Type) -> Result<Expr> {
         let storage = Storage::of(element);
         match storage {
             Storage::Integer | Storage::Float => {
@@ -89,10 +90,11 @@ impl<'a> Lowerer<'a> {
             }
             Storage::Text => {
                 if !self.is_text(item) {
-                    return Err(format!(
-                        "Expected a `{}` item but received `{item}`",
-                        element.name()
-                    ));
+                    return Err(Errors::ExpectedItemType {
+                        element: element.name(),
+                        item: item.to_string(),
+                    }
+                    .into());
                 }
                 Ok(match self.lower_text(item, None)? {
                     super::Text::Const(text) => Expr::Literal(Literal::String(text)),
@@ -104,25 +106,28 @@ impl<'a> Lowerer<'a> {
                     self.ensure_usable(name)?;
                     Ok(item.clone())
                 }
-                None => Err(format!("Unsupported list item `{item}`")),
+                None => Err(Errors::UnsupportedListItem {
+                    item: item.to_string(),
+                }
+                .into()),
             },
         }
     }
 
     /// The element type an array literal has: the annotation when it names
     /// one, otherwise the type of its first item.
-    fn array_element(&self, items: &[Expr], annotation: Option<&Type>) -> Result<Type, String> {
+    fn array_element(&self, items: &[Expr], annotation: Option<&Type>) -> Result<Type> {
         if let Some(element) = annotation.and_then(Self::list_element) {
             return Ok(element.clone());
         }
         let first = items
             .first()
-            .ok_or_else(|| "An empty array needs a type, such as `[Int32]`".to_owned())?;
+            .ok_or_else(|| errors::Error::from(Errors::EmptyArrayNeedsType))?;
         self.type_of(first)
     }
 
     /// The type of an array literal.
-    pub(super) fn array_type(&self, items: &[Expr]) -> Result<Type, String> {
+    pub(super) fn array_type(&self, items: &[Expr]) -> Result<Type> {
         Ok(Type::List(Box::new(self.array_element(items, None)?)))
     }
 
@@ -132,7 +137,7 @@ impl<'a> Lowerer<'a> {
         items: &[Expr],
         annotation: Option<&Type>,
         assigned_to: &str,
-    ) -> Result<Type, String> {
+    ) -> Result<Type> {
         let element = self.array_element(items, annotation)?;
         let list = Type::List(Box::new(element.clone()));
         let link = self.list_link("new")?;
@@ -159,17 +164,12 @@ impl<'a> Lowerer<'a> {
     /// indices that hands each item to the lambda body, which also sees the
     /// index when it declares a second parameter. A binding that holds a
     /// function is called with each item instead.
-    fn list_for_each(
-        &mut self,
-        list: &str,
-        element: &Type,
-        args: &[Expr],
-    ) -> Result<Vec<Stmt>, String> {
+    fn list_for_each(&mut self, list: &str, element: &Type, args: &[Expr]) -> Result<Vec<Stmt>> {
         let [action] = args else {
-            return Err(format!(
-                "`forEach` takes 1 argument but received {}",
-                args.len()
-            ));
+            return Err(Errors::ForEachArgumentCount {
+                received: args.len(),
+            }
+            .into());
         };
         let counter = format!("__index{}", self.state.temp_counter);
         self.state.temp_counter += 1;
@@ -196,22 +196,21 @@ impl<'a> Lowerer<'a> {
                 body: lambda,
             } => {
                 if params.is_empty() || params.len() > 2 {
-                    return Err(format!(
-                        "The lambda of `forEach` takes the item and optionally the index, not {} parameter(s)",
-                        params.len()
-                    ));
+                    return Err(Errors::ForEachLambdaParameters {
+                        count: params.len(),
+                    }
+                    .into());
                 }
                 let written = match &params[0].ty {
                     Some(written) => {
-                        let own = parse_type(written.as_str(), &self.env.type_params)
-                            .map_err(|error| error.to_string())?;
+                        let own = parse_type(written.as_str(), &self.env.type_params)?;
                         if !element.is_assignable_to(&own) {
-                            return Err(format!(
-                                "The parameter `{}` is a `{}` but the items are `{}`",
-                                params[0].name,
-                                own.name(),
-                                element.name()
-                            ));
+                            return Err(Errors::ForEachParameterType {
+                                param: params[0].name.clone(),
+                                own: own.name(),
+                                element: element.name(),
+                            }
+                            .into());
                         }
                         written.clone()
                     }
@@ -244,9 +243,10 @@ impl<'a> Lowerer<'a> {
                     })));
                 }
                 None => {
-                    return Err(format!(
-                        "`forEach` expects a lambda or a function, not `{other}`"
-                    ));
+                    return Err(Errors::ForEachAction {
+                        value: other.to_string(),
+                    }
+                    .into());
                 }
             },
         }
@@ -286,14 +286,13 @@ impl<'a> Lowerer<'a> {
         method: &str,
         args: &[Expr],
         assigned_to: &str,
-    ) -> Result<Option<Option<Type>>, String> {
+    ) -> Result<Option<Option<Type>>> {
         let Some(element) = Self::list_element(receiver_type).cloned() else {
             return Ok(None);
         };
         if method == "forEach" {
             let statements = self.list_for_each(receiver, &element, args)?;
-            self.lower_block(&statements)
-                .map_err(|error| error.to_string())?;
+            self.lower_block(&statements)?;
             return Ok(Some(None));
         }
         if !matches!(method, "push" | "get" | "set") {
@@ -301,10 +300,12 @@ impl<'a> Lowerer<'a> {
         }
         let expected = if method == "set" { 2 } else { 1 };
         if args.len() != expected {
-            return Err(format!(
-                "`{method}` takes {expected} argument(s) but received {}",
-                args.len()
-            ));
+            return Err(Errors::ArgumentCount {
+                name: method.to_string(),
+                expected,
+                received: args.len(),
+            }
+            .into());
         }
         let storage = Storage::of(&element);
         let link = self.list_link(&format!("{method}{}", storage.suffix()))?;

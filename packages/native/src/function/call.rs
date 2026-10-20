@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, anyhow};
+use errors::{Error, Errors, Result};
 use parser::Record;
 use types::MessageTag;
 
@@ -33,7 +33,7 @@ impl TryFrom<&Record> for FunctionCall {
 
     fn try_from(record: &Record) -> Result<Self> {
         let [name, target, return_type, args @ ..] = record.fields() else {
-            return Err(anyhow!("Malformed NATIVE_CALL_FN record"));
+            return Err(Errors::malformed_record("NATIVE_CALL_FN").into());
         };
         Ok(Self {
             name: name.clone(),

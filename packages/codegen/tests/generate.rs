@@ -1,4 +1,4 @@
-use anyhow::Result;
+use errors::Result;
 use llvm_sys::core::*;
 use moduler::NativeFunction;
 use parser::Record;

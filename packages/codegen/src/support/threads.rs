@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use errors::{Errors, Result};
 use std::ffi::CString;
 use std::ptr;
 
@@ -21,7 +21,9 @@ impl CodegenContext {
             let target_name = CString::new(function)?;
             let target = LLVMGetNamedFunction(self.module, target_name.as_ptr());
             if target.is_null() {
-                return Err(anyhow!("Unknown thread function `{function}`"));
+                return Err(errors::Error::from(Errors::UnknownThreadFunction {
+                    function: function.to_string(),
+                }));
             }
             let pointer = LLVMPointerType(LLVMInt8TypeInContext(self.context), 0);
             let mut params = [pointer];

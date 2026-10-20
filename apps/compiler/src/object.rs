@@ -1,12 +1,8 @@
-use anyhow::{Result, anyhow};
-use std::{
-    ffi::{CStr, CString},
-    path::Path,
-    ptr,
-};
+use codegen::{llvm_failure, read_message};
+use errors::Result;
+use std::{ffi::CString, path::Path, ptr};
 
 use crate::llvm;
-use llvm::core::LLVMDisposeMessage;
 use llvm::target_machine::{
     LLVMCodeGenFileType, LLVMOpaqueTargetMachine, LLVMTargetMachineEmitToFile,
 };
@@ -28,15 +24,8 @@ pub(super) unsafe fn emit(
             &mut error,
         ) != 0
         {
-            let description = if error.is_null() {
-                "unknown object emission error".into()
-            } else {
-                CStr::from_ptr(error).to_string_lossy().into_owned()
-            };
-            if !error.is_null() {
-                LLVMDisposeMessage(error);
-            }
-            return Err(anyhow!("Failed to emit object file: {description}"));
+            let description = read_message(error, "unknown object emission error");
+            return Err(llvm_failure("Failed to emit object file", description));
         }
         Ok(())
     }

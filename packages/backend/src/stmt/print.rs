@@ -1,5 +1,5 @@
-use anyhow::Result;
 use ast::Expr;
+use errors::{Errors, Result};
 use types::Literal;
 
 use crate::context::Lowerer;
@@ -14,11 +14,23 @@ impl Lowerer<'_> {
         let env = self.env;
         let function = if newline { "println" } else { "print" };
         if !env.imported_functions.contains(function) {
-            return Err(self.diagnostic(line, &format!("Function `{function}` is not imported")));
+            return Err(self.diagnostic(
+                line,
+                Errors::FunctionNotImported {
+                    function: function.to_string(),
+                }
+                .into(),
+            ));
         }
         let [argument] = args else {
             let text = args.iter().map(ToString::to_string).collect::<Vec<_>>();
-            return Err(self.diagnostic(line, &format!("Undefined variable `{}`", text.join(", "))));
+            return Err(self.diagnostic(
+                line,
+                Errors::UndefinedVariable {
+                    name: text.join(", "),
+                }
+                .into(),
+            ));
         };
         if let Expr::Path(path) = argument {
             if !self.state.values.contains_key(path.first())
@@ -27,7 +39,10 @@ impl Lowerer<'_> {
                 let Some(literal) = field.default_literal() else {
                     return Err(self.diagnostic(
                         line,
-                        &format!("Static field `{argument}` has no constant default"),
+                        Errors::StaticFieldNoDefault {
+                            field: argument.to_string(),
+                        }
+                        .into(),
                     ));
                 };
                 self.print_literal(literal, newline);
@@ -44,9 +59,15 @@ impl Lowerer<'_> {
             {
                 let Some((slot, ty)) = self
                     .lower_field_read(path)
-                    .map_err(|message| self.diagnostic(line, &message))?
+                    .map_err(|error| self.diagnostic(line, error))?
                 else {
-                    return Err(self.diagnostic(line, &format!("Undefined variable `{argument}`")));
+                    return Err(self.diagnostic(
+                        line,
+                        Errors::UndefinedVariable {
+                            name: argument.to_string(),
+                        }
+                        .into(),
+                    ));
                 };
                 if self.is_instance_type(&ty) {
                     return self.print_instance(line, &slot, newline);
@@ -58,13 +79,16 @@ impl Lowerer<'_> {
                 && let Some(variable) = self.state.values.get(path.first()).cloned()
             {
                 self.ensure_usable(path.first())
-                    .map_err(|message| self.diagnostic(line, &message))?;
+                    .map_err(|error| self.diagnostic(line, error))?;
                 let member = path.segments()[1..].join(".");
                 let class = base_type_name(&variable.value).to_owned();
                 let fields = env.class_fields.get(&class).ok_or_else(|| {
                     self.diagnostic(
                         line,
-                        &format!("Type `{class}` has no declared member fields"),
+                        Errors::NoDeclaredFields {
+                            class: class.clone(),
+                        }
+                        .into(),
                     )
                 })?;
                 let (index, field) = fields
@@ -75,7 +99,11 @@ impl Lowerer<'_> {
                     .ok_or_else(|| {
                         self.diagnostic(
                             line,
-                            &format!("Undefined member `{member}` on `{}`", variable.value),
+                            Errors::UndefinedMember {
+                                member: member.to_string(),
+                                ty: variable.value.clone(),
+                            }
+                            .into(),
                         )
                     })?;
                 emit::field_print(
@@ -97,7 +125,7 @@ impl Lowerer<'_> {
             && let Some(variable) = self.state.values.get(name).cloned()
         {
             self.ensure_usable(name)
-                .map_err(|message| self.diagnostic(line, &message))?;
+                .map_err(|error| self.diagnostic(line, error))?;
             if variable.native && self.is_instance_type(&variable.ty) {
                 return self.print_instance(line, name, newline);
             }
@@ -120,7 +148,7 @@ impl Lowerer<'_> {
             self.state.temp_counter += 1;
             let (value, ty, native) = self
                 .declaration_value(argument, None, &env.type_params, &temporary)
-                .map_err(|message| self.diagnostic(line, &message))?;
+                .map_err(|error| self.diagnostic(line, error))?;
             if native && self.is_instance_type(&ty) {
                 self.state
                     .values
@@ -134,7 +162,13 @@ impl Lowerer<'_> {
             }
             return Ok(());
         }
-        Err(self.diagnostic(line, &format!("Undefined variable `{argument}`")))
+        Err(self.diagnostic(
+            line,
+            Errors::UndefinedVariable {
+                name: argument.to_string(),
+            }
+            .into(),
+        ))
     }
 
     /// Whether values of the type are instances of a declared class, which
@@ -157,7 +191,7 @@ impl Lowerer<'_> {
         self.state.temp_counter += 1;
         let (value, ty, native) = self
             .declaration_value(&call, None, &env.type_params, &temporary)
-            .map_err(|message| self.diagnostic(line, &message))?;
+            .map_err(|error| self.diagnostic(line, error))?;
         if native {
             emit::print(&mut self.state.output, &temporary, &ty, newline);
         } else {
@@ -184,14 +218,23 @@ impl Lowerer<'_> {
                 &self.env.source_path,
                 line,
                 scope,
-                &format!("Variable `{name}` is out of scope here"),
+                Errors::VariableOutOfScope {
+                    name: name.to_string(),
+                }
+                .into(),
             ));
         }
         let allocated =
             (variable.memory_backed && !variable.allocated && variable.lazy && !variable.unloaded)
                 || variable.allocated;
         if variable.memory_backed && !allocated {
-            return Err(self.diagnostic(line, &format!("Variable `{name}` was unloaded")));
+            return Err(self.diagnostic(
+                line,
+                Errors::VariableUnloaded {
+                    name: name.to_string(),
+                }
+                .into(),
+            ));
         }
         if allocated
             && !variable.allocated

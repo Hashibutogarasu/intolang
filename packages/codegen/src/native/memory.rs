@@ -1,4 +1,4 @@
-use anyhow::{Error, Result};
+use errors::{Error, Errors, Result};
 use native::{MemoryLoad, MemoryStore, Operand};
 use parser::Record;
 
@@ -24,7 +24,7 @@ unsafe fn item_address(
                 LLVMBuildSExt(ctx.builder, ctx.load_slot(name)?, wide, ctx.empty.as_ptr())
             }
             Operand::Number(number) => LLVMConstInt(wide, number.parse::<i64>()? as u64, 1),
-            Operand::Str(_) => anyhow::bail!("An index cannot be text"),
+            Operand::Str(_) => return Err(errors::Error::from(Errors::IndexIsText)),
         };
         let mut indices = [position];
         Ok(LLVMBuildGEP2(
@@ -89,7 +89,7 @@ impl Codegen for NativeStore {
             let value = match &self.store.value {
                 Operand::Slot(name) => ctx.load_slot(name)?,
                 Operand::Number(number) => ctx.const_for_type(element, number)?,
-                Operand::Str(_) => anyhow::bail!("Text cannot be stored as an item"),
+                Operand::Str(_) => return Err(errors::Error::from(Errors::TextStored)),
             };
             let address = item_address(ctx, &self.store.pointer, &self.store.index, element)?;
             LLVMBuildStore(ctx.builder, value, address);

@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, anyhow};
+use errors::{Error, Errors, Result};
 use parser::Record;
 
 use crate::llvm;
@@ -39,7 +39,9 @@ impl Codegen for NativeEventOn {
             let handler_name = std::ffi::CString::new(self.handler.as_str())?;
             let handler = LLVMGetNamedFunction(ctx.module, handler_name.as_ptr());
             if handler.is_null() {
-                return Err(anyhow!("Unknown event handler `{}`", self.handler));
+                return Err(errors::Error::from(Errors::UnknownEventHandler {
+                    handler: self.handler.to_string(),
+                }));
             }
             if !self.listener.is_empty() {
                 ctx.store_slot(&self.listener, integer, LLVMConstInt(integer, 0, 0));

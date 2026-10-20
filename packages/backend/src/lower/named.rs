@@ -1,5 +1,5 @@
-use anyhow::{Result, anyhow};
 use ast::{Item, Program, Stmt};
+use errors::{Errors, Result};
 use parser::PathLexeme;
 use std::path::Path;
 
@@ -10,7 +10,6 @@ use crate::collect::{
     runtime_functions,
 };
 use crate::context::{Env, FieldDef, Lowerer, OBJECT};
-use crate::diagnostic::syntax_diagnostic;
 use crate::emit;
 
 const ANONYMOUS_SOURCE: &str = "<source>";
@@ -62,7 +61,7 @@ fn lower_entry(
 ) -> Result<String> {
     let program = source
         .parse::<Program>()
-        .map_err(|error| syntax_diagnostic(source_path, error))?;
+        .map_err(|error| error.bound_to(source_path))?;
     let mut env = prepare(&program, packages_dir, source_path)?;
     env.strict_calls = test.is_some();
 
@@ -75,7 +74,7 @@ fn lower_entry(
     }
     lowerer
         .register_default_handlers()
-        .map_err(|message| lowerer.diagnostic(0, &message))?;
+        .map_err(|message| lowerer.diagnostic(0, message))?;
     for item in &program.items {
         match item {
             Item::Import(decl) => lowerer.lower_import(decl),
@@ -90,8 +89,10 @@ fn lower_entry(
         }
     }
     if let Some(name) = test {
-        let body = test_body(&program, name)
-            .ok_or_else(|| anyhow!("{source_path}: no function `{name}` to run as a test"))?;
+        let body = test_body(&program, name).ok_or_else(|| Errors::NoTestFunction {
+            path: source_path.to_string(),
+            name: name.to_string(),
+        })?;
         lowerer.lower_block(body)?;
     }
     lowerer.finish_program()?;

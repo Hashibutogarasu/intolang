@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow, bail};
+use errors::{Errors, Result};
 use native::{MemoryLoad, MemoryStore};
 use std::alloc::Layout;
 use std::rc::Rc;
@@ -12,7 +12,9 @@ pub(super) fn address_of(value: &Value) -> Result<usize> {
     match value {
         Value::Int(address) => Ok(*address as usize),
         Value::Native { ptr, .. } => Ok(*ptr),
-        other => bail!("{other:?} is not a pointer"),
+        other => Err(errors::Error::from(Errors::NotAPointer {
+            value: format!("{:?}", other),
+        })),
     }
 }
 
@@ -23,7 +25,11 @@ fn size_of(ty: &str) -> Result<usize> {
         "Int16" => 2,
         "Int32" | "Char" | "Float32" => 4,
         "Int64" | "Float64" | "Pointer" => 8,
-        other => bail!("An item of the type `{other}` cannot be read from memory"),
+        other => {
+            return Err(errors::Error::from(Errors::ItemNotReadable {
+                ty: other.to_string(),
+            }));
+        }
     })
 }
 
@@ -93,12 +99,14 @@ impl Vm {
     pub(super) fn memory_load(&mut self, load: &MemoryLoad) -> Result<()> {
         let base = address_of(&self.load_slot(&load.pointer)?)?;
         if base == 0 {
-            bail!("`{}` is a null pointer", load.pointer);
+            return Err(errors::Error::from(Errors::NullPointer {
+                pointer: load.pointer.to_string(),
+            }));
         }
         let index = self
             .operand(&load.index, "Int64")?
             .int()
-            .ok_or_else(|| anyhow!("The index is not a number"))?;
+            .ok_or_else(|| errors::Error::from(Errors::IndexNotNumber))?;
         let address = base.wrapping_add((index as isize * size_of(&load.ty)? as isize) as usize);
         let value = unsafe {
             match load.ty.as_str() {
@@ -120,12 +128,14 @@ impl Vm {
     pub(super) fn memory_store(&mut self, store: &MemoryStore) -> Result<()> {
         let base = address_of(&self.load_slot(&store.pointer)?)?;
         if base == 0 {
-            bail!("`{}` is a null pointer", store.pointer);
+            return Err(errors::Error::from(Errors::NullPointer {
+                pointer: store.pointer.to_string(),
+            }));
         }
         let index = self
             .operand(&store.index, "Int64")?
             .int()
-            .ok_or_else(|| anyhow!("The index is not a number"))?;
+            .ok_or_else(|| errors::Error::from(Errors::IndexNotNumber))?;
         let value = self.operand(&store.value, &store.ty)?;
         let address = base.wrapping_add((index as isize * size_of(&store.ty)? as isize) as usize);
         unsafe {
@@ -140,19 +150,27 @@ impl Vm {
                     (address as *mut i32).write_unaligned(*number as i32)
                 }
                 ("Int64", Value::Int(number)) => (address as *mut i64).write_unaligned(*number),
-                ("Float32", other) => (address as *mut f32).write_unaligned(
-                    other
-                        .float()
-                        .ok_or_else(|| anyhow!("{other:?} is not a number"))?
-                        as f32,
-                ),
-                ("Float64", other) => (address as *mut f64).write_unaligned(
-                    other
-                        .float()
-                        .ok_or_else(|| anyhow!("{other:?} is not a number"))?,
-                ),
+                ("Float32", other) => {
+                    (address as *mut f32).write_unaligned(other.float().ok_or_else(|| {
+                        errors::Error::from(Errors::NotANumber {
+                            value: format!("{:?}", other),
+                        })
+                    })? as f32)
+                }
+                ("Float64", other) => {
+                    (address as *mut f64).write_unaligned(other.float().ok_or_else(|| {
+                        errors::Error::from(Errors::NotANumber {
+                            value: format!("{:?}", other),
+                        })
+                    })?)
+                }
                 ("Pointer", other) => (address as *mut usize).write_unaligned(address_of(other)?),
-                (ty, other) => bail!("{other:?} cannot be written as an item of type `{ty}`"),
+                (ty, other) => {
+                    return Err(errors::Error::from(Errors::ItemNotWritable {
+                        value: format!("{:?}", other),
+                        ty: ty.to_string(),
+                    }));
+                }
             }
         }
         Ok(())

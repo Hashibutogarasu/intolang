@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, bail};
+use errors::{Error, Errors, Result};
 use parser::Hex;
 use std::fmt;
 use std::str::FromStr;
@@ -48,10 +48,16 @@ impl FromStr for NativeArg {
                         class: class.to_owned(),
                         index: index.parse()?,
                     }),
-                    _ => bail!("Malformed native field argument `{text}`"),
+                    _ => Err(Errors::MalformedFieldArgument {
+                        text: text.to_string(),
+                    }
+                    .into()),
                 }
             }
-            other => bail!("Unsupported native link argument type `{other}`"),
+            other => Err(Errors::UnsupportedLinkArgument {
+                kind: other.to_string(),
+            }
+            .into()),
         }
     }
 }

@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use errors::{Errors, Result};
 use parser::Record;
 
 use crate::llvm;
@@ -23,11 +23,11 @@ impl Codegen for NativeIfElse {
                 let last = ctx
                     .if_blocks
                     .last()
-                    .ok_or_else(|| anyhow!("`else` has no matching if"))?;
+                    .ok_or_else(|| errors::Error::from(Errors::ElseWithoutIf))?;
                 (last.0, last.1, last.2)
             };
             if has_else {
-                anyhow::bail!("An if block cannot contain multiple else branches");
+                return Err(errors::Error::from(Errors::MultipleElse));
             }
             LLVMBuildBr(ctx.builder, merge_block);
             if let Some(last) = ctx.if_blocks.last_mut() {

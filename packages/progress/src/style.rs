@@ -8,6 +8,8 @@ use crate::label::thread_label;
 
 const SPINNER: [&str; 5] = ["/", "-", "\\", "|", crate::report::DONE];
 
+const FAILURE: [&str; 2] = [crate::report::FAILED, crate::report::FAILED];
+
 pub(crate) fn now() -> String {
     let time = Local::now();
     clock(
@@ -34,11 +36,11 @@ fn remaining_time(state: &ProgressState, out: &mut dyn Write) {
     write!(out, "{}", white(remaining(state.eta()))).ok();
 }
 
-fn keyed(template: &str) -> ProgressStyle {
+fn keyed(template: &str, ticks: &[&str]) -> ProgressStyle {
     let label = thread_label();
     ProgressStyle::with_template(template)
         .expect("the progress templates are fixed")
-        .tick_strings(&SPINNER)
+        .tick_strings(ticks)
         .progress_chars("=> ")
         .with_key("thread", move |_: &ProgressState, out: &mut dyn Write| {
             write!(out, "{}", style(&label).green()).ok();
@@ -54,11 +56,21 @@ fn keyed(template: &str) -> ProgressStyle {
 pub(crate) fn running() -> ProgressStyle {
     keyed(
         "[{spinner:.red}] [{thread}] [{now}] {msg:.white} {bar:20.blue} [{elapsed_cs}] [ETA {eta_short}]",
+        &SPINNER,
     )
 }
 
 /// The style of a line that is left behind when the work is done, with the
 /// check mark of the spinner in green.
 pub(crate) fn finished() -> ProgressStyle {
-    keyed("[{spinner:.green}] [{thread}] [{now}] {msg:.white}")
+    keyed(
+        "[{spinner:.green}] [{thread}] [{now}] {msg:.white}",
+        &SPINNER,
+    )
+}
+
+/// The style of a line that is left behind when the work failed, with a red
+/// cross where the spinner was.
+pub(crate) fn failed() -> ProgressStyle {
+    keyed("[{spinner:.red}] [{thread}] [{now}] {msg:.white}", &FAILURE)
 }

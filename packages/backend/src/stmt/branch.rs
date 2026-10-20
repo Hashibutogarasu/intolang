@@ -1,5 +1,5 @@
-use anyhow::Result;
 use ast::{Expr, Path, Stmt};
+use errors::{Errors, Result};
 use types::{MessageTag, Type};
 
 use crate::context::Lowerer;
@@ -38,7 +38,7 @@ impl Lowerer<'_> {
         let flag = if general {
             Some(
                 self.begin_boolean_branch(MessageTag::WhileBegin, condition)
-                    .map_err(|message| self.diagnostic(line, &message))?,
+                    .map_err(|error| self.diagnostic(line, error))?,
             )
         } else {
             self.begin_condition(
@@ -59,7 +59,7 @@ impl Lowerer<'_> {
         if let Some(flag) = flag {
             let next = self
                 .lower_boolean(condition)
-                .map_err(|message| self.diagnostic(line, &message))?;
+                .map_err(|error| self.diagnostic(line, error))?;
             emit::assign(&mut self.state.output, &flag, &Type::Boolean, "p", &next);
         }
         emit::bare(&mut self.state.output, MessageTag::LoopEnd);
@@ -130,41 +130,64 @@ impl Lowerer<'_> {
             _ if self.begin_state_check(condition) => Ok(()),
             Expr::Compare { left, op, right } if self.is_plain_comparison(left, right) => self
                 .begin_comparison(compare_tag, label, left, *op, right)
-                .map_err(|message| self.diagnostic(line, &message)),
+                .map_err(|error| self.diagnostic(line, error)),
             Expr::Call { callee, args } if self.is_native_call(callee, args) => {
                 let (link, combined, has_receiver) = if callee.is_member() {
                     let (link, combined) = self
                         .resolve_method(callee, args)
-                        .map_err(|message| self.diagnostic(line, &message))?;
+                        .map_err(|error| self.diagnostic(line, error))?;
                     (link, combined, true)
                 } else {
                     let name = callee.first();
                     if !env.imported_functions.contains(name) {
-                        return Err(
-                            self.diagnostic(line, &format!("Function `{name}` is not imported"))
-                        );
+                        return Err(self.diagnostic(
+                            line,
+                            Errors::FunctionNotImported {
+                                function: name.to_string(),
+                            }
+                            .into(),
+                        ));
                     }
                     let key = self
                         .pick_overload(name, args)
-                        .map_err(|message| self.diagnostic(line, &message))?;
+                        .map_err(|error| self.diagnostic(line, error))?;
                     let link = env.native_links.get(&key).ok_or_else(|| {
-                        self.diagnostic(line, &format!("Function `{name}` has no native link"))
+                        self.diagnostic(
+                            line,
+                            Errors::FunctionNoNativeLink {
+                                function: name.to_string(),
+                            }
+                            .into(),
+                        )
                     })?;
                     (link, args.to_vec(), false)
                 };
                 if link.return_type != "Boolean" {
                     return Err(self.diagnostic(
                         line,
-                        &format!("{label} condition `{callee}` must return Boolean"),
+                        Errors::ConditionMustReturnBoolean {
+                            label: label.to_string(),
+                            callee: callee.to_string(),
+                        }
+                        .into(),
                     ));
                 }
                 self.emit_link_call(call_tag, link, combined, "", has_receiver)
-                    .map_err(|message| self.diagnostic(line, &message))
+                    .map_err(|error| self.diagnostic(line, error))
             }
             _ => self
                 .begin_boolean_branch(compare_tag, condition)
                 .map(|_| ())
-                .map_err(|message| self.diagnostic(line, &format!("{label} condition: {message}"))),
+                .map_err(|error| {
+                    self.diagnostic(
+                        line,
+                        Errors::ConditionFailed {
+                            label: label.to_string(),
+                            reason: error.kind().to_string(),
+                        }
+                        .into(),
+                    )
+                }),
         }
     }
 }

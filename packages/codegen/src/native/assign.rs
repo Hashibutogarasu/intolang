@@ -1,4 +1,4 @@
-use anyhow::{Error, Result};
+use errors::{Error, Result};
 use native::Operand;
 use parser::Record;
 use std::ffi::CString;

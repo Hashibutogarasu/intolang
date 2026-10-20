@@ -1,5 +1,5 @@
-use anyhow::{Result, anyhow};
 use bundle::Bundle;
+use errors::{Errors, Result};
 
 use super::layout::INTOC;
 
@@ -17,7 +17,7 @@ impl Inex {
         let bytes = self
             .bundle
             .read(INTOC)
-            .ok_or_else(|| anyhow!("inex has no intoc"))?;
-        std::str::from_utf8(bytes).map_err(|_| anyhow!("The intoc of the inex is not text"))
+            .ok_or_else(|| errors::Error::from(Errors::InexNoIntoc))?;
+        std::str::from_utf8(bytes).map_err(|_| errors::Error::from(Errors::IntocNotText))
     }
 }

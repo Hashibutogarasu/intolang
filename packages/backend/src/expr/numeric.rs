@@ -1,4 +1,5 @@
 use ast::Expr;
+use errors::{Errors, Result};
 use native::{CastAssign, CompareAssign, Comparison, Operand};
 use parser::ArithmeticLexeme;
 use types::{ArithmeticOperator, ComparisonOperator, Literal, LogicalOperator, MessageTag, Type};
@@ -46,13 +47,13 @@ impl Lowerer<'_> {
 
     /// The type two operands share. A literal takes the type of the other
     /// operand.
-    fn unify(&self, left: &Kind, right: &Kind) -> Result<Type, String> {
-        let mismatch = |a: &Type, b: &Type| {
-            format!(
-                "Arithmetic type `{}` does not match operand type `{}`",
-                a.name(),
-                b.name()
-            )
+    fn unify(&self, left: &Kind, right: &Kind) -> Result<Type> {
+        let mismatch = |a: &Type, b: &Type| -> errors::Error {
+            Errors::ArithmeticTypeMismatch {
+                declared: a.name(),
+                operand: b.name(),
+            }
+            .into()
         };
         match (left, right) {
             (Kind::Typed(a), Kind::Typed(b)) if a == b => Ok(a.clone()),
@@ -98,7 +99,7 @@ impl Lowerer<'_> {
         right: &Expr,
         annotation: Option<&Type>,
         target: &str,
-    ) -> Result<Type, String> {
+    ) -> Result<Type> {
         let left = self.lower_numeric(left)?;
         let right = self.lower_numeric(right)?;
         let literals = matches!(
@@ -113,25 +114,25 @@ impl Lowerer<'_> {
             Some(annotation) => {
                 let ty = self.unify(&left.kind, &right.kind)?;
                 if *annotation != ty {
-                    return Err(format!(
-                        "Arithmetic type `{}` does not match operand type `{}`",
-                        annotation.name(),
-                        ty.name()
-                    ));
+                    return Err(Errors::ArithmeticTypeMismatch {
+                        declared: annotation.name(),
+                        operand: ty.name(),
+                    }
+                    .into());
                 }
                 ty
             }
             None => self.unify(&left.kind, &right.kind)?,
         };
         if !ty.is_numeric() {
-            return Err("Arithmetic result type must be numeric".to_owned());
+            return Err(Errors::ArithmeticResultNotNumeric.into());
         }
         if integer_only(operator) && ty.is_float() {
-            return Err(format!(
-                "`{}` needs integers but received `{}`",
-                ArithmeticLexeme::from(operator),
-                ty.name()
-            ));
+            return Err(Errors::ArithmeticNeedsIntegers {
+                operator: ArithmeticLexeme::from(operator).to_string(),
+                ty: ty.name(),
+            }
+            .into());
         }
         let left_slot = self.slot_of(&left, &ty);
         emit::arith(
@@ -146,7 +147,7 @@ impl Lowerer<'_> {
     }
 
     /// Lower a numeric or Boolean expression to an operand.
-    pub fn lower_numeric(&mut self, expression: &Expr) -> Result<Numeric, String> {
+    pub fn lower_numeric(&mut self, expression: &Expr) -> Result<Numeric> {
         match expression {
             Expr::Literal(Literal::Int(number)) => Ok(Numeric {
                 operand: Operand::Number(number.to_string()),
@@ -190,13 +191,17 @@ impl Lowerer<'_> {
 
     /// Lower `value as ty` between the scalar types: integers, floats, `Char`
     /// and `Boolean` (which only converts to a number).
-    fn lower_cast(&mut self, value: &Expr, written: &str) -> Result<Numeric, String> {
-        let to = parse_type(written, &self.env.type_params).map_err(|error| error.to_string())?;
+    fn lower_cast(&mut self, value: &Expr, written: &str) -> Result<Numeric> {
+        let to = parse_type(written, &self.env.type_params)?;
         let scalar = |ty: &Type| ty.is_numeric() || *ty == Type::Char;
         if let Ok(declared) = self.type_of(value)
             && !(scalar(&declared) || declared == Type::Boolean)
         {
-            return Err(format!("no cast from {} to {}", declared.name(), to.name()));
+            return Err(Errors::NoCast {
+                from: declared.name(),
+                to: to.name(),
+            }
+            .into());
         }
         let source = self.lower_numeric(value)?;
         let from = match &source.kind {
@@ -206,7 +211,11 @@ impl Lowerer<'_> {
         };
         let convertible = (scalar(&from) || from == Type::Boolean) && scalar(&to);
         if !convertible {
-            return Err(format!("no cast from {} to {}", from.name(), to.name()));
+            return Err(Errors::NoCast {
+                from: from.name(),
+                to: to.name(),
+            }
+            .into());
         }
         let source_slot = self.slot_of(&source, &from);
         let target = self.fresh_slot(&to);
@@ -226,14 +235,15 @@ impl Lowerer<'_> {
     }
 
     /// Lower a name or a call whose value lives in a native slot.
-    fn lower_value(&mut self, expression: &Expr) -> Result<Numeric, String> {
+    fn lower_value(&mut self, expression: &Expr) -> Result<Numeric> {
         if let Expr::Path(path) = expression
             && let Some((slot, ty)) = self.lower_field_read(path)?
         {
             if !(ty.is_numeric() || matches!(ty, Type::Boolean | Type::Char)) {
-                return Err(format!(
-                    "Arithmetic requires a typed numeric value, not `{expression}`"
-                ));
+                return Err(Errors::ArithmeticNeedsTypedValue {
+                    expression: expression.to_string(),
+                }
+                .into());
             }
             return Ok(Numeric {
                 operand: Operand::Slot(slot),
@@ -247,9 +257,9 @@ impl Lowerer<'_> {
                 .values
                 .get(name)
                 .filter(|variable| variable.native)
-                .ok_or_else(|| "Arithmetic requires a typed numeric value".to_owned())?;
+                .ok_or_else(|| errors::Error::from(Errors::ArithmeticNeedsTypedValueBare))?;
             if !(variable.ty.is_numeric() || matches!(variable.ty, Type::Boolean | Type::Char)) {
-                return Err("Arithmetic requires a typed numeric value".to_owned());
+                return Err(Errors::ArithmeticNeedsTypedValueBare.into());
             }
             return Ok(Numeric {
                 operand: Operand::Slot(name.to_owned()),
@@ -257,7 +267,10 @@ impl Lowerer<'_> {
             });
         }
         if !matches!(expression, Expr::Call { .. }) {
-            return Err(format!("Unsupported arithmetic operand `{expression}`"));
+            return Err(Errors::UnsupportedArithmeticOperand {
+                operand: expression.to_string(),
+            }
+            .into());
         }
         let target = format!("__value{}", self.state.temp_counter);
         self.state.temp_counter += 1;
@@ -265,7 +278,10 @@ impl Lowerer<'_> {
         let (_, ty, native) =
             self.declaration_value(expression, None, &env.type_params, &target)?;
         if !native || !(ty.is_numeric() || matches!(ty, Type::Boolean | Type::Char)) {
-            return Err(format!("Unsupported arithmetic operand `{expression}`"));
+            return Err(Errors::UnsupportedArithmeticOperand {
+                operand: expression.to_string(),
+            }
+            .into());
         }
         self.state
             .values
@@ -277,7 +293,7 @@ impl Lowerer<'_> {
     }
 
     /// Lower a Boolean expression to a `Boolean` slot holding 1 or 0.
-    pub fn lower_boolean(&mut self, expression: &Expr) -> Result<String, String> {
+    pub fn lower_boolean(&mut self, expression: &Expr) -> Result<String> {
         match expression {
             Expr::Not(inner) => {
                 let value = self.lower_boolean(inner)?;
@@ -344,7 +360,10 @@ impl Lowerer<'_> {
                         emit::assign(&mut self.state.output, &slot, &Type::Boolean, "n", number);
                         Ok(slot)
                     }
-                    _ => Err(format!("`{other}` is not a Boolean expression")),
+                    _ => Err(Errors::NotBoolean {
+                        value: other.to_string(),
+                    }
+                    .into()),
                 }
             }
         }
@@ -374,11 +393,7 @@ impl Lowerer<'_> {
 
     /// Open a branch or loop on a Boolean expression that is not a plain
     /// comparison of a variable.
-    pub fn begin_boolean_branch(
-        &mut self,
-        tag: MessageTag,
-        expression: &Expr,
-    ) -> Result<String, String> {
+    pub fn begin_boolean_branch(&mut self, tag: MessageTag, expression: &Expr) -> Result<String> {
         let slot = self.lower_boolean(expression)?;
         let condition = Comparison {
             left: slot.clone(),

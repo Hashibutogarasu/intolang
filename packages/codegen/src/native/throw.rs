@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, bail};
+use errors::{Error, Errors, Result};
 use parser::Record;
 
 use crate::{Codegen, CodegenContext, CodegenResult};
@@ -20,6 +20,8 @@ impl TryFrom<&Record> for NativeThrow {
 
 impl Codegen for NativeThrow {
     fn generate(&self, _ctx: &mut CodegenContext) -> Result<CodegenResult> {
-        bail!("`throw` can only run in the Into VM ({})", self.message)
+        Err(errors::Error::from(Errors::ThrowNeedsVm {
+            message: self.message.to_string(),
+        }))
     }
 }

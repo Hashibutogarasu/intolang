@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, bail};
+use errors::{Error, Errors, Result};
 use std::fmt;
 use std::str::FromStr;
 
@@ -22,7 +22,10 @@ impl FromStr for PackageAlias {
                 .bytes()
                 .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'));
         if !valid {
-            bail!("Invalid package alias `{text}`");
+            return Err(Errors::PackageAliasInvalid {
+                text: text.to_string(),
+            }
+            .into());
         }
         Ok(Self(text.to_owned()))
     }

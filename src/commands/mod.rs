@@ -1,5 +1,6 @@
 mod build;
 mod command;
+mod error_format;
 mod format;
 mod inex;
 mod install;

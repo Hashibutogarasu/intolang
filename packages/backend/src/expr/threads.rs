@@ -1,4 +1,5 @@
 use ast::{Expr, Path, Stmt};
+use errors::{Errors, Result};
 use types::Type;
 
 use super::events::RuntimeCall;
@@ -21,7 +22,7 @@ pub fn task_value() -> (String, Type, bool) {
 impl Lowerer<'_> {
     /// Lower the body of a `thread { .. }` into a function and return its
     /// name.
-    pub fn lower_thread_body(&mut self, body: &[Stmt]) -> Result<String, String> {
+    pub fn lower_thread_body(&mut self, body: &[Stmt]) -> Result<String> {
         let name = format!("__thread_{}", self.state.temp_counter);
         self.state.temp_counter += 1;
         self.lower_handler(&name, &[], &[], body)?;
@@ -30,11 +31,7 @@ impl Lowerer<'_> {
 
     /// Lower `thread.run()`: start the thread and keep its task in the slot
     /// `assigned_to`.
-    pub fn lower_thread_call(
-        &mut self,
-        callee: &Path,
-        assigned_to: &str,
-    ) -> Result<RuntimeCall, String> {
+    pub fn lower_thread_call(&mut self, callee: &Path, assigned_to: &str) -> Result<RuntimeCall> {
         let [receiver, method] = callee.segments() else {
             return Ok(RuntimeCall::NotRuntime);
         };
@@ -51,7 +48,7 @@ impl Lowerer<'_> {
     }
 
     /// Lower `await task` and `await thread.run()`.
-    pub fn lower_await(&mut self, awaited: &Expr) -> Result<(), String> {
+    pub fn lower_await(&mut self, awaited: &Expr) -> Result<()> {
         match awaited {
             Expr::Path(path) => {
                 let task = path
@@ -62,7 +59,11 @@ impl Lowerer<'_> {
                             .get(*name)
                             .is_some_and(|variable| variable.ty.name() == TASK)
                     })
-                    .ok_or_else(|| format!("`await` expects a Task but received `{awaited}`"))?;
+                    .ok_or_else(|| {
+                        errors::Error::from(Errors::AwaitExpectsTask {
+                            value: awaited.to_string(),
+                        })
+                    })?;
                 self.ensure_usable(task)?;
                 emit::await_task(&mut self.state.output, task);
                 Ok(())
@@ -75,10 +76,16 @@ impl Lowerer<'_> {
                         emit::await_task(&mut self.state.output, &task);
                         Ok(())
                     }
-                    _ => Err(format!("`await` expects a Task but received `{awaited}`")),
+                    _ => Err(Errors::AwaitExpectsTask {
+                        value: awaited.to_string(),
+                    }
+                    .into()),
                 }
             }
-            other => Err(format!("`await` expects a Task but received `{other}`")),
+            other => Err(Errors::AwaitExpectsTask {
+                value: other.to_string(),
+            }
+            .into()),
         }
     }
 }

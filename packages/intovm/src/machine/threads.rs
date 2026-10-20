@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow, bail};
+use errors::{Errors, Result};
 use std::collections::HashMap;
 use std::mem;
 
@@ -21,7 +21,11 @@ impl Vm {
             .program
             .functions
             .get(function)
-            .ok_or_else(|| anyhow!("Unknown thread function `{function}`"))?
+            .ok_or_else(|| {
+                errors::Error::from(Errors::UnknownThreadFunction {
+                    function: function.to_string(),
+                })
+            })?
             .clone();
         let id = self.threads.len();
         self.threads.push(Thread {
@@ -42,10 +46,11 @@ impl Vm {
     /// current thread waits for it and another one runs.
     pub(super) fn thread_await(&mut self, task: &str) -> Result<bool> {
         let id = self.load_slot(task)?.int().unwrap_or(-1);
-        let target = self
-            .threads
-            .get(id as usize)
-            .ok_or_else(|| anyhow!("`{task}` holds no thread"))?;
+        let target = self.threads.get(id as usize).ok_or_else(|| {
+            errors::Error::from(Errors::NoThread {
+                task: task.to_string(),
+            })
+        })?;
         if target.done {
             return Ok(true);
         }
@@ -70,7 +75,7 @@ impl Vm {
 
     pub(super) fn switch_thread(&mut self) -> Result<()> {
         let Some(next) = self.next_runnable() else {
-            bail!("Every thread is waiting: deadlock");
+            return Err(errors::Error::from(Errors::ThreadsDeadlock));
         };
         if next != self.current {
             self.threads[self.current].frames = mem::take(&mut self.frames);

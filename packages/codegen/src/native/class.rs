@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, anyhow};
+use errors::{Error, Errors, Result};
 use parser::Record;
 use std::ffi::CString;
 
@@ -40,7 +40,9 @@ impl TryFrom<&Record> for Class {
 
     fn try_from(record: &Record) -> Result<Self> {
         let Some((name, fields)) = record.fields().split_first() else {
-            return Err(anyhow!("Malformed NATIVE_CLASS record"));
+            return Err(errors::Error::from(Errors::malformed_record(
+                "NATIVE_CLASS",
+            )));
         };
         Ok(Self {
             name: name.clone(),
@@ -77,10 +79,11 @@ impl Codegen for Class {
                 field_types.push(llvm_type);
                 defaults.push(field.default.clone());
             }
-            let struct_type = *ctx
-                .named_types
-                .get(&self.name)
-                .ok_or_else(|| anyhow!("Unknown native class `{}`", self.name))?;
+            let struct_type = *ctx.named_types.get(&self.name).ok_or_else(|| {
+                errors::Error::from(Errors::UnknownNativeClass {
+                    class: self.name.to_string(),
+                })
+            })?;
             LLVMStructSetBody(
                 struct_type,
                 field_types.as_mut_ptr(),
