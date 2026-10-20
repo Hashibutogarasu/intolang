@@ -30,6 +30,8 @@ pub struct Symbol {
     pub owner: usize,
     pub native: Option<NativeRef>,
     pub params: Vec<ParamInfo>,
+    pub reference: bool,
+    pub track_use: bool,
 }
 
 #[derive(Debug, Default)]

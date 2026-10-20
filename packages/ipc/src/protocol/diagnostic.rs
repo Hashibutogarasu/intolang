@@ -8,6 +8,7 @@ use super::position::Range;
 pub enum Severity {
     Error,
     Warning,
+    Hint,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -30,4 +31,6 @@ pub struct Diagnostic {
     pub found: Option<String>,
     #[serde(default)]
     pub hint: Option<String>,
+    #[serde(default)]
+    pub unnecessary: bool,
 }

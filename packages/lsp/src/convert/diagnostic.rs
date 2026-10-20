@@ -1,4 +1,6 @@
-use lsp_types::{DiagnosticRelatedInformation, DiagnosticSeverity, Location, NumberOrString};
+use lsp_types::{
+    DiagnosticRelatedInformation, DiagnosticSeverity, DiagnosticTag, Location, NumberOrString,
+};
 
 use super::uri::uri;
 use crate::documents::Documents;
@@ -32,7 +34,9 @@ pub fn diagnostic(
         severity: Some(match found.severity {
             ipc::Severity::Error => DiagnosticSeverity::ERROR,
             ipc::Severity::Warning => DiagnosticSeverity::WARNING,
+            ipc::Severity::Hint => DiagnosticSeverity::HINT,
         }),
+        tags: found.unnecessary.then(|| vec![DiagnosticTag::UNNECESSARY]),
         code: found
             .code
             .map(|code| NumberOrString::String(format!("0x{code:04X}"))),

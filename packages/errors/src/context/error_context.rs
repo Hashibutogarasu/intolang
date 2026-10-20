@@ -8,6 +8,7 @@ use crate::errors::{Domain, Errors};
 pub enum Severity {
     Error,
     Warning,
+    Hint,
 }
 
 /// A place related to an error, such as the declaration it conflicts with.
@@ -37,7 +38,7 @@ impl ErrorContext {
         Self {
             code: kind.code(),
             domain: kind.domain(),
-            severity: Severity::Error,
+            severity: kind.severity(),
             message: kind.to_string(),
             path: None,
             span: None,

@@ -78,6 +78,8 @@ impl Builder<'_> {
             owner: self.owner,
             native: None,
             params: Vec::new(),
+            reference: false,
+            track_use: false,
         }
     }
 
@@ -162,7 +164,7 @@ impl Builder<'_> {
         }
         symbol.native = native;
         self.push(symbol);
-        self.params(&decl.params, decl.line);
+        self.params(&decl.params, decl.line, decl.body.is_some());
         if let Some(body) = &decl.body {
             self.block(body);
         }
@@ -176,16 +178,19 @@ impl Builder<'_> {
             public: decl.is_public || container.is_some(),
             ..self.symbol(&decl.name, SymbolKind::Event, decl.name_span.0, decl.line)
         });
-        self.params(&decl.params, decl.line);
+        self.params(&decl.params, decl.line, false);
         self.block(&decl.body);
     }
 
-    fn params(&mut self, params: &[Param], line: usize) {
+    fn params(&mut self, params: &[Param], line: usize, track_use: bool) {
         for param in params {
+            let ty = param.ty.as_ref().map(ToString::to_string);
             self.push(Symbol {
                 signature: signature::param(param),
-                ty: param.ty.as_ref().map(ToString::to_string),
+                reference: ty.as_deref().is_some_and(is_reference),
+                ty,
                 local: true,
+                track_use,
                 ..self.symbol(&param.name, SymbolKind::Variable, param.name_span.0, line)
             });
         }
@@ -203,8 +208,10 @@ impl Builder<'_> {
                 let ty = declared_type(declaration);
                 self.push(Symbol {
                     signature: signature::local(declaration, ty.as_deref()),
+                    reference: borrows(declaration) || ty.as_deref().is_some_and(is_reference),
                     ty,
                     local,
+                    track_use: local,
                     ..self.symbol(
                         &declaration.name,
                         SymbolKind::Variable,
@@ -245,10 +252,13 @@ impl Builder<'_> {
         match expr {
             Expr::Lambda { params, body } => {
                 for param in params {
+                    let ty = param.ty.as_ref().map(ToString::to_string);
                     self.push(Symbol {
                         signature: signature::param(param),
-                        ty: param.ty.as_ref().map(ToString::to_string),
+                        reference: ty.as_deref().is_some_and(is_reference),
+                        ty,
                         local: true,
+                        track_use: true,
                         ..self.symbol(
                             &param.name,
                             SymbolKind::Variable,
@@ -281,6 +291,20 @@ impl Builder<'_> {
             Expr::Literal(_) | Expr::Path(_) => {}
         }
     }
+}
+
+const BORROW: &str = "borrow";
+
+fn is_reference(ty: &str) -> bool {
+    ty.ends_with('&')
+}
+
+/// Whether the declaration binds the result of `x.borrow()`.
+fn borrows(declaration: &Declaration) -> bool {
+    matches!(
+        &declaration.value,
+        Some(Expr::Call { callee, .. }) if callee.is_member() && callee.last() == BORROW
+    )
 }
 
 fn param_infos(params: &[Param]) -> Vec<ParamInfo> {

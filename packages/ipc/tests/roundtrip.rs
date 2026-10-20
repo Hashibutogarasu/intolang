@@ -42,6 +42,7 @@ impl Handler for Echo {
                         expected: vec![],
                         found: None,
                         hint: None,
+                        unnecessary: false,
                     }],
                 }]
             }

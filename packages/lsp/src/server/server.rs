@@ -4,7 +4,7 @@ use lsp_types::{
     CompletionParams, CompletionResponse, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
     DidOpenTextDocumentParams, DocumentFormattingParams, DocumentSymbolParams,
     DocumentSymbolResponse, GotoDefinitionParams, GotoDefinitionResponse, HoverParams,
-    PublishDiagnosticsParams,
+    PublishDiagnosticsParams, SemanticTokensParams, SemanticTokensResult,
 };
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -82,6 +82,21 @@ impl<T: Transport> Server<T> {
                         .map(|found| convert::completion(&self.documents, &uri, found))
                         .collect(),
                 ))
+            }
+            "textDocument/semanticTokens/full" => {
+                let params: SemanticTokensParams = parse(params)?;
+                let uri = params.text_document.uri.as_str().to_owned();
+                let query = self.query(&uri, Default::default());
+                let ranges = match self.bridge.request(Request::NonOwning(query)) {
+                    Ok(Reply::NonOwning(ranges)) => ranges,
+                    Ok(_) | Err(BridgeError::Ipc(_)) => Vec::new(),
+                    Err(error) => return Err(failure(error)),
+                };
+                respond(SemanticTokensResult::Tokens(convert::non_owning(
+                    &self.documents,
+                    &uri,
+                    ranges,
+                )))
             }
             "textDocument/documentSymbol" => {
                 let params: DocumentSymbolParams = parse(params)?;

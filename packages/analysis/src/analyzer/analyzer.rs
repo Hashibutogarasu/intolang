@@ -76,18 +76,25 @@ impl Analyzer {
         let packages_dir = self.environment.as_ref().map(Environment::path);
         let document = self.documents.get_mut(&uri).expect("inserted above");
         let path = uri_to_path(&uri);
-        if let Ok(analysis) =
-            Analysis::build(&document.text, path.as_deref(), packages_dir, &sources)
-        {
-            document.analysis = Some(analysis);
+        let parsed = Analysis::build(&document.text, path.as_deref(), packages_dir, &sources).ok();
+        let fresh = parsed.is_some();
+        if parsed.is_some() {
+            document.analysis = parsed;
         }
-        let diagnostics = features::diagnose(&Source {
+        let mut diagnostics = features::diagnose(&Source {
             uri: &uri,
             path: path.as_deref(),
             text: &document.text,
             line_index: &document.line_index,
             packages_dir,
         });
+        if let (true, Some(analysis)) = (fresh, &document.analysis) {
+            diagnostics.extend(features::unused(
+                analysis,
+                &document.line_index,
+                packages_dir,
+            ));
+        }
         Notification::Diagnostics {
             uri,
             version: Some(version),
@@ -141,6 +148,13 @@ impl Handler for Analyzer {
                 let document = self.document(&query.uri)?;
                 Ok(Reply::DocumentSymbol(match &document.analysis {
                     Some(analysis) => features::document_symbols(analysis, &document.line_index),
+                    None => Vec::new(),
+                }))
+            }
+            Request::NonOwning(query) => {
+                let document = self.document(&query.uri)?;
+                Ok(Reply::NonOwning(match &document.analysis {
+                    Some(analysis) => features::non_owning(analysis, &document.line_index),
                     None => Vec::new(),
                 }))
             }

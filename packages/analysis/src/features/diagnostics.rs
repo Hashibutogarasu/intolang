@@ -65,13 +65,14 @@ pub fn diagnose(source: &Source<'_>) -> Vec<Diagnostic> {
     diagnostics
 }
 
-fn plain(error: &Error) -> Diagnostic {
+pub(super) fn plain(error: &Error) -> Diagnostic {
     let context = error.resolved_context();
     Diagnostic {
         range: Default::default(),
         severity: match context.severity {
             ErrorSeverity::Error => Severity::Error,
             ErrorSeverity::Warning => Severity::Warning,
+            ErrorSeverity::Hint => Severity::Hint,
         },
         code: error.code(),
         message: context.message,
@@ -79,6 +80,7 @@ fn plain(error: &Error) -> Diagnostic {
         expected: Vec::new(),
         found: None,
         hint: None,
+        unnecessary: false,
     }
 }
 

@@ -1,7 +1,7 @@
 {
   "name": "intolang-vscode",
   "displayName": "Into",
-  "description": "Language support for Into: diagnostics, hover documentation and go to definition",
+  "description": "Language support for Into: diagnostics, completion, hover documentation, go to definition, faded unused code and underlined references",
   "version": "0.1.0",
   "publisher": "hashibutogarasu",
   "license": "MIT",
@@ -36,6 +36,24 @@
         "path": "./syntaxes/into.tmLanguage.json"
       }
     ],
+    "semanticTokenModifiers": [
+      {
+        "id": "reference",
+        "description": "A binding that owns nothing: a reference parameter or the result of borrow"
+      }
+    ],
+    "configurationDefaults": {
+      "[into]": {
+        "editor.semanticHighlighting.enabled": true,
+        "editor.semanticTokenColorCustomizations": {
+          "rules": {
+            "*.reference": {
+              "underline": true
+            }
+          }
+        }
+      }
+    },
     "configuration": {
       "title": "Into",
       "properties": {

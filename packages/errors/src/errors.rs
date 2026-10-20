@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::catalog::CatalogEntry;
+use crate::context::Severity;
 
 /// Which side raised an error: the Into program or the toolchain itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -60,6 +61,15 @@ macro_rules! declare_errors {
             )*)*
         ];
     };
+}
+
+impl Errors {
+    pub const fn severity(&self) -> Severity {
+        match self {
+            Self::UnusedVariable { .. } | Self::UnusedImport { .. } => Severity::Hint,
+            _ => Severity::Error,
+        }
+    }
 }
 
 declare_errors! {
@@ -300,6 +310,10 @@ declare_errors! {
         ImportNotFound { uri: String } = 0x10AA,
         #[error("`{name}` is a constant and cannot be assigned again")]
         AssignToConstant { name: String } = 0x10AB,
+        #[error("`{name}` is never used")]
+        UnusedVariable { name: String } = 0x10AC,
+        #[error("The import `{uri}` is never used")]
+        UnusedImport { uri: String } = 0x10AD,
         #[error("Variable `{name}` is out of scope here")]
         VariableOutOfScope { name: String } = 0x1040,
         #[error("Variable `{name}` was unloaded")]

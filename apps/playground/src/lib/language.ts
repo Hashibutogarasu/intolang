@@ -173,7 +173,24 @@ export async function registerLanguage(monaco: typeof Monaco, engine: Engine): P
   return { dispose: () => disposables.forEach((disposable) => disposable.dispose()) };
 }
 
-type Diagnostic = { range: Range; severity: "error" | "warning"; message: string; code: number | null };
+type Diagnostic = {
+  range: Range;
+  severity: "error" | "warning" | "hint";
+  message: string;
+  code: number | null;
+  unnecessary?: boolean;
+};
+
+function markerSeverity(monaco: typeof Monaco, severity: Diagnostic["severity"]): Monaco.MarkerSeverity {
+  switch (severity) {
+    case "error":
+      return monaco.MarkerSeverity.Error;
+    case "warning":
+      return monaco.MarkerSeverity.Warning;
+    case "hint":
+      return monaco.MarkerSeverity.Hint;
+  }
+}
 
 /**
  * Keeps the analyzer's copy of the program and the red lines of the editor in
@@ -201,7 +218,8 @@ export function followDocument(monaco: typeof Monaco, engine: Engine, model: Mon
       "into",
       diagnostics.map((diagnostic) => ({
         ...toMonacoRange(model, diagnostic.range),
-        severity: diagnostic.severity === "error" ? monaco.MarkerSeverity.Error : monaco.MarkerSeverity.Warning,
+        severity: markerSeverity(monaco, diagnostic.severity),
+        tags: diagnostic.unnecessary ? [monaco.MarkerTag.Unnecessary] : undefined,
         message: diagnostic.message,
         code: diagnostic.code === null ? undefined : String(diagnostic.code),
       })),
