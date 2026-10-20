@@ -69,7 +69,10 @@ reads `src/main/tests/assert.into` of the builtin package.
 - **LLVM 23** and **LLD**. The compiler expects `LLVM_SYS_231_PREFIX` to point at
   an LLVM dev tree. `nix develop` (see `flake.nix`) provisions LLVM 23, lld,
   `cargo`/`rustc`, Wayland/Vulkan headers, `pkg-config`, `yt-dlp`/`ffmpeg`
-  (for example assets), plus the `codex` CLI.
+  (for example assets), plus the `codex` CLI. `nix develop .#llvm` is the small
+  shell for building and testing the Rust workspace: LLVM 23, lld, `cargo`/`rustc`,
+  `zlib`, `libxml2` and `pkg-config`, without the example and codex dependencies
+  and without building the `into` binary in the shell hook.
 - Native example packages need their system libraries (e.g. `wayland-client`,
   Vulkan loader). C/C++ native modules are compiled with `cc`/`c++` (override via
   the `CC`/`CXX` env vars) and dependencies are resolved through `pkg-config`.

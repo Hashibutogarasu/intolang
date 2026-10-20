@@ -41,6 +41,34 @@
           codex = codex-cli-nix.packages.${system}.default;
         in
         {
+          llvm = pkgs.mkShell {
+            packages = [
+              llvm
+              pkgs.llvmPackages_23.lld
+              pkgs.cargo
+              pkgs.rustc
+              pkgs.git
+              pkgs.libxml2
+              pkgs.zlib
+              pkgs.pkg-config
+            ];
+
+            LLVM_SYS_231_PREFIX = "${llvm.dev}";
+
+            LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
+              llvm
+              pkgs.rustc
+              pkgs.zlib
+              pkgs.libxml2
+              pkgs.stdenv.cc.cc.lib
+            ];
+
+            shellHook = ''
+              projectRoot="$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null || pwd -P)"
+              export CARGO_TARGET_DIR="$projectRoot/dist"
+            '';
+          };
+
           default = pkgs.mkShell {
             packages = [
               codex
