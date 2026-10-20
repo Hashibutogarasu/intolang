@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use common::{position_of, session, session_with};
+use errors::Errors;
 use ipc::{Diagnostic, Position, Range, Severity};
 
 const URI: &str = "file:///project/src/main/unused.into";
@@ -29,8 +30,11 @@ fn a_variable_nothing_reads_is_faded() {
     let source = "init {\n    into used = 1;\n    into spare = 2;\n    println(used);\n}\n";
     let found = hints(session().open(URI, source));
     assert_eq!(found.len(), 1, "{found:?}");
-    assert_eq!(found[0].message, "`spare` is never used");
-    assert_eq!(found[0].code, Some(0x10AC));
+    let kind = Errors::UnusedVariable {
+        name: "spare".to_owned(),
+    };
+    assert_eq!(found[0].message, kind.to_string());
+    assert_eq!(found[0].code, kind.code());
     assert_eq!(found[0].range, named(source, "spare", 0));
     assert!(found[0].unnecessary);
 }
@@ -99,8 +103,11 @@ fn an_import_nothing_uses_is_faded_whole() {
     assert_eq!(found.len(), 1, "{found:?}");
     assert_eq!(found[0].range, named(source, "import \"util://tools\";", 0));
     assert!(found[0].unnecessary);
-    assert_eq!(found[0].code, Some(0x10AD));
-    assert_eq!(found[0].message, "The import `util://tools` is never used");
+    let kind = Errors::UnusedImport {
+        uri: "util://tools".to_owned(),
+    };
+    assert_eq!(found[0].code, kind.code());
+    assert_eq!(found[0].message, kind.to_string());
     fs::remove_dir_all(base).unwrap();
 }
 
@@ -129,10 +136,13 @@ init {
 ";
 
 #[test]
-fn the_names_that_own_nothing_are_listed() {
-    let mut editor = session();
-    editor.open(URI, OWNERSHIP);
-    let ranges = editor.non_owning(URI);
+fn the_names_that_own_nothing_are_underlined() {
+    let found: Vec<Diagnostic> = session()
+        .open(URI, OWNERSHIP)
+        .into_iter()
+        .filter(|diagnostic| diagnostic.severity == Severity::Information)
+        .collect();
+    let ranges: Vec<Range> = found.iter().map(|diagnostic| diagnostic.range).collect();
     let expected = vec![
         named(OWNERSHIP, "box", 0),
         named(OWNERSHIP, "box", 1),
@@ -140,4 +150,10 @@ fn the_names_that_own_nothing_are_listed() {
         named(OWNERSHIP, "view", 1),
     ];
     assert_eq!(ranges, expected);
+    let kind = Errors::NotOwning {
+        name: "box".to_owned(),
+    };
+    assert_eq!(found[0].code, kind.code());
+    assert_eq!(found[0].message, kind.to_string());
+    assert!(found.iter().all(|diagnostic| !diagnostic.unnecessary));
 }

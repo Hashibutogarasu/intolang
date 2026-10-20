@@ -67,6 +67,7 @@ impl Errors {
     pub const fn severity(&self) -> Severity {
         match self {
             Self::UnusedVariable { .. } | Self::UnusedImport { .. } => Severity::Hint,
+            Self::NotOwning { .. } => Severity::Information,
             _ => Severity::Error,
         }
     }
@@ -314,6 +315,8 @@ declare_errors! {
         UnusedVariable { name: String } = 0x10AC,
         #[error("The import `{uri}` is never used")]
         UnusedImport { uri: String } = 0x10AD,
+        #[error("`{name}` owns nothing: it is a reference")]
+        NotOwning { name: String } = 0x10AE,
         #[error("Variable `{name}` is out of scope here")]
         VariableOutOfScope { name: String } = 0x1040,
         #[error("Variable `{name}` was unloaded")]

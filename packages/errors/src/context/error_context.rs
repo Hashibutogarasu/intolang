@@ -8,6 +8,7 @@ use crate::errors::{Domain, Errors};
 pub enum Severity {
     Error,
     Warning,
+    Information,
     Hint,
 }
 

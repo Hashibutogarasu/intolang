@@ -8,6 +8,7 @@ use super::position::Range;
 pub enum Severity {
     Error,
     Warning,
+    Information,
     Hint,
 }
 

@@ -5,7 +5,7 @@ use ipc::Request;
 use lsp_types::{
     CompletionItemKind, CompletionResponse, CompletionTextEdit, DiagnosticSeverity, DiagnosticTag,
     DocumentSymbolResponse, GotoDefinitionResponse, Hover, HoverContents, InsertTextFormat,
-    NumberOrString, PublishDiagnosticsParams, SemanticTokensResult, TextEdit,
+    NumberOrString, PublishDiagnosticsParams, TextEdit,
 };
 use serde_json::{Value, json};
 
@@ -179,40 +179,11 @@ fn a_folder_asks_for_the_next_suggestions_and_a_snippet_says_so() {
 }
 
 #[test]
-fn the_names_that_own_nothing_are_semantic_tokens_in_utf16() {
-    let mut server = server(&Log::default());
-    open(&mut server, "😀ab\ncd\nefghijklmn\n");
-    let value = server
-        .request(
-            "textDocument/semanticTokens/full",
-            json!({"textDocument": {"uri": URI}}),
-        )
-        .unwrap();
-    let SemanticTokensResult::Tokens(tokens) = serde_json::from_value(value).unwrap() else {
-        panic!("tokens expected");
-    };
-    let encoded: Vec<_> = tokens
-        .data
-        .iter()
-        .map(|token| {
-            (
-                token.delta_line,
-                token.delta_start,
-                token.length,
-                token.token_type,
-                token.token_modifiers_bitset,
-            )
-        })
-        .collect();
-    assert_eq!(encoded, [(0, 2, 2, 0, 1), (2, 4, 5, 0, 1), (0, 8, 2, 0, 1)]);
-}
-
-#[test]
-fn unused_hints_are_faded_by_the_unnecessary_tag() {
+fn unused_hints_are_faded_and_references_are_informations() {
     let mut server = server(&Log::default());
     let published = open(&mut server, "unused\n");
     let params: PublishDiagnosticsParams = serde_json::from_value(published[0].1.clone()).unwrap();
-    assert_eq!(params.diagnostics.len(), 2);
+    assert_eq!(params.diagnostics.len(), 3);
     assert_eq!(params.diagnostics[0].tags, None);
     assert_eq!(
         params.diagnostics[1].severity,
@@ -222,6 +193,11 @@ fn unused_hints_are_faded_by_the_unnecessary_tag() {
         params.diagnostics[1].tags,
         Some(vec![DiagnosticTag::UNNECESSARY])
     );
+    assert_eq!(
+        params.diagnostics[2].severity,
+        Some(DiagnosticSeverity::INFORMATION)
+    );
+    assert_eq!(params.diagnostics[2].tags, None);
 }
 
 #[test]
@@ -241,7 +217,6 @@ fn an_unknown_method_and_bad_parameters_are_errors() {
 fn the_capabilities_name_what_the_server_answers() {
     let capabilities = lsp::capabilities();
     assert!(capabilities.hover_provider.is_some());
-    assert!(capabilities.semantic_tokens_provider.is_some());
     let completion = capabilities.completion_provider.unwrap();
     assert_eq!(
         completion.trigger_characters.unwrap(),

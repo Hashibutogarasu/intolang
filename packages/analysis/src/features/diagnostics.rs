@@ -72,6 +72,7 @@ pub(super) fn plain(error: &Error) -> Diagnostic {
         severity: match context.severity {
             ErrorSeverity::Error => Severity::Error,
             ErrorSeverity::Warning => Severity::Warning,
+            ErrorSeverity::Information => Severity::Information,
             ErrorSeverity::Hint => Severity::Hint,
         },
         code: error.code(),

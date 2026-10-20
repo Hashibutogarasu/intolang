@@ -64,11 +64,6 @@ impl Handler for Scripted {
                     name_range: range(0, 3),
                 },
             ])),
-            Request::NonOwning(_) => Ok(Reply::NonOwning(vec![
-                Range::new(Position::new(0, 1), Position::new(0, 3)),
-                Range::new(Position::new(2, 4), Position::new(2, 9)),
-                Range::new(Position::new(2, 12), Position::new(2, 14)),
-            ])),
             Request::Completion(_) => Ok(Reply::Completion(vec![
                 CompletionItem {
                     label: "alpha".into(),
@@ -141,12 +136,23 @@ impl Handler for Scripted {
                 range: range(0, 6),
                 severity: Severity::Hint,
                 code: None,
-                message: "`unused` is never used".into(),
+                message: "faded".into(),
                 related: Vec::new(),
                 expected: Vec::new(),
                 found: None,
                 hint: None,
                 unnecessary: true,
+            });
+            diagnostics.push(Diagnostic {
+                range: range(0, 6),
+                severity: Severity::Information,
+                code: None,
+                message: "underlined".into(),
+                related: Vec::new(),
+                expected: Vec::new(),
+                found: None,
+                hint: None,
+                unnecessary: false,
             });
         }
         vec![Notification::Diagnostics {

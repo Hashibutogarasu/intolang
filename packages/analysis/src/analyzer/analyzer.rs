@@ -94,6 +94,7 @@ impl Analyzer {
                 &document.line_index,
                 packages_dir,
             ));
+            diagnostics.extend(features::non_owning(analysis, &document.line_index));
         }
         Notification::Diagnostics {
             uri,
@@ -148,13 +149,6 @@ impl Handler for Analyzer {
                 let document = self.document(&query.uri)?;
                 Ok(Reply::DocumentSymbol(match &document.analysis {
                     Some(analysis) => features::document_symbols(analysis, &document.line_index),
-                    None => Vec::new(),
-                }))
-            }
-            Request::NonOwning(query) => {
-                let document = self.document(&query.uri)?;
-                Ok(Reply::NonOwning(match &document.analysis {
-                    Some(analysis) => features::non_owning(analysis, &document.line_index),
                     None => Vec::new(),
                 }))
             }

@@ -34,6 +34,7 @@ pub fn diagnostic(
         severity: Some(match found.severity {
             ipc::Severity::Error => DiagnosticSeverity::ERROR,
             ipc::Severity::Warning => DiagnosticSeverity::WARNING,
+            ipc::Severity::Information => DiagnosticSeverity::INFORMATION,
             ipc::Severity::Hint => DiagnosticSeverity::HINT,
         }),
         tags: found.unnecessary.then(|| vec![DiagnosticTag::UNNECESSARY]),

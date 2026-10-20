@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::protocol::{
     CompletionItem, Diagnostic, DocumentChange, DocumentClose, DocumentOpen, DocumentQuery, Hover,
-    InitializeParams, InitializeResult, Location, Range, Symbol, TextEdit,
+    InitializeParams, InitializeResult, Location, Symbol, TextEdit,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -24,8 +24,6 @@ pub enum Request {
     Format(DocumentQuery),
     #[serde(rename = "analysis/completion")]
     Completion(DocumentQuery),
-    #[serde(rename = "analysis/nonOwning")]
-    NonOwning(DocumentQuery),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -57,7 +55,6 @@ pub enum Reply {
     DocumentSymbol(Vec<Symbol>),
     Format(Vec<TextEdit>),
     Completion(Vec<CompletionItem>),
-    NonOwning(Vec<Range>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

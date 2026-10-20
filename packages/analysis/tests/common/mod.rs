@@ -3,8 +3,8 @@
 use analysis::Analyzer;
 use ipc::{
     CompletionItem, Diagnostic, DocumentChange, DocumentClose, DocumentOpen, DocumentQuery,
-    Handler, Hover, InitializeParams, Location, Notification, PROTOCOL_VERSION, Position, Range,
-    Reply, Request, Symbol, TextEdit,
+    Handler, Hover, InitializeParams, Location, Notification, PROTOCOL_VERSION, Position, Reply,
+    Request, Symbol, TextEdit,
 };
 
 pub struct Session {
@@ -137,16 +137,6 @@ impl Session {
             .handle(Request::Completion(Self::query(uri, position)))
         {
             Ok(Reply::Completion(items)) => items,
-            other => panic!("unexpected {other:?}"),
-        }
-    }
-
-    pub fn non_owning(&mut self, uri: &str) -> Vec<Range> {
-        match self
-            .analyzer
-            .handle(Request::NonOwning(Self::query(uri, Position::default())))
-        {
-            Ok(Reply::NonOwning(ranges)) => ranges,
             other => panic!("unexpected {other:?}"),
         }
     }
