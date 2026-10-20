@@ -50,7 +50,7 @@
             inherit system;
             overlays = [ rust-overlay.overlays.default ];
           };
-          webRust = webPkgs.rust-bin.stable.latest.default.override {
+          webRust = webPkgs.rust-bin.stable.latest.minimal.override {
             targets = [ "wasm32-unknown-unknown" ];
           };
           wasiSdk = webPkgs.runCommand "wasi-sdk" { } ''

@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "installCommand": "curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install linux --init none --no-confirm && pnpm install --frozen-lockfile",
-  "buildCommand": "PATH=/nix/var/nix/profiles/default/bin:$PATH nix develop ../..#playground -c pnpm build"
+  "installCommand": "pnpm run vercel:install",
+  "buildCommand": "pnpm run vercel:build"
 }

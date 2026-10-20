@@ -12,7 +12,11 @@
     "prebuild": "pnpm wasm && pnpm grammar",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "vercel:install": "curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install linux --init none --no-confirm && pnpm install --frozen-lockfile && pnpm nix:restore",
+    "vercel:build": "PATH=/nix/var/nix/profiles/default/bin:$PATH nix develop ../..#playground -c pnpm build && pnpm nix:save",
+    "nix:restore": "archive=.next/cache/nix-$(sha256sum ../../flake.lock | cut -c1-16).tar.gz; [ ! -f $archive ] || tar -xzf $archive -C /",
+    "nix:save": "archive=.next/cache/nix-$(sha256sum ../../flake.lock | cut -c1-16).tar.gz; [ -f $archive ] || (rm -f .next/cache/nix-*.tar.gz && mkdir -p .next/cache && tar -czf $archive -C / nix)"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
