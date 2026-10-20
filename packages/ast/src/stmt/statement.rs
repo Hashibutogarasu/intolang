@@ -244,9 +244,6 @@ fn ends_statement(cursor: &Cursor<'_>) -> bool {
     cursor.at_end()
         || cursor.is_punct(Punct::Semicolon)
         || cursor.is_punct(Punct::RightBrace)
-        || cursor
-            .peek()
-            .is_some_and(|next| next.line() > cursor.previous_end_line())
 }
 
 fn parse_if(cursor: &mut Cursor<'_>, scope: Scope) -> Result<StmtKind> {
