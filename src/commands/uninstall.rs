@@ -1,6 +1,7 @@
 use clap::{ArgMatches, Args as ClapArgs, Command as ClapCommand};
 use errors::Result;
 use moduler::Project;
+use progress::Progress;
 
 use crate::commands::command::{Command, arguments};
 
@@ -28,11 +29,15 @@ impl Command for Uninstall {
 
     fn execute(&self, matches: &ArgMatches) -> Result<()> {
         let args = arguments::<UninstallArgs>(matches)?;
+        let progress = Progress::start("Looking for the project", args.packages.len() as u64);
         let project = Project::new(std::env::current_dir()?);
+        let mut removed = Vec::new();
         for alias in &args.packages {
+            progress.step(&format!("Removing {alias}"));
             let package = project.uninstall(alias)?;
-            progress::report(&format!("Removed {} {}", package.alias, package.version));
+            removed.push(format!("{} {}", package.alias, package.version));
         }
+        progress.finish(&format!("Removed {}", removed.join(", ")));
         Ok(())
     }
 }

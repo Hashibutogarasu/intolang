@@ -41,6 +41,13 @@ impl Progress {
         }
     }
 
+    /// Change the number of steps once the work knows how many there are.
+    pub fn steps(&self, steps: u64) {
+        if let Some(bar) = &self.bar {
+            bar.set_length(steps);
+        }
+    }
+
     pub fn step(&self, message: &str) {
         *self.message.borrow_mut() = message.to_owned();
         match &self.bar {

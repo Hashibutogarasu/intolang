@@ -26,6 +26,11 @@ pub(crate) fn line(mark: &str, message: &str) {
     );
 }
 
+/// Print one failed line, `[✗] [thread/main] [HH:MM SS.cc] message`, to stderr.
+pub fn fail(message: &str) {
+    line(FAILED, message);
+}
+
 /// Print one finished line, `[✓] [thread/main] [HH:MM SS.cc] message`, to
 /// stderr, so the output of the program a command runs stays on stdout.
 pub fn report(message: &str) {

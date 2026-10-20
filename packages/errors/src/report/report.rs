@@ -5,8 +5,9 @@ use crate::error::Error;
 pub trait ErrorReport {
     fn report(&self, error: &Error) -> String;
 
-    /// Write the report where this way of reporting belongs.
-    fn emit(&self, error: &Error);
+    /// Write the report where this way of reporting belongs. A report for people gives
+    /// its first line to `headline`, so the caller can write it in its own line format.
+    fn emit_with(&self, error: &Error, headline: &dyn Fn(&str));
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

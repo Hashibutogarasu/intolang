@@ -97,7 +97,9 @@ pub(crate) fn run() -> ExitCode {
     match root.execute(&matches) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
-            ReportFormat::from(format).reporter().emit(&error);
+            ReportFormat::from(format)
+                .reporter()
+                .emit_with(&error, &progress::fail);
             ExitCode::FAILURE
         }
     }

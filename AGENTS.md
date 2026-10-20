@@ -360,6 +360,11 @@ has a test in the `tests/` directory of the crate that implements it.
   brackets and a green check mark when `finish` ends it. A `Progress` that is
   dropped before `finish`, as when the build fails, keeps its last message and
   shows a red cross instead (`[✗]`, also on a stream that is not a terminal).
+  `build`, `install` and `uninstall` start their `Progress` before they look for
+  the manifest, the project or the package, so a package that is not found fails
+  inside it. The CLI writes the first line of a failure (the notes and the message)
+  in the same line format with `progress::fail`, through `ErrorReport::emit_with`;
+  the stack trace and the error code follow it.
 - `build --vm` writes an `.inex` file instead of calling LLVM and the linker,
   for executables only; `run --vm` builds it and runs it. `build --test` runs the
   tests in the VM.

@@ -49,6 +49,7 @@ pub(super) fn run(
     if inex::is_inex(&package_path) {
         return inex::run_file(&package_path);
     }
+    let progress = Progress::start("Reading the package manifest", 2);
     let manifest = if package_path.is_dir() {
         package_path.join("into-package.json")
     } else {
@@ -72,6 +73,7 @@ pub(super) fn run(
     }
     let embedded_packages = compiler::builtin_packages_dir();
     if test_mode {
+        progress.finish(&format!("Found the package {}", package.name));
         return run_tests(package_dir, &embedded_packages);
     }
     if vm_output && package.library.is_some() {
@@ -83,11 +85,12 @@ pub(super) fn run(
         Box::new(NativeTarget)
     };
     let steps = if package.library.is_some() {
-        2
+        3
     } else {
-        1 + target.steps()
+        2 + target.steps()
     };
-    let progress = Progress::start("Preparing the packages", steps);
+    progress.steps(steps);
+    progress.step("Preparing the packages");
     let package_environment =
         prepare_package_environment(package_dir, &embedded_packages, &package.packages)?;
 

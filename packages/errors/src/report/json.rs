@@ -42,7 +42,7 @@ impl ErrorReport for JsonReport {
         serde_json::to_string(&report).expect("an error report is plain data")
     }
 
-    fn emit(&self, error: &Error) {
+    fn emit_with(&self, error: &Error, _headline: &dyn Fn(&str)) {
         println!("{}", self.report(error));
     }
 }
