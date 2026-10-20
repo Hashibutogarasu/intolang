@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, anyhow};
+use errors::{Error, Errors, Result};
 use native::FunctionCall;
 use parser::Record;
 use std::ffi::CString;
@@ -30,10 +30,9 @@ impl Codegen for NativeCallFn {
             let name = CString::new(self.call.name.as_str())?;
             let function = LLVMGetNamedFunction(ctx.module, name.as_ptr());
             if function.is_null() {
-                return Err(anyhow!(
-                    "Call of the undefined function `{}`",
-                    self.call.name
-                ));
+                return Err(errors::Error::from(Errors::UndefinedFunctionCall {
+                    name: self.call.name.to_string(),
+                }));
             }
             let function_type = LLVMGlobalGetValueType(function);
             let (_, mut values) = ctx.native_call_arguments(&self.call.args)?;

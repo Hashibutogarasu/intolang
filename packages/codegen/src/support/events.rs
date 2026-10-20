@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use errors::{Errors, Result};
 use std::ffi::CString;
 use std::mem;
 
@@ -129,10 +129,11 @@ impl CodegenContext {
             return Ok(());
         }
         unsafe {
-            let slot = *self
-                .slots
-                .get(name)
-                .ok_or_else(|| anyhow!("Captured value `{name}` has no storage"))?;
+            let slot = *self.slots.get(name).ok_or_else(|| {
+                errors::Error::from(Errors::CapturedValueNoStorage {
+                    name: name.to_string(),
+                })
+            })?;
             let global_name = CString::new(format!("__global_{name}"))?;
             let global = LLVMAddGlobal(self.module, slot.ty, global_name.as_ptr());
             LLVMSetInitializer(global, LLVMConstNull(slot.ty));
@@ -219,7 +220,7 @@ impl CodegenContext {
             let saved = self
                 .functions
                 .pop()
-                .ok_or_else(|| anyhow!("Handler end has no matching handler"))?;
+                .ok_or_else(|| errors::Error::from(Errors::HandlerEndWithoutHandler))?;
             self.main = saved.main;
             self.entry = saved.entry;
             self.slots = saved.slots;

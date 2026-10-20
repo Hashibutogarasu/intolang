@@ -5,4 +5,4 @@ edition = "2024"
 build = "build.rs"
 
 [dependencies]
-anyhow = "1.0.104"
+errors = { version = "0.1.0", path = "../errors" }

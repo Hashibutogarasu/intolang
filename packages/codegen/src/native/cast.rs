@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, bail};
+use errors::{Error, Errors, Result};
 use native::CastAssign;
 use parser::Record;
 
@@ -47,7 +47,10 @@ impl Codegen for NativeCast {
                 (true, true) => LLVMBuildFPCast(ctx.builder, value, to, name),
             };
             if result.is_null() {
-                bail!("Cannot cast {} to {}", self.cast.from, self.cast.to);
+                return Err(errors::Error::from(Errors::CannotCast {
+                    from: self.cast.from.to_string(),
+                    to: self.cast.to.to_string(),
+                }));
             }
             ctx.store_slot(&self.cast.target, to, result);
             Ok(CodegenResult::unit())

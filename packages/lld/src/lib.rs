@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, bail};
+use errors::{Error, Errors, NativeStackTrace, Result};
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -120,14 +120,19 @@ fn link_with_args(
         .arg("-o")
         .arg(output)
         .output()
-        .context("could not start C compiler driver")?;
+        .map_err(|error| Errors::ToolNotRun {
+            tool: driver.clone(),
+            reason: error.to_string(),
+        });
     std::fs::remove_dir_all(lld_dir).ok();
+    let result = result?;
     if !result.status.success() {
-        bail!(
-            "LLD link failed ({}):\n{}",
-            result.status,
-            String::from_utf8_lossy(&result.stderr)
-        );
+        return Err(Error::compiler(Errors::LldLinkFailed {
+            status: result.status.to_string(),
+        })
+        .with_native(
+            NativeStackTrace::new(driver).with_output(String::from_utf8_lossy(&result.stderr)),
+        ));
     }
     Ok(())
 }

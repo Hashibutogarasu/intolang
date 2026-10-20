@@ -15,6 +15,7 @@ struct JsonLayer {
 #[derive(Serialize)]
 struct JsonError {
     context: ErrorContext,
+    notes: Vec<String>,
     trace: Vec<JsonLayer>,
 }
 
@@ -35,6 +36,7 @@ impl ErrorReport for JsonReport {
             .collect();
         let report = JsonError {
             context: error.resolved_context(),
+            notes: error.notes().iter().rev().cloned().collect(),
             trace,
         };
         serde_json::to_string(&report).expect("an error report is plain data")

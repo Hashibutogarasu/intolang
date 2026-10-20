@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use errors::{Errors, Result};
 
 use crate::llvm;
 use llvm::core::*;
@@ -43,10 +43,11 @@ impl CodegenContext {
 
     pub(crate) unsafe fn load_slot(&self, name: &str) -> Result<*mut LLVMValue> {
         unsafe {
-            let slot = self
-                .slots
-                .get(name)
-                .ok_or_else(|| anyhow!("Native value `{name}` has no storage"))?;
+            let slot = self.slots.get(name).ok_or_else(|| {
+                errors::Error::from(Errors::NativeValueNoStorage {
+                    name: name.to_string(),
+                })
+            })?;
             Ok(LLVMBuildLoad2(
                 self.builder,
                 slot.ty,

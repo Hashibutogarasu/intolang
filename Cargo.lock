@@ -267,9 +267,9 @@ checksum = "1d07550c9036bf2ae0c684c4297d503f838287c83c53686d05370d0e139ae570"
 name = "compiler"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "backend",
  "codegen",
+ "errors",
  "lld",
  "llvm-sys",
  "native",
@@ -530,7 +530,7 @@ checksum = "ce5d3ddc6d3fa000eb1536d85e147bfe31aacaba692ed6a876f95cb7c855be78"
 name = "lld"
 version = "0.1.0"
 dependencies = [
- "anyhow",
+ "errors",
 ]
 
 [[package]]

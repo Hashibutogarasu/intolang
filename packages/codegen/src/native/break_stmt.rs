@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use errors::{Errors, Result};
 use parser::Record;
 
 use crate::llvm;
@@ -22,7 +22,7 @@ impl Codegen for NativeBreak {
             let (_, exit) = *ctx
                 .loop_blocks
                 .last()
-                .ok_or_else(|| anyhow!("Native break has no matching loop"))?;
+                .ok_or_else(|| errors::Error::from(Errors::BreakWithoutLoop))?;
             LLVMBuildBr(ctx.builder, exit);
             let unreachable = ctx.append_block("after.break")?;
             LLVMPositionBuilderAtEnd(ctx.builder, unreachable);

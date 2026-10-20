@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, bail};
+use errors::{Error, Errors, Result};
 use native::Operand;
 use parser::Record;
 
@@ -29,7 +29,7 @@ impl Codegen for NativePrintConst {
             ctx.flush_text()?;
             let ty = ctx.into_type(&self.return_type);
             let Operand::Number(value) = &self.operand else {
-                bail!("A printed constant must be a number");
+                return Err(errors::Error::from(Errors::PrintedConstantNotNumber));
             };
             let constant = ctx.const_for_type(ty, value)?;
             ctx.print_scalar(ty, constant, self.newline, self.return_type == "Char")?;

@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, anyhow};
+use errors::{Error, Result};
 use native::{FunctionReturn, Operand};
 use parser::Record;
 use std::ffi::CString;
@@ -45,7 +45,7 @@ impl Codegen for NativeReturn {
                 }
             }
             let label = ctx.label("after.return");
-            let after = ctx.append_block(&label).map_err(|e| anyhow!("{e}"))?;
+            let after = ctx.append_block(&label)?;
             LLVMPositionBuilderAtEnd(ctx.builder, after);
             Ok(CodegenResult::unit())
         }

@@ -1,4 +1,4 @@
-use anyhow::{Error, Result};
+use errors::{Error, Errors, Result};
 use native::LinkCall;
 use parser::Record;
 use std::ffi::CString;
@@ -31,7 +31,7 @@ impl Codegen for NativeIfCall {
             let (mut params, mut args) = ctx.native_call_arguments(&call.args)?;
             let result_type = ctx.into_type(&call.return_type);
             if result_type != LLVMInt1TypeInContext(ctx.context) {
-                anyhow::bail!("Native if condition must return Boolean");
+                return Err(errors::Error::from(Errors::IfConditionNotBoolean));
             }
             let function_type =
                 LLVMFunctionType(result_type, params.as_mut_ptr(), args.len() as u32, 0);

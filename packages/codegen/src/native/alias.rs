@@ -1,4 +1,4 @@
-use anyhow::{Error, Result};
+use errors::{Error, Errors, Result};
 use parser::Record;
 
 use crate::{Codegen, CodegenContext, CodegenResult};
@@ -28,7 +28,11 @@ impl Codegen for NativeAlias {
                 .slots
                 .get(&self.source)
                 .map(|slot| slot.ty)
-                .ok_or_else(|| anyhow::anyhow!("Native value `{}` has no storage", self.source))?;
+                .ok_or_else(|| {
+                    errors::Error::from(Errors::NativeValueNoStorage {
+                        name: self.source.to_string(),
+                    })
+                })?;
             let value = ctx.load_slot(&self.source)?;
             ctx.store_slot(&self.target, ty, value);
             Ok(CodegenResult::unit())

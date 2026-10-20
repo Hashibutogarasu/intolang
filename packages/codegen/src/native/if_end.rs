@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use errors::{Errors, Result};
 use parser::Record;
 
 use crate::llvm;
@@ -22,7 +22,7 @@ impl Codegen for NativeIfEnd {
             let (else_block, merge_block, has_else) = ctx
                 .if_blocks
                 .pop()
-                .ok_or_else(|| anyhow!("if end has no matching if"))?;
+                .ok_or_else(|| errors::Error::from(Errors::IfEndWithoutIf))?;
             LLVMBuildBr(ctx.builder, merge_block);
             if !has_else {
                 LLVMPositionBuilderAtEnd(ctx.builder, else_block);

@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, anyhow};
+use errors::{Error, Errors, Result};
 use parser::Record;
 
 use crate::llvm;
@@ -38,12 +38,17 @@ impl Codegen for NativeFieldPrint {
                 .get(&self.class_name)
                 .and_then(|fields| fields.get(self.field_index as usize))
                 .map(|(_, ty)| *ty)
-                .ok_or_else(|| anyhow!("Unknown field index for class `{}`", self.class_name))?;
+                .ok_or_else(|| {
+                    errors::Error::from(Errors::UnknownFieldIndex {
+                        class: self.class_name.to_string(),
+                    })
+                })?;
             let object = ctx.load_slot(&self.variable)?;
-            let struct_type = *ctx
-                .named_types
-                .get(&self.class_name)
-                .ok_or_else(|| anyhow!("Unknown native class `{}`", self.class_name))?;
+            let struct_type = *ctx.named_types.get(&self.class_name).ok_or_else(|| {
+                errors::Error::from(Errors::UnknownNativeClass {
+                    class: self.class_name.to_string(),
+                })
+            })?;
             let field_pointer = LLVMBuildStructGEP2(
                 ctx.builder,
                 struct_type,

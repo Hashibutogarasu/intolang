@@ -454,6 +454,70 @@ declare_errors! {
         BundleEmbedFailed = 0x9011,
         #[error("{message}")]
         Codegen { message: String } = 0xA001,
+        #[error("Unknown native class `{class}`")]
+        UnknownNativeClass { class: String } = 0xA002,
+        #[error("Unknown field index for class `{class}`")]
+        UnknownFieldIndex { class: String } = 0xA003,
+        #[error("Unknown event handler `{handler}`")]
+        UnknownEventHandler { handler: String } = 0xA004,
+        #[error("if end has no matching if")]
+        IfEndWithoutIf = 0xA005,
+        #[error("`else` has no matching if")]
+        ElseWithoutIf = 0xA006,
+        #[error("An if block cannot contain multiple else branches")]
+        MultipleElse = 0xA007,
+        #[error("Native value `{name}` has no storage")]
+        NativeValueNoStorage { name: String } = 0xA008,
+        #[error("`throw` can only run in the Into VM ({message})")]
+        ThrowNeedsVm { message: String } = 0xA009,
+        #[error("Cannot cast {from} to {to}")]
+        CannotCast { from: String, to: String } = 0xA00A,
+        #[error("`{slot}.{property}` can only be read by code that runs in the Into VM")]
+        IfStateNeedsVm { slot: String, property: String } = 0xA00B,
+        #[error("An index cannot be text")]
+        IndexIsText = 0xA00C,
+        #[error("Text cannot be stored as an item")]
+        TextStored = 0xA00D,
+        #[error("A printed constant must be a number")]
+        PrintedConstantNotNumber = 0xA00E,
+        #[error("Native break has no matching loop")]
+        BreakWithoutLoop = 0xA00F,
+        #[error("Native loop end has no matching loop")]
+        LoopEndWithoutLoop = 0xA010,
+        #[error("Call of the undefined function `{name}`")]
+        UndefinedFunctionCall { name: String } = 0xA011,
+        #[error("Reference to the undefined function `{name}`")]
+        UndefinedFunctionReference { name: String } = 0xA012,
+        #[error("Arithmetic cannot use a string operand")]
+        ArithmeticStringOperand = 0xA013,
+        #[error("Unsupported arithmetic operation `{operation}`")]
+        UnsupportedArithmeticOperation { operation: String } = 0xA014,
+        #[error("Native if condition must return Boolean")]
+        IfConditionNotBoolean = 0xA015,
+        #[error("Native loop condition must return Boolean")]
+        LoopConditionNotBoolean = 0xA016,
+        #[error("DummyProcess requires the Into VM (`{target}`)")]
+        DummyProcessNeedsVm { target: String } = 0xA017,
+        #[error("Malformed handler parameter `{field}`")]
+        MalformedHandlerParameter { field: String } = 0xA018,
+        #[error("The defaults of `{class}` build instances without end")]
+        InstancesWithoutEnd { class: String } = 0xA019,
+        #[error("Unknown thread function `{function}`")]
+        UnknownThreadFunction { function: String } = 0xA01A,
+        #[error("Captured value `{name}` has no storage")]
+        CapturedValueNoStorage { name: String } = 0xA01B,
+        #[error("Handler end has no matching handler")]
+        HandlerEndWithoutHandler = 0xA01C,
+        #[error("A comparison cannot use a string operand")]
+        ComparisonStringOperand = 0xA01D,
+        #[error("Class `{class}` has no field {index}")]
+        ClassNoFieldIndex { class: String, index: usize } = 0xA01E,
+        #[error("Native pointer argument `{name}` has no value")]
+        PointerArgumentNoValue { name: String } = 0xA01F,
+        #[error("{context}")]
+        LlvmFailed { context: String } = 0xA020,
+        #[error("LLD link failed ({status})")]
+        LldLinkFailed { status: String } = 0xA021,
         #[error("{message}")]
         Io { message: String } = 0xB001,
         #[error("{message}")]
@@ -492,5 +556,7 @@ declare_errors! {
         InvalidHexEncoding = 0xC005,
         #[error("Invalid number: {reason}")]
         InvalidNumber { reason: String } = 0xC006,
+        #[error("Invalid native string: {reason}")]
+        InvalidCString { reason: String } = 0xC007,
     }
 }

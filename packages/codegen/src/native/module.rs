@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, anyhow};
+use errors::{Error, Errors, Result};
 use parser::Record;
 use std::ffi::CString;
 
@@ -24,7 +24,9 @@ impl TryFrom<&Record> for NativeModule {
 
     fn try_from(record: &Record) -> Result<Self> {
         let Some((index, fields)) = record.fields().split_first() else {
-            return Err(anyhow!("Malformed NATIVE_MODULE record"));
+            return Err(errors::Error::from(Errors::malformed_record(
+                "NATIVE_MODULE",
+            )));
         };
         Ok(Self {
             index: index.clone(),
@@ -37,16 +39,20 @@ impl Codegen for NativeModule {
     fn generate(&self, ctx: &mut CodegenContext) -> Result<CodegenResult> {
         unsafe {
             ctx.flush_text()?;
-            let package_type = *ctx
-                .named_types
-                .get("PackageInfo")
-                .ok_or_else(|| anyhow!("Unknown native class `PackageInfo`"))?;
-            let module_type = *ctx
-                .named_types
-                .get("Module")
-                .ok_or_else(|| anyhow!("Unknown native class `Module`"))?;
+            let package_type = *ctx.named_types.get("PackageInfo").ok_or_else(|| {
+                errors::Error::from(Errors::UnknownNativeClass {
+                    class: "PackageInfo".to_string(),
+                })
+            })?;
+            let module_type = *ctx.named_types.get("Module").ok_or_else(|| {
+                errors::Error::from(Errors::UnknownNativeClass {
+                    class: "Module".to_string(),
+                })
+            })?;
             if self.fields.len() < 7 {
-                return Err(anyhow!("Malformed NATIVE_MODULE record"));
+                return Err(errors::Error::from(Errors::malformed_record(
+                    "NATIVE_MODULE",
+                )));
             }
 
             let package_fields = [

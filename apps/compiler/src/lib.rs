@@ -7,7 +7,7 @@ mod target;
 
 pub use stage::Stage;
 
-use anyhow::{Context, Result};
+use errors::{Context, Result};
 use std::{ffi::CString, path::Path};
 
 /// Compile source output into an executable at `output`.

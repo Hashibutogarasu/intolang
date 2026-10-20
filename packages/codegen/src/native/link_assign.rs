@@ -1,4 +1,4 @@
-use anyhow::{Error, Result};
+use errors::{Error, Errors, Result};
 use native::LinkCall;
 use parser::Record;
 use std::ffi::CString;
@@ -28,7 +28,9 @@ impl Codegen for NativeLinkAssign {
         unsafe {
             let call = &self.call;
             if native::is_vm_only(&call.target) {
-                anyhow::bail!("DummyProcess requires the Into VM (`{}`)", call.target);
+                return Err(errors::Error::from(Errors::DummyProcessNeedsVm {
+                    target: call.target.to_string(),
+                }));
             }
             ctx.flush_text()?;
             let (mut params, mut args) = ctx.native_call_arguments(&call.args)?;

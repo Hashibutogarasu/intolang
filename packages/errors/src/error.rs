@@ -16,6 +16,7 @@ pub struct Error {
     kind: Errors,
     trace: StackTraces,
     context: Option<ErrorContext>,
+    notes: Vec<String>,
 }
 
 impl Error {
@@ -27,6 +28,7 @@ impl Error {
                 ..StackTraces::default()
             },
             context: None,
+            notes: Vec::new(),
         }
     }
 
@@ -102,6 +104,18 @@ impl Error {
     pub fn with_context(mut self, context: ErrorContext) -> Self {
         self.context = Some(context);
         self
+    }
+
+    /// Say what was being done when the error happened. The notes are printed from the
+    /// last one added to the first, before the message of the error.
+    pub fn with_note(mut self, note: impl Into<String>) -> Self {
+        self.notes.push(note.into());
+        self
+    }
+
+    /// The notes in the order they were added, the innermost first.
+    pub fn notes(&self) -> &[String] {
+        &self.notes
     }
 
     pub fn kind(&self) -> &Errors {

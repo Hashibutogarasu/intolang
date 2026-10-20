@@ -19,6 +19,24 @@ impl From<std::num::ParseIntError> for Error {
     }
 }
 
+impl From<std::num::ParseFloatError> for Error {
+    fn from(error: std::num::ParseFloatError) -> Self {
+        Errors::InvalidNumber {
+            reason: error.to_string(),
+        }
+        .into()
+    }
+}
+
+impl From<std::ffi::NulError> for Error {
+    fn from(error: std::ffi::NulError) -> Self {
+        Errors::InvalidCString {
+            reason: error.to_string(),
+        }
+        .into()
+    }
+}
+
 impl From<serde_json::Error> for Error {
     fn from(error: serde_json::Error) -> Self {
         Errors::Json {

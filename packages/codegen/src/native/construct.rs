@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, anyhow, bail};
+use errors::{Error, Errors, Result};
 use parser::Record;
 use std::ffi::CString;
 
@@ -38,12 +38,15 @@ unsafe fn build_instance(
 ) -> Result<*mut LLVMValue> {
     unsafe {
         if depth > MAX_NESTED_DEFAULTS {
-            bail!("The defaults of `{class}` build instances without end");
+            return Err(errors::Error::from(Errors::InstancesWithoutEnd {
+                class: class.to_string(),
+            }));
         }
-        let struct_type = *ctx
-            .named_types
-            .get(class)
-            .ok_or_else(|| anyhow!("Unknown native class `{class}`"))?;
+        let struct_type = *ctx.named_types.get(class).ok_or_else(|| {
+            errors::Error::from(Errors::UnknownNativeClass {
+                class: class.to_string(),
+            })
+        })?;
         let fields = ctx.class_fields.get(class).cloned().unwrap_or_default();
         let mut aggregate = LLVMConstNull(struct_type);
         if let Some(defaults) = ctx.class_defaults.get(class).cloned() {
@@ -82,10 +85,11 @@ impl Codegen for NativeConstruct {
     fn generate(&self, ctx: &mut CodegenContext) -> Result<CodegenResult> {
         unsafe {
             ctx.flush_text()?;
-            let struct_type = *ctx
-                .named_types
-                .get(&self.class)
-                .ok_or_else(|| anyhow!("Unknown native class `{}`", self.class))?;
+            let struct_type = *ctx.named_types.get(&self.class).ok_or_else(|| {
+                errors::Error::from(Errors::UnknownNativeClass {
+                    class: self.class.to_string(),
+                })
+            })?;
             let storage = build_instance(ctx, &self.class, 0)?;
             ctx.store_slot(&self.assigned_to, LLVMPointerType(struct_type, 0), storage);
             Ok(CodegenResult::unit())
