@@ -75,10 +75,12 @@ impl Analyzer {
         let sources = self.buffers();
         let packages_dir = self.environment.as_ref().map(Environment::path);
         let document = self.documents.get_mut(&uri).expect("inserted above");
-        if let Ok(analysis) = Analysis::build(&document.text, packages_dir, &sources) {
+        let path = uri_to_path(&uri);
+        if let Ok(analysis) =
+            Analysis::build(&document.text, path.as_deref(), packages_dir, &sources)
+        {
             document.analysis = Some(analysis);
         }
-        let path = uri_to_path(&uri);
         let diagnostics = features::diagnose(&Source {
             uri: &uri,
             path: path.as_deref(),

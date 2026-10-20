@@ -6,7 +6,7 @@ use ipc::SymbolKind;
 use types::{Literal, Span};
 
 use super::signature;
-use super::symbol::{Index, Symbol};
+use super::symbol::{Index, NativeRef, Symbol};
 use crate::docs::DocComments;
 
 impl Index {
@@ -76,6 +76,7 @@ impl Builder<'_> {
             public: false,
             local: false,
             owner: self.owner,
+            native: None,
         }
     }
 
@@ -134,7 +135,8 @@ impl Builder<'_> {
     }
 
     fn function(&mut self, decl: &FunctionDecl, container: Option<&str>) {
-        self.push(Symbol {
+        let native = native_reference(decl);
+        let mut symbol = Symbol {
             container: container.map(str::to_owned),
             signature: signature::function(decl),
             ty: decl.return_type.as_ref().map(ToString::to_string),
@@ -145,7 +147,19 @@ impl Builder<'_> {
                 decl.name_span.0,
                 decl.line,
             )
-        });
+        };
+        if let Some(native) = &native {
+            let origin = format!(
+                "Native: `{}` `{}` `{}`",
+                native.language, native.source_path, native.target
+            );
+            symbol.docs = Some(match symbol.docs.take() {
+                Some(docs) => format!("{docs}\n\n{origin}"),
+                None => origin,
+            });
+        }
+        symbol.native = native;
+        self.push(symbol);
         self.params(&decl.params, decl.line);
         if let Some(body) = &decl.body {
             self.block(body);
@@ -195,21 +209,90 @@ impl Builder<'_> {
                         stmt.line,
                     )
                 });
+                if let Some(value) = &declaration.value {
+                    self.expression(value);
+                }
             }
             StmtKind::If {
+                condition,
                 then_body,
                 else_body,
-                ..
             } => {
+                self.expression(condition);
                 self.block(then_body);
                 if let Some(body) = else_body {
                     self.block(body);
                 }
             }
-            StmtKind::While { body, .. } | StmtKind::Init(body) => self.block(body),
-            _ => {}
+            StmtKind::While { condition, body } => {
+                self.expression(condition);
+                self.block(body);
+            }
+            StmtKind::Init(body) => self.block(body),
+            StmtKind::Assign { value, .. } | StmtKind::Throw(value) | StmtKind::Expr(value) => {
+                self.expression(value);
+            }
+            StmtKind::Return(Some(value)) => self.expression(value),
+            StmtKind::Return(None) | StmtKind::Unload(_) | StmtKind::Break => {}
         }
     }
+
+    /// The names the callbacks and threads inside `expr` declare.
+    fn expression(&mut self, expr: &Expr) {
+        match expr {
+            Expr::Lambda { params, body } => {
+                for param in params {
+                    self.push(Symbol {
+                        signature: signature::param(param),
+                        ty: param.ty.as_ref().map(ToString::to_string),
+                        local: true,
+                        ..self.symbol(
+                            &param.name,
+                            SymbolKind::Variable,
+                            param.name_span.0,
+                            param.name_span.0.line,
+                        )
+                    });
+                }
+                self.block(body);
+            }
+            Expr::Thread { body } => self.block(body),
+            Expr::Await(inner) | Expr::Not(inner) => self.expression(inner),
+            Expr::Cast { value, .. } => self.expression(value),
+            Expr::Call { args, .. } | Expr::Array(args) => {
+                for arg in args {
+                    self.expression(arg);
+                }
+            }
+            Expr::Binary { left, right, .. }
+            | Expr::Logical { left, right, .. }
+            | Expr::Compare { left, right, .. } => {
+                self.expression(left);
+                self.expression(right);
+            }
+            Expr::Object(entries) => {
+                for (_, value) in entries {
+                    self.expression(value);
+                }
+            }
+            Expr::Literal(_) | Expr::Path(_) => {}
+        }
+    }
+}
+
+fn native_reference(decl: &FunctionDecl) -> Option<NativeRef> {
+    let attribute = decl
+        .attributes
+        .iter()
+        .find(|attribute| attribute.name == "link")?;
+    let [language, source_path, target] = attribute.string_args()?[..] else {
+        return None;
+    };
+    Some(NativeRef {
+        language: language.to_owned(),
+        source_path: source_path.to_owned(),
+        target: target.to_owned(),
+    })
 }
 
 fn declared_type(declaration: &Declaration) -> Option<String> {

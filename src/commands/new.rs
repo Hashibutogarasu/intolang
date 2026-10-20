@@ -61,7 +61,7 @@ fn create(args: NewArgs) -> Result<()> {
         )
     })?;
 
-    let manifest_path = args.path.join("into-package.json");
+    let manifest_path = args.path.join(package::MANIFEST_FILE);
     let mut manifest: serde_json::Value = serde_json::from_slice(&std::fs::read(&manifest_path)?)?;
     manifest["name"] = serde_json::Value::String(project_name.to_owned());
     manifest["alias"] =

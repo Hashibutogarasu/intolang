@@ -1,0 +1,15 @@
+/// The members of `Event` and `Listener` the compiler implements itself. They
+/// are declared here for the tools to jump to and show; the compiler does not
+/// read this file.
+pub Event() {
+    /// Registers the handler and returns the `Listener` that unregisters it.
+    /// An event keeps at most 64 handlers.
+    pub default fun on(handler: Callback): Listener;
+
+    /// Calls the handlers in registration order. The arguments are checked
+    /// against the declaration of the event.
+    pub default fun emit(arguments: Object...): Void;
+}
+
+pub Listener() {
+}

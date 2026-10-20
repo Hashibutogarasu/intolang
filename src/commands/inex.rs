@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 /// The extension of the Into executables the VM runs.
 pub(super) const EXTENSION: &str = "inex";
 
-const MANIFEST: &str = "into-package.json";
+use package::MANIFEST_FILE as MANIFEST;
 
 const FILE_MODE: u32 = 0o644;
 

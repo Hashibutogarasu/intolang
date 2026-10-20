@@ -2,6 +2,13 @@ use ipc::SymbolKind;
 use types::Span;
 
 #[derive(Debug, Clone)]
+pub struct NativeRef {
+    pub language: String,
+    pub source_path: String,
+    pub target: String,
+}
+
+#[derive(Debug, Clone)]
 pub struct Symbol {
     pub name: String,
     pub kind: SymbolKind,
@@ -15,6 +22,7 @@ pub struct Symbol {
     pub public: bool,
     pub local: bool,
     pub owner: usize,
+    pub native: Option<NativeRef>,
 }
 
 #[derive(Debug, Default)]

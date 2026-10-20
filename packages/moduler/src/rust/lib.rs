@@ -21,12 +21,12 @@ pub use library::{NativeFunction, lower_library};
 pub use links::resolve_links;
 pub use lock::LockFile;
 pub use module::{
-    FileSystem, LoadedModule, Module, SourceProvider, collect_modules, collect_modules_from,
-    import_path, unresolved_imports,
+    FileSystem, ImportTarget, LoadedModule, Module, SourceProvider, collect_modules,
+    collect_modules_from, export_target, import_path, import_target, unresolved_imports,
 };
 pub use package::{
-    BUILTIN_ALIAS, BUILTIN_SCHEME, PackageAlias, PackageHash, PackageInfo, find_by_alias,
-    is_builtin, is_installed, link_directory, remove_installed,
+    BUILTIN_ALIAS, BUILTIN_SCHEME, PackageAlias, PackageHash, PackageInfo, is_builtin,
+    is_installed, link_directory, remove_installed,
 };
 pub use project::{Project, Restoration};
 pub use spec::{ExportSpec, ImportSpec};

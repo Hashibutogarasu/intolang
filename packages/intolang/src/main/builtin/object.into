@@ -1,0 +1,15 @@
+/// The members of `Object` the compiler implements itself. They are declared
+/// here for the tools to jump to and show; the compiler does not read this file.
+pub abstract Object() {
+    /// Ends the life of the instance and frees what it owns.
+    pub default fun destroy(): Void;
+
+    /// A new instance that owns a copy of the same data.
+    pub default fun copy(): Object;
+
+    /// Hands the instance to a new binding; the old binding can no longer be used.
+    pub default fun move(): Object;
+
+    /// A reference to the instance that does not own it.
+    pub default fun borrow(): Object;
+}

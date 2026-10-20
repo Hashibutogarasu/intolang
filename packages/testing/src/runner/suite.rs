@@ -1,6 +1,7 @@
 use ast::Program;
 use errors::{Errors, Result};
 use intovm::VmOptions;
+use package::Package;
 use parser::PathLexeme;
 use std::path::Path;
 
@@ -17,8 +18,9 @@ pub fn run_tests(source: &str, path: &Path, packages_dir: &Path) -> Result<TestS
         .parse::<Program>()
         .map_err(|error| error.bound_to(&path_text))?;
     let imported = moduler::resolve(&program, packages_dir)?;
-    let package =
-        moduler::find_by_alias(packages_dir, BUILTIN_ALIAS)?.ok_or(Errors::BuiltinNotBundled)?;
+    let package = Package::find_by_alias(packages_dir, BUILTIN_ALIAS)?
+        .ok_or(Errors::BuiltinNotBundled)?
+        .root;
     if !imported.contains(ASSERTION.function) {
         return Err(Errors::TestMustImportAssertion {
             path: path_text,

@@ -1,6 +1,7 @@
 use clap::{ArgMatches, Args as ClapArgs, Command as ClapCommand};
 use errors::{Errors, Result};
-use moduler::{Project, find_by_alias, is_builtin};
+use moduler::{Project, is_builtin};
+use package::Package;
 use progress::Progress;
 use std::path::PathBuf;
 
@@ -37,11 +38,11 @@ impl Command for Install {
                 progress.step(&format!("Installing {}", source.display()));
                 let source = match source.to_str() {
                     Some(name) if is_builtin(name) && !source.exists() => {
-                        find_by_alias(&embedded, moduler::BUILTIN_ALIAS)?.ok_or_else(|| {
-                            Errors::PackageNotEmbedded {
+                        Package::find_by_alias(&embedded, moduler::BUILTIN_ALIAS)?
+                            .ok_or_else(|| Errors::PackageNotEmbedded {
                                 alias: moduler::BUILTIN_ALIAS.to_string(),
-                            }
-                        })?
+                            })?
+                            .root
                     }
                     _ => source,
                 };

@@ -11,7 +11,7 @@ impl Lowerer<'_> {
     /// control leaves it is destroyed, last declared first.
     pub fn lower_scope(&mut self, line: usize, body: &[Stmt]) -> Result<()> {
         self.state.scopes.push(Vec::new());
-        let lowered = self.lower_block(body);
+        let lowered = self.lower_statements(body);
         let names = self.state.scopes.pop().unwrap_or_default();
         lowered?;
         self.release_scope(&names, None)

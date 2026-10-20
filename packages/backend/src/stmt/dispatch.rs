@@ -1,5 +1,5 @@
 use ast::{Stmt, StmtKind};
-use errors::{Errors, Result};
+use errors::{Error, Errors, Result};
 use types::MessageTag;
 
 use crate::context::Lowerer;
@@ -8,6 +8,37 @@ use crate::emit;
 impl Lowerer<'_> {
     pub fn lower_block(&mut self, body: &[Stmt]) -> Result<()> {
         body.iter().try_for_each(|stmt| self.lower_stmt(stmt))
+    }
+
+    /// Lower the statements of a scope. When errors are collected, a failing
+    /// statement is recorded and the next one is lowered.
+    pub fn lower_statements(&mut self, body: &[Stmt]) -> Result<()> {
+        body.iter().try_for_each(|stmt| self.lower_collecting(stmt))
+    }
+
+    pub fn lower_collecting(&mut self, stmt: &Stmt) -> Result<()> {
+        match self.lower_stmt(stmt) {
+            Err(error) if self.state.collected.is_some() && self.state.frames.is_empty() => {
+                self.collect(stmt, error);
+                Ok(())
+            }
+            lowered => lowered,
+        }
+    }
+
+    fn collect(&mut self, stmt: &Stmt, error: Error) {
+        if let StmtKind::Declaration(declaration) = &stmt.kind {
+            self.state.poisoned.insert(declaration.name.clone());
+        }
+        let follows_failure = match error.kind() {
+            Errors::UndefinedName { name }
+            | Errors::UndefinedVariable { name }
+            | Errors::VariableOutOfScope { name } => self.state.poisoned.contains(name),
+            _ => false,
+        };
+        if !follows_failure && let Some(collected) = self.state.collected.as_mut() {
+            collected.push(error);
+        }
     }
 
     /// Lower one statement. Statements the lowering has no meaning for, such

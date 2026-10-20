@@ -44,6 +44,17 @@ fn names(source: &str, needle: &str, occurrence: usize, length: u32) -> Range {
     Range::new(start, Position::new(start.line, start.column + length))
 }
 
+/// The range of the first `text` in `source`, which may span lines.
+fn phrase(source: &str, text: &str) -> Range {
+    let start = position_of(source, text, 0);
+    let lines = text.matches('\n').count() as u32;
+    let column = match text.rsplit_once('\n') {
+        Some((_, last)) => last.chars().count() as u32,
+        None => start.column + text.chars().count() as u32,
+    };
+    Range::new(start, Position::new(start.line + lines, column))
+}
+
 #[test]
 fn a_call_jumps_to_the_function() {
     assert_eq!(
@@ -90,6 +101,147 @@ fn members_are_found_through_the_type_of_the_receiver() {
         jump(SOURCE, "Green;", 0),
         Some(names(SOURCE, "Green }", 0, 5))
     );
+}
+
+#[test]
+fn a_break_jumps_to_the_loop_it_leaves() {
+    let source = r#"init {
+    into rows = 0;
+    while (rows < 3) {
+        into columns = 0;
+        while (columns < 3) {
+            if (columns == 1) {
+                break;
+            }
+            columns = columns + 1;
+        }
+        if (rows == 2) {
+            break;
+        }
+        rows = rows + 1;
+    }
+}
+"#;
+    assert_eq!(
+        jump(source, "break", 0),
+        Some(names(source, "while (columns", 0, 5))
+    );
+    assert_eq!(
+        jump(source, "break", 1),
+        Some(names(source, "while (rows", 0, 5))
+    );
+}
+
+#[test]
+fn an_else_jumps_to_the_branch_it_follows() {
+    let source = r#"init {
+    into number = 1;
+    if (number == 1) {
+        number = 2;
+    } else if (number == 2) {
+        number = 3;
+    } else    if (number == 3) {
+        number = 4;
+    } else
+    if (number == 4) {
+        number = 5;
+    } else {
+        number = 6;
+    }
+}
+"#;
+    let mut editor = session();
+    editor.open(URI, source);
+    // Each line is a keyword (or both words of `else if`) and the branch it
+    // continues; the jump starts on the first and on the last word.
+    for (from, to) in [
+        ("else if", "if"),
+        ("else    if", "else if"),
+        ("else\n    if", "else    if"),
+        ("else {", "else\n    if"),
+    ] {
+        let target = phrase(source, to);
+        let start = position_of(source, from, 0);
+        let end = phrase(source, from).end;
+        let last_word = if from.ends_with("if") {
+            Position::new(end.line, end.column - 1)
+        } else {
+            start
+        };
+        for at in [start, last_word] {
+            let locations = editor.definition(URI, at);
+            assert_eq!(locations.len(), 1, "{from:?}");
+            assert_eq!(locations[0].range, target, "{from:?}");
+        }
+    }
+}
+
+#[test]
+fn an_if_that_begins_a_statement_jumps_nowhere() {
+    let source = r#"init {
+    into number = 1;
+    if (number == 1) {
+        number = 2;
+    }
+    if (number == 2) {
+        number = 3;
+    }
+}
+"#;
+    assert_eq!(jump(source, "if (number == 2)", 0), None);
+    assert_eq!(jump(source, "if (number == 1)", 0), None);
+}
+
+#[test]
+fn a_name_in_a_callback_jumps_to_its_parameter_and_its_declarations() {
+    let source = r#"now into listener = started.on((code, name) => {
+    into doubled = code;
+    show(doubled, name);
+});
+"#;
+    assert_eq!(
+        jump(source, "code;", 0),
+        Some(names(source, "code, name", 0, 4))
+    );
+    assert_eq!(
+        jump(source, "name);", 0),
+        Some(names(source, "name)", 0, 4))
+    );
+    assert_eq!(
+        jump(source, "doubled,", 0),
+        Some(names(source, "doubled =", 0, 7))
+    );
+}
+
+#[test]
+fn a_name_in_a_thread_jumps_to_its_declaration_in_the_same_scope() {
+    let source = r#"now into watcher = thread {
+    into frames = 0;
+    while (frames < 3) {
+        into step = frames;
+        frames = step + 1;
+    }
+};
+"#;
+    assert_eq!(
+        jump(source, "frames <", 0),
+        Some(names(source, "frames =", 0, 6))
+    );
+    assert_eq!(
+        jump(source, "step + 1", 0),
+        Some(names(source, "step =", 0, 4))
+    );
+}
+
+#[test]
+fn a_break_outside_a_loop_jumps_nowhere() {
+    let source = r#"init {
+    if (1 == 1) {
+        break;
+    }
+}
+"#;
+    assert_eq!(jump(source, "break", 0), None);
 }
 
 #[test]

@@ -32,6 +32,7 @@ It is a Cargo workspace (Rust edition 2024).
 | `packages/tokenizer/` | `tokenizer` | Source text to `Tokens` (with spans; comments only on request), built on `parser` |
 | `packages/ast/` | `ast` | AST nodes and their token-based construction (`Program`, items, statements, expressions); independent of lines and whitespace |
 | `packages/formatter/` | `formatter` | Token-based source formatter with `FormatOptions` |
+| `packages/package/` | `package` | Reads packages: `Manifest` (the `into-package.json` as a structure), `Package` (a manifest with its directory) and finding a package by alias, in a directory or around a file; the CLI, `moduler`, `native`, `testing` and `analysis` use it |
 | `packages/moduler/` | `moduler` | Import/export resolution, public items, link metadata and library lowering, on top of `ast` |
 | `packages/native/` | `native` | C/C++ native integration: `#[link]` model, native call arguments/operands, ownership records (`OwnershipChange`, `StateCheck`, `Property`), native source compilation to objects or to a shared library |
 | `packages/backend/` | `backend` | Lowering: walks `ast` nodes and emits the message (`Lowerer`, `stmt/`, `expr/`, `emit/`); `lower_test` lowers one test function |
@@ -40,9 +41,9 @@ It is a Cargo workspace (Rust edition 2024).
 | `packages/ipc/` | `ipc` | The contract between an editor side and the compiler side: editor-independent positions, diagnostics, hovers, symbols and edits, the `Request`/`Notification`/`Reply` messages, the `Handler` trait the compiler side implements, `serve`, `Client` and the transports (`Lines` over any reader and writer, `MemoryTransport`); depends only on `serde` |
 | `packages/analysis/` | `analysis` | The compiler side of the IPC: `Analyzer` implements `ipc::Handler` on top of `tokenizer`, `ast`, `moduler`, `backend` and `formatter` (open documents, diagnostics, the index of declarations, definition, hover, `///` documentation, symbols, formatting); the binary `intolang-ipc` serves it on the standard streams; no LLVM |
 | `packages/lsp/` | `lsp` | The language server `into-lsp`, an app independent of the compiler: it speaks LSP to the editor and the `ipc` protocol to `intolang-ipc` and only converts between the two (UTF-16 columns, LSP types, restarting the analyzer); depends on `ipc` and no compiler crate |
-| `packages/lsp/packages/{vscode,zed}/` | editor extensions | Thin extensions that start `into-lsp` and pass settings on; `vscode` is TypeScript (`npm run compile`), `zed` is a `zed_extension_api` crate outside the workspace (its own `Cargo.lock`, built for wasm) |
+| `packages/lsp/packages/{vscode,zed}/` | editor extensions | Thin extensions that start `into-lsp` and pass settings on; `vscode` is TypeScript (`npm run compile`), `zed` is a `zed_extension_api` crate outside the workspace (its own `Cargo.lock`, built for wasm) and carries the tree-sitter grammar of Into (`grammars/tree-sitter-into`, generated `src/` committed, `[grammars.into]` in `extension.toml` pinned by `rev`) with the queries in `languages/into` that give Zed its highlighting |
 | `packages/lld/` | `lld` | Thin wrapper that links objects with an embedded/`LLD_EXTERNAL_BINARY` LLD |
-| `packages/intolang/` | package, alias `builtin` | Builtin `std` (`print`/`println`), `Object`, `List` and the test modules under `src/main/tests/` (`assert`, `memory-check`, `ownership-check`, `dummy-process`, the `test` macro) |
+| `packages/intolang/` | package, alias `builtin` | Builtin `std` (`print`/`println`), `Object`, `List`, the primitive types and `String` (`primitives.into`, empty classes so that editors find a declaration to jump to) and the test modules under `src/main/tests/` (`assert`, `memory-check`, `ownership-check`, `dummy-process`, the `test` macro) |
 | `packages/ps/` | package, alias `ps` | `Process`, `Signal`, `Usage`, the `started`, `exited` and `signalReceived` events, `dispatch` and `exit` |
 | `packages/system/modules/{c,cpp,json}/` | native packages | Language system modules (C stdio, C++ http/filesystem/time/string, JSON) |
 | `packages/{fs,path,ffmpeg,sdl2,wayland,vulkan}/` | native packages | File access, paths, FFmpeg decoding, SDL2 audio, Wayland windows and Vulkan rendering |
@@ -431,13 +432,29 @@ editor ── LSP (stdio) ── into-lsp ── ipc (stdio) ── intolang-ipc
   `analysis/diagnostics` notification; requests are answered in order.
 - `analysis` owns what Into means: it keeps the open documents, prefers their
   text over the files for imported modules (`moduler::SourceProvider`), reports
-  a syntax error (its token range), imports that name nothing (`0x10AA`) and the
-  first error of `backend::lower_file` (the line of its Into backtrace frame),
-  and keeps the last analysis that parsed for definition, hover and symbols.
-  Names resolve by the token under the cursor: a binding visible at that line,
-  a top-level declaration, a public declaration of an imported module, or a
-  member found through the type of the receiver (`a.b.c` through the declared or
-  inferred type of `a`, then the parents, then `Object`).
+  every syntax error (`ast::Program::parse_recovering` skips to the next
+  statement after one, with its token range), imports that name nothing
+  (`0x10AA`) and every error of `backend::lower_file_all` (the line of its Into
+  backtrace frame; a use of a name whose declaration failed is not reported
+  again), and keeps the last analysis that parsed for definition, hover and
+  symbols. Names resolve by the token under the cursor: a binding visible at
+  that line, a top-level declaration, a public declaration of an imported
+  module, or a member found through the type of the receiver (`a.b.c` through
+  the declared or inferred type of `a`, then the parents, then `Object`). The
+  primitive types are classes of `primitives.into` in the builtin package, so
+  they resolve like any class.
+- The strings and the keywords of `import` and `export` resolve to the package
+  (`moduler::import_target`, `export_target`): hover shows its name, alias,
+  version, licence and location, and the definition is the module, or
+  `into-info.into` for a module that has no file. The name of a function with
+  `#[link]`, and the strings of the attribute, jump to the C or C++ source at
+  the definition of the symbol (`foreign::locate_symbol`); a call still jumps to
+  the Into declaration.
+- Packages are read by the `package` crate: `Manifest` is `into-package.json` as
+  a structure and `Package` is a manifest with its directory, found by alias
+  (`Package::find_by_alias`), as the packages of a directory (`children`) or as
+  the one that holds a file (`enclosing`). Nothing else reads the manifest of a
+  package by hand.
 - The packages the analyzer resolves imports against are linked into a temp
   directory like a build does: the builtin packages from `packagesDir`,
   `INTOLANG_PACKAGES` or a `packages/intolang` above the project, then the

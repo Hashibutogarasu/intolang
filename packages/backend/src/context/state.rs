@@ -1,3 +1,4 @@
+use errors::Error;
 use std::collections::{HashMap, HashSet};
 use types::Type;
 
@@ -38,6 +39,8 @@ pub struct State {
     pub defined_functions: HashSet<String>,
     /// The types the run time functions being lowered return, innermost last.
     pub returning: Vec<Type>,
+    pub collected: Option<Vec<Error>>,
+    pub poisoned: HashSet<String>,
 }
 
 impl State {

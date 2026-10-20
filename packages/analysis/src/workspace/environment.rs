@@ -1,11 +1,12 @@
+use moduler::BUILTIN_ALIAS;
+use package::Package;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 static COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 const PACKAGES_VARIABLE: &str = "INTOLANG_PACKAGES";
-const MANIFEST: &str = "into-package.json";
-const BUILTIN_MANIFEST: &str = "packages/intolang/into-package.json";
+const BUILTIN_PACKAGES: &str = "packages";
 
 /// A directory of package links the way a build sets one up: the builtin
 /// packages and the packages installed in the project.
@@ -42,13 +43,15 @@ impl Environment {
     }
 
     fn link_packages(&self, source: &Path) {
-        let Ok(entries) = std::fs::read_dir(source) else {
+        let Ok(packages) = Package::children(source) else {
             return;
         };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.join(MANIFEST).is_file() {
-                let _ = moduler::link_directory(&path, &self.dir.join(entry.file_name()));
+        for package in packages {
+            if let Some(name) = package.root.file_name() {
+                let _ = moduler::link_directory(&package.root, &self.dir.join(name));
+            }
+            for (name, path) in &package.manifest.modules {
+                let _ = moduler::link_directory(&package.join(path), &self.dir.join(name));
             }
         }
     }
@@ -62,6 +65,6 @@ impl Drop for Environment {
 
 fn find_builtin(root: &Path) -> Option<PathBuf> {
     root.ancestors()
-        .find(|ancestor| ancestor.join(BUILTIN_MANIFEST).is_file())
-        .map(|ancestor| ancestor.join("packages"))
+        .map(|ancestor| ancestor.join(BUILTIN_PACKAGES))
+        .find(|packages| Package::find_by_alias(packages, BUILTIN_ALIAS).is_ok_and(|p| p.is_some()))
 }

@@ -36,6 +36,7 @@ pub struct Variable {
     pub unloaded: bool,
     pub declared_in_init: bool,
     pub native: bool,
+    pub constant: bool,
     pub tracking: Tracking,
 }
 
@@ -51,6 +52,7 @@ impl Variable {
             unloaded: false,
             declared_in_init: false,
             native: true,
+            constant: false,
             tracking: Tracking::default(),
         }
     }

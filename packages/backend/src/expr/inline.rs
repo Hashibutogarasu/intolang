@@ -244,6 +244,7 @@ impl<'a> Lowerer<'a> {
                 unloaded: false,
                 declared_in_init: false,
                 native: false,
+                constant: false,
                 tracking: Tracking::default(),
             },
         );
@@ -419,6 +420,7 @@ impl<'a> Lowerer<'a> {
                 unloaded: false,
                 declared_in_init: false,
                 native,
+                constant: declaration.constant,
                 tracking,
             },
         );

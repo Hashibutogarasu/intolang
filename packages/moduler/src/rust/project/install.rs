@@ -1,14 +1,13 @@
 use errors::{Errors, Result};
+use package::Package;
 use std::path::Path;
 
 use super::manifest::ProjectManifest;
 use super::project::{Project, commit, write_pending};
 use crate::package::{
-    BUILTIN_ALIAS, PackageAlias, PackageHash, PackageInfo, find_by_alias, is_builtin,
-    link_directory, relative_path, remove_installed,
+    BUILTIN_ALIAS, PackageAlias, PackageHash, PackageInfo, is_builtin, link_directory,
+    relative_path, remove_installed,
 };
-
-const PACKAGE_MANIFEST: &str = "into-package.json";
 
 impl Project {
     /// Installs the package at `source`. Builtin packages are never linked or
@@ -19,32 +18,24 @@ impl Project {
                 path: source.display().to_string(),
                 reason: error.to_string(),
             })?;
-        let manifest_path = source.join(PACKAGE_MANIFEST);
-        let package_manifest: serde_json::Value = serde_json::from_slice(
-            &std::fs::read(&manifest_path).map_err(|error| Errors::read(&manifest_path, error))?,
-        )
-        .map_err(|error| Errors::PackageManifestInvalid {
-            path: manifest_path.display().to_string(),
-            reason: error.to_string(),
-        })?;
-        let field = |key: &str| {
-            package_manifest
-                .get(key)
-                .and_then(serde_json::Value::as_str)
-                .ok_or_else(|| Errors::PackageManifestMissing {
-                    key: key.to_string(),
-                })
-        };
-        if is_builtin(field("alias")?) {
+        let found = Package::load(&source)?;
+        let manifest = &found.manifest;
+        if is_builtin(manifest.required_alias()?) {
             return self.install_builtin(embedded);
         }
-        let alias = PackageAlias::try_from(field("alias")?)?;
-        let version = field("version")?.to_owned();
+        let alias = PackageAlias::try_from(manifest.required_alias()?)?;
+        if manifest.version.is_empty() {
+            return Err(Errors::PackageManifestMissing {
+                key: "version".to_owned(),
+            }
+            .into());
+        }
+        let version = manifest.version.clone();
 
         let mut project_manifest = ProjectManifest::load(&self.manifest_path())?;
         let mut lock = self.load_lock()?.unwrap_or_default();
         let destination = self.package_dir(&alias);
-        let package = PackageInfo::new(alias.as_str(), destination.clone(), &package_manifest)
+        let package = PackageInfo::new(alias.as_str(), destination.clone(), manifest)
             .with_hash(PackageHash::of_directory(&source)?)
             .with_location(relative_path(&self.canonical_root()?, &source));
         project_manifest.set_dependency(&alias, &version)?;
@@ -64,15 +55,12 @@ impl Project {
 
     fn install_builtin(&self, embedded: &Path) -> Result<PackageInfo> {
         let alias = PackageAlias::try_from(BUILTIN_ALIAS)?;
-        let root =
-            find_by_alias(embedded, BUILTIN_ALIAS)?.ok_or_else(|| Errors::PackageNotEmbedded {
+        let found = Package::find_by_alias(embedded, BUILTIN_ALIAS)?.ok_or_else(|| {
+            Errors::PackageNotEmbedded {
                 alias: BUILTIN_ALIAS.to_string(),
-            })?;
-        let manifest_path = root.join(PACKAGE_MANIFEST);
-        let package_manifest: serde_json::Value = serde_json::from_slice(
-            &std::fs::read(&manifest_path).map_err(|error| Errors::read(&manifest_path, error))?,
-        )?;
-        let package = PackageInfo::new(alias.as_str(), root, &package_manifest);
+            }
+        })?;
+        let package = PackageInfo::new(alias.as_str(), found.root, &found.manifest);
 
         let mut project_manifest = ProjectManifest::load(&self.manifest_path())?;
         let mut lock = self.load_lock()?.unwrap_or_default();

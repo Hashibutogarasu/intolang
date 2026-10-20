@@ -36,6 +36,15 @@ impl Lowerer<'_> {
                 .into(),
             ));
         };
+        if current.constant {
+            return Err(self.diagnostic(
+                line,
+                Errors::AssignToConstant {
+                    name: name.to_string(),
+                }
+                .into(),
+            ));
+        }
         let target_type = current.ty.clone();
         let in_slot = current.native;
         let (text, ty, native) = self
@@ -66,6 +75,12 @@ impl Lowerer<'_> {
                 name: holder.to_string(),
             })
         })?;
+        if variable.constant {
+            return Err(Errors::AssignToConstant {
+                name: holder.to_string(),
+            }
+            .into());
+        }
         if !variable.native {
             return Err(Errors::HoldsNoInstance {
                 holder: holder.to_string(),

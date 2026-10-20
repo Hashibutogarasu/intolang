@@ -39,6 +39,39 @@ fn an_error_of_lowering_is_reported_on_the_line_it_happened() {
 }
 
 #[test]
+fn every_syntax_error_is_reported() {
+    let source =
+        "into first = ;\ninto second = 1;\ninit {\n    into third = ;\n}\ninto fourth = ;\n";
+    let diagnostics = session().open(URI, source);
+    let lines = diagnostics
+        .iter()
+        .map(|error| error.range.start.line)
+        .collect::<Vec<_>>();
+    assert_eq!(lines, vec![0, 3, 5]);
+    assert!(diagnostics.iter().all(|error| error.code == Some(0x0001)));
+}
+
+#[test]
+fn every_error_of_lowering_is_reported() {
+    let source = "init {\n    into first: Int32 = \"one\";\n    into second: Int32 = \"two\";\n}\n";
+    let diagnostics = session().open(URI, source);
+    let lines = diagnostics
+        .iter()
+        .map(|error| error.range.start.line)
+        .collect::<Vec<_>>();
+    assert_eq!(lines, vec![1, 2]);
+    assert!(diagnostics.iter().all(|error| error.code == Some(0x100A)));
+}
+
+#[test]
+fn a_failed_declaration_does_not_report_its_uses_as_undefined() {
+    let source = "init {\n    into first: Int32 = \"one\";\n    first = 2;\n}\n";
+    let diagnostics = session().open(URI, source);
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].range.start.line, 1);
+}
+
+#[test]
 fn fixing_the_text_clears_the_diagnostics() {
     let mut editor = session();
     assert_eq!(editor.open(URI, "into message = ;\n").len(), 1);

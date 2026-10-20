@@ -1,13 +1,11 @@
 use errors::{Errors, Result};
+use package::Package;
 use std::path::Path;
 
 use super::manifest::ProjectManifest;
 use super::project::{Project, Restoration, commit, write_pending};
 use crate::lock::LockFile;
-use crate::package::{
-    PackageAlias, PackageHash, PackageInfo, find_by_alias, is_builtin, link_directory,
-    remove_installed,
-};
+use crate::package::{PackageAlias, PackageHash, is_builtin, link_directory, remove_installed};
 
 impl Project {
     /// Restores the locked packages. Builtin entries carry no location and are
@@ -29,19 +27,13 @@ impl Project {
                     }
                     .into());
                 }
-                let package_root = find_by_alias(embedded, &locked.alias)?.ok_or_else(|| {
+                let found = Package::find_by_alias(embedded, &locked.alias)?.ok_or_else(|| {
                     Errors::PackageNotEmbedded {
                         alias: alias.to_string(),
                     }
                 })?;
-                let manifest_path = package_root.join("into-package.json");
-                let package_manifest: serde_json::Value = serde_json::from_slice(
-                    &std::fs::read(&manifest_path)
-                        .map_err(|error| Errors::read(&manifest_path, error))?,
-                )?;
-                let embedded_version =
-                    PackageInfo::new(&locked.alias, package_root.clone(), &package_manifest)
-                        .version;
+                let package_root = found.root;
+                let embedded_version = found.manifest.version;
                 if embedded_version != locked.version {
                     return Err(Errors::PackageVersionLocked {
                         alias: alias.to_string(),

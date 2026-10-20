@@ -1,9 +1,10 @@
 use std::path::{Path, PathBuf};
 
 use ipc::SymbolKind;
+use moduler::ImportTarget;
 use types::{Span, Token, TokenKind};
 
-use super::symbol::{Index, Symbol};
+use super::symbol::{Index, NativeRef, Symbol};
 use crate::analyzer::Analysis;
 
 const ROOT_CLASS: &str = "Object";
@@ -11,13 +12,24 @@ const MAX_PARENTS: usize = 16;
 
 pub enum Resolved<'a> {
     Symbol {
-        /// The module that declares the symbol; `None` for the document itself.
         module: Option<usize>,
         symbol: &'a Symbol,
         token: Span,
     },
     Module {
-        path: PathBuf,
+        target: ImportTarget,
+        token: Span,
+    },
+    Native {
+        native: &'a NativeRef,
+        root: PathBuf,
+        token: Span,
+    },
+    /// A keyword that continues a statement begun elsewhere: `break` and the
+    /// `while` it leaves, `else` and `else if` and the branch they follow.
+    Keyword {
+        label: &'static str,
+        target: Span,
         token: Span,
     },
 }
@@ -42,14 +54,31 @@ pub fn resolve<'a>(
     let token = &tokens[position];
     match &token.kind {
         TokenKind::String(_) => {
-            let packages_dir = packages_dir?;
-            let decl = analysis.program.imports().find(|decl| {
-                decl.uri_span.0.start <= token.span.start && token.span.end <= decl.uri_span.0.end
-            })?;
-            let path = moduler::import_path(decl, packages_dir).ok()??;
-            Some(Resolved::Module {
-                path,
+            if let Some(native) = link_attribute(analysis, position) {
+                return Some(native);
+            }
+            module(analysis, token, token, packages_dir?)
+        }
+        TokenKind::Identifier(word) if matches!(word.as_str(), "import" | "export") => {
+            let uri = tokens
+                .get(position + 1)
+                .filter(|next| matches!(next.kind, TokenKind::String(_)))?;
+            module(analysis, token, uri, packages_dir?)
+        }
+        TokenKind::Identifier(word) if word == "break" => {
+            enclosing_loop(tokens, position).map(|keyword| Resolved::Keyword {
+                label: "break",
+                target: tokens[keyword].span,
                 token: token.span,
+            })
+        }
+        TokenKind::Identifier(word) if matches!(word.as_str(), "else" | "if") => {
+            let (first, last) = branch(tokens, position)?;
+            let (previous, previous_last) = previous_branch(tokens, first)?;
+            Some(Resolved::Keyword {
+                label: if first == last { "else" } else { "else if" },
+                target: join(tokens[previous].span, tokens[previous_last].span),
+                token: join(tokens[first].span, tokens[last].span),
             })
         }
         TokenKind::Identifier(word) => {
@@ -74,6 +103,162 @@ pub fn resolve<'a>(
         }
         _ => None,
     }
+}
+
+fn is_word(token: &Token, expected: &str) -> bool {
+    matches!(&token.kind, TokenKind::Identifier(word) if word == expected)
+}
+
+/// The tokens `first..=last` of the `else` or `else if` that holds the token at
+/// `position`. `else if` is one keyword whatever lies between its two words;
+/// a plain `if` begins a statement and is no branch.
+fn branch(tokens: &[Token], position: usize) -> Option<(usize, usize)> {
+    let before = position
+        .checked_sub(1)
+        .filter(|&before| is_word(&tokens[before], "else"));
+    if is_word(&tokens[position], "if") {
+        return before.map(|before| (before, position));
+    }
+    let after = position + 1;
+    Some(match tokens.get(after) {
+        Some(next) if is_word(next, "if") => (position, after),
+        _ => (position, position),
+    })
+}
+
+/// The `if`, `else if` or `else` whose block ends right before the token
+/// `first`: the branch that `first` continues.
+fn previous_branch(tokens: &[Token], first: usize) -> Option<(usize, usize)> {
+    if tokens[first.checked_sub(1)?].kind != TokenKind::Symbol('}') {
+        return None;
+    }
+    let mut closed = 0;
+    let open = (0..first).rev().find(|&index| {
+        match tokens[index].kind {
+            TokenKind::Symbol('}') => closed += 1,
+            TokenKind::Symbol('{') => closed -= 1,
+            _ => {}
+        }
+        closed == 0
+    })?;
+    if open > 0 && is_word(&tokens[open - 1], "else") {
+        return Some((open - 1, open - 1));
+    }
+    let keyword = (0..open)
+        .rev()
+        .find(|&index| is_word(&tokens[index], "if"))?;
+    match keyword.checked_sub(1) {
+        Some(before) if is_word(&tokens[before], "else") => Some((before, keyword)),
+        _ => Some((keyword, keyword)),
+    }
+}
+
+/// The span from the start of `first` to the end of `last`.
+fn join(first: Span, last: Span) -> Span {
+    Span {
+        line: first.line,
+        end_line: last.end_line,
+        start: first.start,
+        end: last.end,
+    }
+}
+
+/// The `while` whose body holds the token at `position`, the innermost one.
+fn enclosing_loop(tokens: &[Token], position: usize) -> Option<usize> {
+    let mut closed = 0;
+    for index in (0..position).rev() {
+        match tokens[index].kind {
+            TokenKind::Symbol('}') => closed += 1,
+            TokenKind::Symbol('{') if closed > 0 => closed -= 1,
+            TokenKind::Symbol('{') => {
+                if let Some(keyword) = loop_keyword(tokens, index) {
+                    return Some(keyword);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// The `while` of `while (condition) {` when `open` is that brace.
+fn loop_keyword(tokens: &[Token], open: usize) -> Option<usize> {
+    let mut parentheses = 0;
+    let start = (0..open).rev().find(|&index| {
+        match tokens[index].kind {
+            TokenKind::Symbol(')') => parentheses += 1,
+            TokenKind::Symbol('(') => parentheses -= 1,
+            _ => {}
+        }
+        parentheses == 0
+    })?;
+    let keyword = start.checked_sub(1)?;
+    (tokens[open - 1].kind == TokenKind::Symbol(')')
+        && tokens[start].kind == TokenKind::Symbol('(')
+        && matches!(&tokens[keyword].kind, TokenKind::Identifier(word) if word == "while"))
+    .then_some(keyword)
+}
+
+/// The foreign function of the `#[link("language", "source", "symbol")]`
+/// attribute that holds the string token at `position`.
+fn link_attribute<'a>(analysis: &'a Analysis, position: usize) -> Option<Resolved<'a>> {
+    let tokens = &analysis.tokens;
+    let open = (0..position).rev().find(|&index| {
+        !matches!(
+            tokens[index].kind,
+            TokenKind::String(_) | TokenKind::Symbol(',')
+        )
+    })?;
+    if tokens[open].kind != TokenKind::Symbol('(')
+        || !matches!(&tokens[open.checked_sub(1)?].kind, TokenKind::Identifier(word) if word == "link")
+    {
+        return None;
+    }
+    let arguments = tokens[open + 1..]
+        .iter()
+        .map_while(|token| match &token.kind {
+            TokenKind::String(value) => Some(Some(value.as_str())),
+            TokenKind::Symbol(',') => Some(None),
+            _ => None,
+        })
+        .flatten()
+        .collect::<Vec<_>>();
+    let [language, source_path, target] = arguments[..] else {
+        return None;
+    };
+    let native = analysis.index.symbols.iter().find_map(|symbol| {
+        symbol.native.as_ref().filter(|native| {
+            native.language == language
+                && native.source_path == source_path
+                && native.target == target
+        })
+    })?;
+    Some(Resolved::Native {
+        native,
+        root: analysis.root.clone()?,
+        token: tokens[position].span,
+    })
+}
+
+/// The package and file named by the `import` or `export` whose address is the
+/// string token `uri`; `token` is what the answer is about.
+fn module<'a>(
+    analysis: &Analysis,
+    token: &Token,
+    uri: &Token,
+    packages_dir: &Path,
+) -> Option<Resolved<'a>> {
+    let within = |decl: &&ast::UseDecl| {
+        decl.uri_span.0.start <= uri.span.start && uri.span.end <= decl.uri_span.0.end
+    };
+    let target = match analysis.program.imports().find(within) {
+        Some(decl) => moduler::import_target(decl, packages_dir),
+        None => moduler::export_target(analysis.program.exports().find(within)?, packages_dir),
+    };
+    Some(Resolved::Module {
+        target: target.ok()??,
+        token: token.span,
+    })
 }
 
 fn is_member(tokens: &[Token], position: usize) -> bool {
@@ -148,7 +333,10 @@ impl<'a> Scope<'a> {
                 .map(move |symbol| (module, symbol))
         });
         let first = candidates.next()?;
-        candidates.next().is_none().then_some(first)
+        if candidates.next().is_none() {
+            return Some(first);
+        }
+        self.member(ROOT_CLASS, word)
     }
 
     fn receiver_type(&self, tokens: &[Token], position: usize, line: usize) -> Option<String> {

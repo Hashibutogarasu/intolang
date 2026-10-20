@@ -1,5 +1,5 @@
 use ast::{Item, Program, Stmt};
-use errors::{Errors, Result};
+use errors::{Error, Errors, Result};
 use parser::PathLexeme;
 use std::path::Path;
 
@@ -53,19 +53,59 @@ fn lower_named(source: &str, packages_dir: Option<&Path>, source_path: &str) -> 
     lower_entry(source, packages_dir, source_path, None)
 }
 
+/// Lower the source and collect the error of every statement that fails,
+/// instead of stopping at the first. A syntax error ends the lowering with the
+/// syntax errors alone, since the program is incomplete.
+pub fn lower_file_all(
+    source: &str,
+    source_path: &Path,
+    packages_dir: Option<&Path>,
+) -> std::result::Result<String, Vec<Error>> {
+    lower_collecting(
+        source,
+        packages_dir,
+        &PathLexeme::from(source_path).to_string(),
+        None,
+        true,
+    )
+}
+
 fn lower_entry(
     source: &str,
     packages_dir: Option<&Path>,
     source_path: &str,
     test: Option<&str>,
 ) -> Result<String> {
-    let program = source
-        .parse::<Program>()
-        .map_err(|error| error.bound_to(source_path))?;
-    let mut env = prepare(&program, packages_dir, source_path)?;
+    lower_collecting(source, packages_dir, source_path, test, false)
+        .map_err(|errors| errors.into_iter().next().expect("a failure has an error"))
+}
+
+fn lower_collecting(
+    source: &str,
+    packages_dir: Option<&Path>,
+    source_path: &str,
+    test: Option<&str>,
+    collect: bool,
+) -> std::result::Result<String, Vec<Error>> {
+    let program = if collect {
+        let (program, errors) = Program::parse_all(source);
+        if !errors.is_empty() {
+            return Err(errors
+                .into_iter()
+                .map(|error| error.bound_to(source_path))
+                .collect());
+        }
+        program
+    } else {
+        source
+            .parse::<Program>()
+            .map_err(|error| vec![error.bound_to(source_path)])?
+    };
+    let mut env = prepare(&program, packages_dir, source_path).map_err(|error| vec![error])?;
     env.strict_calls = test.is_some();
 
     let mut lowerer = Lowerer::new(&env);
+    lowerer.state.collected = collect.then(Vec::new);
     emit::module_classes(&mut lowerer.state.output);
     let mut classes = env.class_fields.iter().collect::<Vec<_>>();
     classes.sort_by(|left, right| left.0.cmp(right.0));
@@ -74,12 +114,14 @@ fn lower_entry(
     }
     lowerer
         .register_default_handlers()
-        .map_err(|message| lowerer.diagnostic(0, message))?;
+        .map_err(|message| vec![lowerer.diagnostic(0, message)])?;
     for item in &program.items {
         match item {
             Item::Import(decl) => lowerer.lower_import(decl),
             Item::Export(decl) => lowerer.lower_export(decl),
-            Item::Stmt(stmt) if test.is_none() => lowerer.lower_stmt(stmt)?,
+            Item::Stmt(stmt) if test.is_none() => lowerer
+                .lower_collecting(stmt)
+                .map_err(|error| vec![error])?,
             Item::Stmt(_)
             | Item::Enum(_)
             | Item::Class(_)
@@ -89,14 +131,38 @@ fn lower_entry(
         }
     }
     if let Some(name) = test {
-        let body = test_body(&program, name).ok_or_else(|| Errors::NoTestFunction {
-            path: source_path.to_string(),
-            name: name.to_string(),
+        let body = test_body(&program, name).ok_or_else(|| {
+            vec![Error::from(Errors::NoTestFunction {
+                path: source_path.to_string(),
+                name: name.to_string(),
+            })]
         })?;
-        lowerer.lower_block(body)?;
+        lowerer.lower_block(body).map_err(|error| vec![error])?;
     }
-    lowerer.finish_program()?;
-    Ok(lowerer.into_output())
+    let finished = lowerer.finish_program();
+    let mut errors = lowerer.state.collected.take().unwrap_or_default();
+    if let Err(error) = finished {
+        errors.push(error);
+    }
+    if errors.is_empty() {
+        Ok(lowerer.into_output())
+    } else {
+        errors.dedup_by(|later, earlier| same_failure(later, earlier));
+        Err(errors)
+    }
+}
+
+fn same_failure(left: &Error, right: &Error) -> bool {
+    let line = |error: &Error| {
+        error
+            .trace()
+            .into
+            .as_ref()
+            .and_then(|trace| trace.frames.first().map(|frame| frame.line))
+    };
+    left.code() == right.code()
+        && line(left) == line(right)
+        && left.kind().to_string() == right.kind().to_string()
 }
 
 /// The statements of the function or method called `name`.

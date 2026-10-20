@@ -1,6 +1,5 @@
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
-use std::str::FromStr;
 
 use ast::Program;
 use errors::{Error, Severity as ErrorSeverity};
@@ -19,20 +18,23 @@ pub struct Source<'a> {
 
 const TESTS_DIRECTORY: &str = "/src/tests/";
 
-/// Everything wrong with the document: a syntax error, imports that name
-/// nothing, then the first error of lowering the program.
+/// Everything wrong with the document: its syntax errors, imports that name
+/// nothing, then the errors of lowering the program.
 pub fn diagnose(source: &Source<'_>) -> Vec<Diagnostic> {
     let label = source.path.map(|path| path.display().to_string());
-    let program = match Program::from_str(source.text) {
-        Ok(program) => program,
-        Err(error) => {
-            let error = match &label {
-                Some(label) => error.bound_to(label),
-                None => error,
-            };
-            return vec![located(&error, source, label.as_deref())];
-        }
-    };
+    let (program, syntax_errors) = Program::parse_all(source.text);
+    if !syntax_errors.is_empty() {
+        return syntax_errors
+            .into_iter()
+            .map(|error| {
+                let error = match &label {
+                    Some(label) => error.bound_to(label),
+                    None => error,
+                };
+                located(&error, source, label.as_deref())
+            })
+            .collect();
+    }
     let mut diagnostics = Vec::new();
     if let Some(packages_dir) = source.packages_dir {
         for (decl, error) in moduler::unresolved_imports(&program, packages_dir) {
@@ -51,10 +53,14 @@ pub fn diagnose(source: &Source<'_>) -> Vec<Diagnostic> {
         return diagnostics;
     }
     let lowered = catch_unwind(AssertUnwindSafe(|| {
-        backend::lower_file(source.text, path, source.packages_dir)
+        backend::lower_file_all(source.text, path, source.packages_dir)
     }));
-    if let Ok(Err(error)) = lowered {
-        diagnostics.push(lowering(&error, source, label.as_deref()));
+    if let Ok(Err(errors)) = lowered {
+        diagnostics.extend(
+            errors
+                .iter()
+                .map(|error| lowering(error, source, label.as_deref())),
+        );
     }
     diagnostics
 }

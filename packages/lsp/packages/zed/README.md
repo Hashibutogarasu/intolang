@@ -9,7 +9,19 @@ cargo install --path packages/lsp
 cargo install --path packages/analysis
 ```
 
-Install this directory with `zed: install dev extension`.
+Install this directory with `zed: install dev extension`. Zed builds the grammar of `grammars/tree-sitter-into` while it installs the extension, and the queries in `languages/into` (`highlights.scm`, `brackets.scm`, `indents.scm`, `outline.scm`) color and outline the code.
+
+## Syntax highlighting
+
+Zed highlights with tree-sitter only, so the extension carries the grammar of Into in `grammars/tree-sitter-into`. `extension.toml` names it in `[grammars.into]` by the repository, the `path` of the grammar and the commit `rev`, and Zed fetches that commit. After a change to the grammar, commit it, run `tree-sitter generate` in `grammars/tree-sitter-into` (the generated `src/` is committed because Zed does not generate it), and set `rev` to the commit that holds the new `src/parser.c`. Install a dev extension from a checkout with `repository` set to `file:///path/to/intolang` to try a grammar before it is pushed.
+
+```sh
+cd grammars/tree-sitter-into
+tree-sitter generate
+tree-sitter test
+```
+
+`tree-sitter parse` on every `.into` file of the repository is the check that the grammar covers the language; `examples/Errors/SyntaxError` is the one file that is meant to fail.
 
 ## Debugging from this repository
 
