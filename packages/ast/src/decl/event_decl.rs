@@ -4,7 +4,7 @@ use types::{Keyword, Punct};
 use super::param::Param;
 use super::type_params::parse_type_params;
 use crate::stmt::{Scope, parse_block};
-use crate::{Cursor, Stmt};
+use crate::{Cursor, Located, Stmt};
 
 /// `[pub] [static] [default|override] event name<T>(params) { body }`: an
 /// event whose body is the handler that runs before the registered ones.
@@ -12,6 +12,7 @@ use crate::{Cursor, Stmt};
 pub struct EventDecl {
     pub line: usize,
     pub name: String,
+    pub name_span: Located,
     pub is_public: bool,
     pub is_static: bool,
     pub is_default: bool,
@@ -61,6 +62,7 @@ impl TryFrom<&mut Cursor<'_>> for EventDecl {
             return Err(cursor.error("Expected `event`"));
         }
         let (name, _) = cursor.expect_ident("an event name")?;
+        let name_span = cursor.previous_span();
         let type_params = parse_type_params(cursor)?;
         cursor.expect_punct(Punct::LeftParen, "`(` after the event name")?;
         let mut params = Vec::new();
@@ -78,6 +80,7 @@ impl TryFrom<&mut Cursor<'_>> for EventDecl {
         Ok(Self {
             line,
             name,
+            name_span,
             is_public,
             is_static,
             is_default,

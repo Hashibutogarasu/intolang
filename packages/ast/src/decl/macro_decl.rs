@@ -2,13 +2,14 @@ use errors::Result;
 use types::{Keyword, Punct};
 
 use super::attribute::Attribute;
-use crate::Cursor;
+use crate::{Cursor, Located};
 
 /// `pub macro name { #[attribute] }`: declares attributes other code can use.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MacroDecl {
     pub line: usize,
     pub name: String,
+    pub name_span: Located,
     pub is_public: bool,
     pub attributes: Vec<Attribute>,
 }
@@ -29,12 +30,14 @@ impl TryFrom<&mut Cursor<'_>> for MacroDecl {
         let is_public = cursor.eat_keyword(Keyword::Pub);
         cursor.eat_keyword(Keyword::Macro);
         let (name, _) = cursor.expect_ident("a macro name")?;
+        let name_span = cursor.previous_span();
         cursor.expect_punct(Punct::LeftBrace, "`{` after the macro name")?;
         let attributes = Attribute::parse_all(cursor)?;
         cursor.expect_punct(Punct::RightBrace, "`}` to close the macro")?;
         Ok(Self {
             line,
             name,
+            name_span,
             is_public,
             attributes,
         })

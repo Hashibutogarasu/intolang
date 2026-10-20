@@ -37,6 +37,10 @@ It is a Cargo workspace (Rust edition 2024).
 | `packages/backend/` | `backend` | Lowering: walks `ast` nodes and emits the message (`Lowerer`, `stmt/`, `expr/`, `emit/`); `lower_test` lowers one test function |
 | `packages/intovm/` | `intovm` | The Into VM: runs a lowered message (`machine/`), virtual memory, threads and processes, native calls through `dlopen` (`native_call/`) and the `.inex` format (`inex/`); no LLVM |
 | `packages/testing/` | `testing` | Into `#[test]` runner on top of `intovm`, and the `eval` utilities that run Into from Rust tests (`eval_vm`, `eval_run` behind the `run` feature) |
+| `packages/ipc/` | `ipc` | The contract between an editor side and the compiler side: editor-independent positions, diagnostics, hovers, symbols and edits, the `Request`/`Notification`/`Reply` messages, the `Handler` trait the compiler side implements, `serve`, `Client` and the transports (`Lines` over any reader and writer, `MemoryTransport`); depends only on `serde` |
+| `packages/analysis/` | `analysis` | The compiler side of the IPC: `Analyzer` implements `ipc::Handler` on top of `tokenizer`, `ast`, `moduler`, `backend` and `formatter` (open documents, diagnostics, the index of declarations, definition, hover, `///` documentation, symbols, formatting); the binary `intolang-ipc` serves it on the standard streams; no LLVM |
+| `packages/lsp/` | `lsp` | The language server `into-lsp`, an app independent of the compiler: it speaks LSP to the editor and the `ipc` protocol to `intolang-ipc` and only converts between the two (UTF-16 columns, LSP types, restarting the analyzer); depends on `ipc` and no compiler crate |
+| `packages/lsp/packages/{vscode,zed}/` | editor extensions | Thin extensions that start `into-lsp` and pass settings on; `vscode` is TypeScript (`npm run compile`), `zed` is a `zed_extension_api` crate outside the workspace (its own `Cargo.lock`, built for wasm) |
 | `packages/lld/` | `lld` | Thin wrapper that links objects with an embedded/`LLD_EXTERNAL_BINARY` LLD |
 | `packages/intolang/` | package, alias `builtin` | Builtin `std` (`print`/`println`), `Object`, `List` and the test modules under `src/main/tests/` (`assert`, `memory-check`, `ownership-check`, `dummy-process`, the `test` macro) |
 | `packages/ps/` | package, alias `ps` | `Process`, `Signal`, `Usage`, the `started`, `exited` and `signalReceived` events, `dispatch` and `exit` |
@@ -121,6 +125,12 @@ has a test in the `tests/` directory of the crate that implements it.
   lines. A missing `;` is accepted before a `}` or a line break.
 - `//` starts a line comment. Braces inside strings and comments are ignored by
   the formatter.
+- `///` is a doc comment. A run of consecutive `///` lines documents the
+  declaration that follows on the next line, attribute lines in between
+  included; a blank line, a plain `//` comment or code on the same line as the
+  comment documents nothing. The text after `///` (and one space) is Markdown.
+  Only the language server reads it (`analysis`, `DocComments`); the tokenizer
+  returns it as an ordinary comment.
 - Keywords: `init`, `fun`, `pub`, `static`, `macro`, `into`, `now`, `late`,
   `const`, `unload`, `enum`, `if`, `else`, `while`, `break`, `return`, `throw`,
   `import`, `export`, `event`, `thread`, `await`, `abstract`, `default`,
@@ -399,6 +409,38 @@ has a test in the `tests/` directory of the crate that implements it.
   `packages/system/into-package.json` under `modules`, add `lib.into` /
   `into-info.into`, native sources, and any `nativeDependencies` keyed by the
   source path relative to the package root.
+
+## Language server
+
+The language server is an app of its own; the `into` CLI has no command for it.
+
+```
+editor ── LSP (stdio) ── into-lsp ── ipc (stdio) ── intolang-ipc (analysis::Analyzer)
+```
+
+- `into-lsp` (`packages/lsp`) starts `intolang-ipc` as a child process, found by
+  `initializationOptions.analyzerPath`, `INTOLANG_IPC` or the `PATH`, and starts
+  it again with the open documents replayed when it died. It converts positions
+  (the IPC counts characters, LSP counts UTF-16 units) and types, nothing else;
+  it must not depend on a compiler crate (`cargo tree -p lsp`).
+- `ipc` is the only contract. Its positions and messages know no editor. Every
+  `document/open`, `document/change` and `document/close` is answered by one
+  `analysis/diagnostics` notification; requests are answered in order.
+- `analysis` owns what Into means: it keeps the open documents, prefers their
+  text over the files for imported modules (`moduler::SourceProvider`), reports
+  a syntax error (its token range), imports that name nothing (`0x10AA`) and the
+  first error of `backend::lower_file` (the line of its Into backtrace frame),
+  and keeps the last analysis that parsed for definition, hover and symbols.
+  Names resolve by the token under the cursor: a binding visible at that line,
+  a top-level declaration, a public declaration of an imported module, or a
+  member found through the type of the receiver (`a.b.c` through the declared or
+  inferred type of `a`, then the parents, then `Object`).
+- The packages the analyzer resolves imports against are linked into a temp
+  directory like a build does: the builtin packages from `packagesDir`,
+  `INTOLANG_PACKAGES` or a `packages/intolang` above the project, then the
+  project's `.into/packages`.
+- Tests of `lsp` use a scripted `ipc::Handler` over `memory_pair`; tests of
+  `analysis` call the `Analyzer` as a `Handler`.
 
 ## Architecture / data flow
 

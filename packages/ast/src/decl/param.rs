@@ -1,13 +1,14 @@
 use errors::Result;
 use types::{Literal, Punct};
 
-use crate::{Cursor, Expr, TypeRef};
+use crate::{Cursor, Expr, Located, TypeRef};
 
 /// A function parameter: `name`, `name: Type`, `name: Type?`,
 /// `name: Type = default` or `name: Type...`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Param {
     pub name: String,
+    pub name_span: Located,
     pub ty: Option<TypeRef>,
     pub optional: bool,
     pub variadic: bool,
@@ -50,6 +51,7 @@ impl TryFrom<&mut Cursor<'_>> for Param {
 
     fn try_from(cursor: &mut Cursor<'_>) -> Result<Self> {
         let (name, _) = cursor.expect_ident("a parameter name")?;
+        let name_span = cursor.previous_span();
         let mut ty = None;
         let mut optional = false;
         let mut variadic = false;
@@ -71,6 +73,7 @@ impl TryFrom<&mut Cursor<'_>> for Param {
         };
         Ok(Self {
             name,
+            name_span,
             ty,
             optional,
             variadic,

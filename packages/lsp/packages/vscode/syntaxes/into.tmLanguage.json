@@ -1,0 +1,51 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Into",
+  "scopeName": "source.into",
+  "patterns": [
+    { "include": "#doc-comment" },
+    { "include": "#comment" },
+    { "include": "#string" },
+    { "include": "#attribute" },
+    { "include": "#keyword" },
+    { "include": "#type" },
+    { "include": "#constant" },
+    { "include": "#number" }
+  ],
+  "repository": {
+    "doc-comment": {
+      "name": "comment.block.documentation.into",
+      "match": "///.*$"
+    },
+    "comment": {
+      "name": "comment.line.double-slash.into",
+      "match": "//.*$"
+    },
+    "string": {
+      "name": "string.quoted.double.into",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [{ "name": "constant.character.escape.into", "match": "\\\\." }]
+    },
+    "attribute": {
+      "name": "meta.attribute.into",
+      "match": "#\\[[^\\]]*\\]"
+    },
+    "keyword": {
+      "name": "keyword.control.into",
+      "match": "\\b(init|fun|pub|static|macro|into|now|late|const|unload|enum|if|else|while|break|return|throw|import|export|event|thread|await|abstract|default|override|as|c|cpp)\\b"
+    },
+    "type": {
+      "name": "support.type.into",
+      "match": "\\b(Boolean|String|Path|Int8|Int16|Int32|Int64|Float32|Float64|Void|Pointer|List|Object|Event|Listener|Thread|Task)\\b"
+    },
+    "constant": {
+      "name": "constant.language.into",
+      "match": "\\b(true|false)\\b"
+    },
+    "number": {
+      "name": "constant.numeric.into",
+      "match": "\\b\\d+(\\.\\d+)?\\b"
+    }
+  }
+}

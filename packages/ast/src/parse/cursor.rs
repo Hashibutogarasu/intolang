@@ -3,6 +3,7 @@ use parser::{KeywordLexeme, PunctLexeme};
 use types::{Keyword, Punct, Token, TokenKind};
 
 use super::error::SyntaxError;
+use super::located::Located;
 
 /// A read position over a token stream, with the lookahead helpers the node
 /// builders share.
@@ -58,6 +59,14 @@ impl<'a> Cursor<'a> {
             .checked_sub(1)
             .and_then(|index| self.tokens.get(index))
             .map_or(1, |token| token.span.end_line)
+    }
+
+    /// The span of the token just consumed.
+    pub fn previous_span(&self) -> Located {
+        self.index
+            .checked_sub(1)
+            .and_then(|index| self.tokens.get(index))
+            .map_or_else(Located::default, |token| Located(token.span))
     }
 
     pub fn error(&self, message: impl Into<String>) -> Error {

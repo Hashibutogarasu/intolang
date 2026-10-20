@@ -1,21 +1,25 @@
+/// Fails the test when the condition is false.
 pub fun assert(condition: Boolean) {
     if condition == false {
         throw "assertion failed";
     }
 }
 
+/// Fails the test when the condition is false.
 pub fun assertTrue(condition: Boolean) {
     if condition == false {
         throw "expected true";
     }
 }
 
+/// Fails the test when the two numbers differ.
 pub fun assertEquals(expected: Int32, actual: Int32) {
     if expected != actual {
         throw "values are not equal";
     }
 }
 
+/// Fails the test when the two texts differ.
 pub fun assertEquals(expected: String, actual: String) {
     if expected != actual {
         throw "texts are not equal";

@@ -20,7 +20,10 @@ pub use exports::{module_exports, public_items, resolve};
 pub use library::{NativeFunction, lower_library};
 pub use links::resolve_links;
 pub use lock::LockFile;
-pub use module::{LoadedModule, Module, collect_modules};
+pub use module::{
+    FileSystem, LoadedModule, Module, SourceProvider, collect_modules, collect_modules_from,
+    import_path, unresolved_imports,
+};
 pub use package::{
     BUILTIN_ALIAS, BUILTIN_SCHEME, PackageAlias, PackageHash, PackageInfo, find_by_alias,
     is_builtin, is_installed, link_directory, remove_installed,

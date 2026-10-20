@@ -5,13 +5,14 @@ use super::attribute::Attribute;
 use super::event_decl::EventDecl;
 use super::function::FunctionDecl;
 use super::type_params::parse_type_params;
-use crate::{Cursor, Expr, SyntaxError, TypeRef};
+use crate::{Cursor, Expr, Located, SyntaxError, TypeRef};
 
 /// `pub into: Type name = default;` inside a class body.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FieldDecl {
     pub line: usize,
     pub name: String,
+    pub name_span: Located,
     pub ty: TypeRef,
     pub default: Option<Expr>,
     pub is_static: bool,
@@ -22,6 +23,7 @@ pub struct FieldDecl {
 pub struct ClassDecl {
     pub line: usize,
     pub name: String,
+    pub name_span: Located,
     pub is_public: bool,
     pub is_abstract: bool,
     /// The type parameters written after the name, `T` in `Box<T>()`.
@@ -103,6 +105,7 @@ impl TryFrom<&mut Cursor<'_>> for ClassDecl {
         let is_public = cursor.eat_keyword(Keyword::Pub);
         let is_abstract = cursor.eat_keyword(Keyword::Abstract);
         let (name, _) = cursor.expect_ident("a class name")?;
+        let name_span = cursor.previous_span();
         let type_params = parse_type_params(cursor)?;
         cursor.expect_punct(Punct::LeftParen, "`(`")?;
         cursor.expect_punct(Punct::RightParen, "`)`")?;
@@ -141,6 +144,7 @@ impl TryFrom<&mut Cursor<'_>> for ClassDecl {
         Ok(Self {
             line,
             name,
+            name_span,
             is_public,
             is_abstract,
             type_params,
@@ -170,6 +174,7 @@ fn inferred_field(
     let (name, _) = cursor
         .expect_ident("a field name")
         .map_err(|_| malformed())?;
+    let name_span = cursor.previous_span();
     if !cursor.eat_punct(Punct::Assign) {
         return Err(SyntaxError::new(
             line,
@@ -191,6 +196,7 @@ fn inferred_field(
     Ok(FieldDecl {
         line,
         name,
+        name_span,
         ty: TypeRef::from(written.as_str()),
         default: Some(default),
         is_static,
@@ -241,6 +247,7 @@ fn field(cursor: &mut Cursor<'_>, class: &str) -> Result<FieldDecl> {
     let (name, _) = cursor
         .expect_ident("a field name")
         .map_err(|_| malformed())?;
+    let name_span = cursor.previous_span();
     let default = if cursor.eat_punct(Punct::Assign) {
         Some(Expr::try_from(&mut *cursor).map_err(|_| malformed())?)
     } else {
@@ -250,6 +257,7 @@ fn field(cursor: &mut Cursor<'_>, class: &str) -> Result<FieldDecl> {
     Ok(FieldDecl {
         line,
         name,
+        name_span,
         ty,
         default,
         is_static,

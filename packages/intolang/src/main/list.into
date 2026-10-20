@@ -1,4 +1,6 @@
+/// A growing sequence of values, held in native memory.
 pub List<T>() {
+    /// Makes an empty list.
     #[link("c", "src/ffi/list.c", "into_list_new")]
     pub static fun new(): Pointer;
 
@@ -38,9 +40,11 @@ pub List<T>() {
     #[link("c", "src/ffi/list.c", "into_list_set_pointer")]
     pub fun setPointer(index: Int32, value: Pointer): Void;
 
+    /// The number of values in the list.
     #[link("c", "src/ffi/list.c", "into_list_length")]
     pub fun length(): Int32;
 
+    /// Releases the memory of the list.
     #[link("c", "src/ffi/list.c", "into_list_free")]
     pub fun free(): Void;
 }

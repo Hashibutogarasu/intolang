@@ -1,3 +1,4 @@
+/// Writes the text to the console without a line break.
 pub fun print(str: String, params: Object...) {
     Console.write(str);
 }

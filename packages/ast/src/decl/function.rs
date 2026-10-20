@@ -6,7 +6,7 @@ use super::attribute::Attribute;
 use super::param::Param;
 use super::type_params::parse_type_params;
 use crate::stmt::{Scope, parse_block};
-use crate::{Cursor, Stmt, TypeRef};
+use crate::{Cursor, Located, Stmt, TypeRef};
 
 /// `[pub] [static] [abstract|default|override] [c|cpp] fun name<T>(params):
 /// Type { body }`, or the same header ending in `;` for a declaration
@@ -15,6 +15,7 @@ use crate::{Cursor, Stmt, TypeRef};
 pub struct FunctionDecl {
     pub line: usize,
     pub name: String,
+    pub name_span: Located,
     pub is_public: bool,
     pub is_static: bool,
     pub is_abstract: bool,
@@ -93,6 +94,7 @@ impl TryFrom<&mut Cursor<'_>> for FunctionDecl {
             return Err(cursor.error("Expected `fun`"));
         }
         let (name, _) = cursor.expect_ident("a function name")?;
+        let name_span = cursor.previous_span();
         let type_params = parse_type_params(cursor)?;
         cursor.expect_punct(Punct::LeftParen, "`(` after the function name")?;
         let mut params = Vec::new();
@@ -120,6 +122,7 @@ impl TryFrom<&mut Cursor<'_>> for FunctionDecl {
         Ok(Self {
             line,
             name,
+            name_span,
             is_public,
             is_static,
             is_abstract,

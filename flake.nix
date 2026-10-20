@@ -53,6 +53,8 @@
               pkgs.libxml2
               pkgs.zlib
               pkgs.pkg-config
+              pkgs.nodejs
+              pkgs.pnpm
             ];
 
             LLVM_SYS_231_PREFIX = "${llvm.dev}";
@@ -86,6 +88,8 @@
               pkgs.libxml2
               pkgs.zlib
               pkgs.pkg-config
+              pkgs.nodejs
+              pkgs.pnpm
               pkgs.wayland
               pkgs.wayland-protocols
               pkgs.wayland-scanner

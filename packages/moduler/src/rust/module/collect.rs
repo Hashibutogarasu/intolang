@@ -5,6 +5,7 @@ use std::path::Path;
 
 use super::loaded::LoadedModule;
 use super::module::Module;
+use super::source::{FileSystem, SourceProvider};
 use crate::package::{BUILTIN_ALIAS, PackageInfo, find_by_alias};
 use crate::spec::ImportSpec;
 
@@ -13,6 +14,7 @@ use crate::spec::ImportSpec;
 fn collect(
     program: &Program,
     packages_dir: &Path,
+    sources: &dyn SourceProvider,
     seen: &mut HashSet<String>,
     out: &mut Vec<LoadedModule>,
 ) -> Result<()> {
@@ -27,11 +29,11 @@ fn collect(
             continue;
         };
         let module_path = root.join("src/main").join(format!("{}.into", spec.module));
-        let contents = std::fs::read_to_string(&module_path).unwrap_or_default();
+        let contents = sources.read(&module_path).unwrap_or_default();
         let module_program = contents
             .parse::<Program>()
             .map_err(|error| error.bound_to(&module_path.display().to_string()))?;
-        collect(&module_program, packages_dir, seen, out)?;
+        collect(&module_program, packages_dir, sources, seen, out)?;
         let manifest_contents = std::fs::read_to_string(root.join("into-package.json"))?;
         let manifest: serde_json::Value = serde_json::from_str(&manifest_contents)?;
         let package = PackageInfo::new(&spec.alias, root, &manifest);
@@ -59,6 +61,15 @@ const IMPLICIT_MODULE_FILE: &str = "src/main/object.into";
 
 /// Follow the imports reachable from `program`, returning every module.
 pub fn collect_modules(program: &Program, packages_dir: &Path) -> Result<Vec<LoadedModule>> {
+    collect_modules_from(program, packages_dir, &FileSystem)
+}
+
+/// Like `collect_modules`, reading the text of each module from `sources`.
+pub fn collect_modules_from(
+    program: &Program,
+    packages_dir: &Path,
+    sources: &dyn SourceProvider,
+) -> Result<Vec<LoadedModule>> {
     let mut modules = Vec::new();
     let mut seen = HashSet::new();
     let provided = find_by_alias(packages_dir, BUILTIN_ALIAS)?
@@ -69,8 +80,8 @@ pub fn collect_modules(program: &Program, packages_dir: &Path) -> Result<Vec<Loa
             .map(|module| format!("import \"intolang://builtin/{module}\";\n"))
             .collect();
         let implicit = imports.parse::<Program>()?;
-        collect(&implicit, packages_dir, &mut seen, &mut modules)?;
+        collect(&implicit, packages_dir, sources, &mut seen, &mut modules)?;
     }
-    collect(program, packages_dir, &mut seen, &mut modules)?;
+    collect(program, packages_dir, sources, &mut seen, &mut modules)?;
     Ok(modules)
 }

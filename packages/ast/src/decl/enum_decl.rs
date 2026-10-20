@@ -1,11 +1,12 @@
 use errors::Result;
 use types::{Keyword, Punct, TokenKind};
 
-use crate::{Cursor, SyntaxError};
+use crate::{Cursor, Located, SyntaxError};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnumVariant {
     pub name: String,
+    pub name_span: Located,
     pub value: Option<i64>,
 }
 
@@ -14,6 +15,7 @@ pub struct EnumVariant {
 pub struct EnumDecl {
     pub line: usize,
     pub name: String,
+    pub name_span: Located,
     pub variants: Vec<EnumVariant>,
 }
 
@@ -30,6 +32,7 @@ impl TryFrom<&mut Cursor<'_>> for EnumDecl {
         let line = cursor.line();
         cursor.eat_keyword(Keyword::Enum);
         let (name, _) = cursor.expect_ident("an enum name")?;
+        let name_span = cursor.previous_span();
         if !cursor.is_punct(Punct::LeftBrace) {
             return Err(cursor.error_expecting("`{`", "Expected `{` in enum declaration"));
         }
@@ -43,6 +46,7 @@ impl TryFrom<&mut Cursor<'_>> for EnumDecl {
                 return Err(cursor.error_expecting("`}`", "Expected `}` in enum declaration"));
             }
             let (variant, variant_line) = cursor.expect_ident("an enum variant name")?;
+            let variant_span = cursor.previous_span();
             let value = if cursor.eat_punct(Punct::Assign) {
                 Some(discriminant(cursor, variant_line)?)
             } else {
@@ -50,6 +54,7 @@ impl TryFrom<&mut Cursor<'_>> for EnumDecl {
             };
             variants.push(EnumVariant {
                 name: variant,
+                name_span: variant_span,
                 value,
             });
             if !cursor.eat_punct(Punct::Comma) && !cursor.is_punct(Punct::RightBrace) {
@@ -61,6 +66,7 @@ impl TryFrom<&mut Cursor<'_>> for EnumDecl {
         Ok(Self {
             line,
             name,
+            name_span,
             variants,
         })
     }

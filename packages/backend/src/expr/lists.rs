@@ -180,6 +180,7 @@ impl<'a> Lowerer<'a> {
                 constant: false,
                 pointer: false,
                 name: name.to_owned(),
+                name_span: Default::default(),
                 annotation,
                 value: Some(value),
             }))

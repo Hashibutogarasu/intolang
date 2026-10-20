@@ -65,6 +65,7 @@ impl Lowerer<'_> {
             };
             declared.push(Param {
                 name: param.name.clone(),
+                name_span: Default::default(),
                 ty: Some(written),
                 optional: false,
                 variadic: false,

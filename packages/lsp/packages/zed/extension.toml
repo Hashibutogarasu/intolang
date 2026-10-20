@@ -1,0 +1,11 @@
+id = "into"
+name = "Into"
+description = "Language support for Into: diagnostics, hover documentation and go to definition"
+version = "0.1.0"
+schema_version = 1
+authors = ["Hashibutogarasu"]
+repository = "https://github.com/Hashibutogarasu/intolang"
+
+[language_servers.into-lsp]
+name = "Into Language Server"
+languages = ["Into"]

@@ -1,0 +1,74 @@
+{
+  "name": "intolang-vscode",
+  "displayName": "Into",
+  "description": "Language support for Into: diagnostics, hover documentation and go to definition",
+  "version": "0.1.0",
+  "publisher": "hashibutogarasu",
+  "license": "MIT",
+  "packageManager": "pnpm@12.9.0",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:into"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "into",
+        "aliases": [
+          "Into"
+        ],
+        "extensions": [
+          ".into"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "into",
+        "scopeName": "source.into",
+        "path": "./syntaxes/into.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "Into",
+      "properties": {
+        "into.lsp.path": {
+          "type": "string",
+          "default": "into-lsp",
+          "description": "The language server program."
+        },
+        "into.analyzer.path": {
+          "type": "string",
+          "default": "intolang-ipc",
+          "description": "The program that answers the language server, built from packages/analysis."
+        },
+        "into.packagesDir": {
+          "type": "string",
+          "default": "",
+          "description": "The directory that holds the builtin packages. Empty looks for INTOLANG_PACKAGES and for a packages/intolang directory above the project."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.0.0",
+    "typescript": "^5.5.0"
+  }
+}

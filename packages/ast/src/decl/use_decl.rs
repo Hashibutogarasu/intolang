@@ -1,13 +1,14 @@
 use errors::Result;
 use types::Keyword;
 
-use crate::Cursor;
+use crate::{Cursor, Located};
 
 /// The URI of an `import "scheme://module";` or `export "alias://path";`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UseDecl {
     pub line: usize,
     pub uri: String,
+    pub uri_span: Located,
 }
 
 impl UseDecl {
@@ -24,7 +25,12 @@ impl UseDecl {
             return Err(cursor.error("Expected a module URI string"));
         };
         cursor.bump();
+        let uri_span = cursor.previous_span();
         cursor.end_statement()?;
-        Ok(Self { line, uri })
+        Ok(Self {
+            line,
+            uri,
+            uri_span,
+        })
     }
 }

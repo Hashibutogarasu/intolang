@@ -1,7 +1,10 @@
+/// The parent of every class that names no parent.
 pub abstract Object() {
+    /// The text that stands for the instance.
     #[link("c", "src/ffi/object.c", "into_object_to_string")]
     pub default c fun toString(): String;
 
+    /// A number that is equal for instances that are equal.
     #[link("c", "src/ffi/object.c", "into_object_hash")]
     pub default c fun hash(): Int32;
 }

@@ -1,0 +1,22 @@
+[package]
+name = "analysis"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "analysis"
+path = "src/lib.rs"
+
+[[bin]]
+name = "intolang-ipc"
+path = "src/main.rs"
+
+[dependencies]
+ast = { version = "0.1.0", path = "../ast" }
+backend = { path = "../backend" }
+errors = { version = "0.1.0", path = "../errors" }
+formatter = { version = "0.1.0", path = "../formatter" }
+ipc = { version = "0.1.0", path = "../ipc" }
+moduler = { version = "0.1.0", path = "../moduler" }
+tokenizer = { version = "0.1.0", path = "../tokenizer" }
+types = { version = "0.1.0", path = "../types" }

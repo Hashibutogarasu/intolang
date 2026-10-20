@@ -1,7 +1,7 @@
 use errors::Result;
 use types::{Keyword, Punct, Storage};
 
-use crate::{Cursor, Expr, TypeRef};
+use crate::{Cursor, Expr, Located, TypeRef};
 
 /// `[const] [now|late] into [*]name[: Type] [= value];`.
 #[derive(Debug, Clone, PartialEq)]
@@ -10,6 +10,7 @@ pub struct Declaration {
     pub constant: bool,
     pub pointer: bool,
     pub name: String,
+    pub name_span: Located,
     pub annotation: Option<TypeRef>,
     pub value: Option<Expr>,
 }
@@ -52,6 +53,7 @@ impl TryFrom<&mut Cursor<'_>> for Declaration {
             cursor.bump();
         }
         let (name, _) = cursor.expect_ident("a variable name after `into`")?;
+        let name_span = cursor.previous_span();
         let annotation = if cursor.eat_punct(Punct::Colon) {
             Some(TypeRef::try_from(&mut *cursor)?)
         } else {
@@ -68,6 +70,7 @@ impl TryFrom<&mut Cursor<'_>> for Declaration {
             constant,
             pointer,
             name,
+            name_span,
             annotation,
             value,
         })

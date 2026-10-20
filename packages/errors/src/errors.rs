@@ -296,6 +296,8 @@ declare_errors! {
         BreakOutsideLoop = 0x10A8,
         #[error("Native call `{symbol}` expects a string or 32-bit integer argument")]
         NativeCallArgument { symbol: String } = 0x10A9,
+        #[error("The import `{uri}` names no package or module")]
+        ImportNotFound { uri: String } = 0x10AA,
         #[error("Variable `{name}` is out of scope here")]
         VariableOutOfScope { name: String } = 0x1040,
         #[error("Variable `{name}` was unloaded")]

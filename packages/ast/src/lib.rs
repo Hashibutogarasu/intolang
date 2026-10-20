@@ -10,7 +10,7 @@ pub use decl::{
     Param, UseDecl, overload_key,
 };
 pub use expr::{Expr, Path};
-pub use parse::{Cursor, SyntaxError};
+pub use parse::{Cursor, Located, SyntaxError};
 pub use program::{Item, Program};
 pub use stmt::{Declaration, Stmt, StmtKind};
 pub use ty::TypeRef;
