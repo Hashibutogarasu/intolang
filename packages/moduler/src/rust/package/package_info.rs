@@ -1,3 +1,4 @@
+use package::Manifest;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -19,19 +20,12 @@ pub struct PackageInfo {
 }
 
 impl PackageInfo {
-    pub fn new(alias: &str, root: PathBuf, manifest: &serde_json::Value) -> Self {
-        let text = |key: &str| {
-            manifest
-                .get(key)
-                .and_then(serde_json::Value::as_str)
-                .unwrap_or_default()
-                .to_owned()
-        };
+    pub fn new(alias: &str, root: PathBuf, manifest: &Manifest) -> Self {
         Self {
             alias: alias.to_owned(),
-            name: text("name"),
-            version: text("version"),
-            licence: text("LICENCE"),
+            name: manifest.name.clone(),
+            version: manifest.version.clone(),
+            licence: manifest.licence.clone(),
             hash: None,
             location: None,
             root,

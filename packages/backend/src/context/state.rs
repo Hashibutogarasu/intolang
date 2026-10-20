@@ -39,11 +39,7 @@ pub struct State {
     pub defined_functions: HashSet<String>,
     /// The types the run time functions being lowered return, innermost last.
     pub returning: Vec<Type>,
-    /// The errors of the statements lowering went on after, when it collects
-    /// them instead of stopping at the first.
     pub collected: Option<Vec<Error>>,
-    /// The names whose declaration failed, so that using them is not reported
-    /// again as an undefined name.
     pub poisoned: HashSet<String>,
 }
 

@@ -1,12 +1,13 @@
 use ast::Program;
 use errors::Result;
+use package::Package;
 use std::collections::HashSet;
 use std::path::Path;
 
 use super::loaded::LoadedModule;
 use super::module::Module;
 use super::source::{FileSystem, SourceProvider};
-use crate::package::{BUILTIN_ALIAS, PackageInfo, find_by_alias};
+use crate::package::{BUILTIN_ALIAS, PackageInfo};
 use crate::spec::ImportSpec;
 
 /// Follow `import` statements depth-first, returning every reachable module
@@ -25,21 +26,20 @@ fn collect(
         if !seen.insert(spec.to_string()) {
             continue;
         }
-        let Some(root) = find_by_alias(packages_dir, &spec.alias)? else {
+        let Some(package) = Package::find_by_alias(packages_dir, &spec.alias)? else {
             continue;
         };
-        let module_path = root.join("src/main").join(format!("{}.into", spec.module));
+        let module_path = package
+            .join("src/main")
+            .join(format!("{}.into", spec.module));
         let contents = sources.read(&module_path).unwrap_or_default();
         let module_program = contents
             .parse::<Program>()
             .map_err(|error| error.bound_to(&module_path.display().to_string()))?;
         collect(&module_program, packages_dir, sources, seen, out)?;
-        let manifest_contents = std::fs::read_to_string(root.join("into-package.json"))?;
-        let manifest: serde_json::Value = serde_json::from_str(&manifest_contents)?;
-        let package = PackageInfo::new(&spec.alias, root, &manifest);
         out.push(LoadedModule {
             module: Module {
-                package,
+                package: PackageInfo::new(&spec.alias, package.root, &package.manifest),
                 source_path: module_path,
                 alias: spec.alias,
                 name: spec.module,
@@ -81,8 +81,8 @@ pub fn collect_modules_from(
 ) -> Result<Vec<LoadedModule>> {
     let mut modules = Vec::new();
     let mut seen = HashSet::new();
-    let provided = find_by_alias(packages_dir, BUILTIN_ALIAS)?
-        .is_some_and(|root| root.join(IMPLICIT_MODULE_FILE).is_file());
+    let provided = Package::find_by_alias(packages_dir, BUILTIN_ALIAS)?
+        .is_some_and(|package| package.join(IMPLICIT_MODULE_FILE).is_file());
     if provided {
         let imports: String = IMPLICIT_MODULES
             .iter()

@@ -10,6 +10,7 @@ compiler = { version = "0.1.0", path = "../../apps/compiler", optional = true }
 errors = { version = "0.1.0", path = "../errors" }
 intovm = { version = "0.1.0", path = "../intovm" }
 moduler = { version = "0.1.0", path = "../moduler" }
+package = { version = "0.1.0", path = "../package" }
 parser = { version = "0.1.0", path = "../parser" }
 progress = { version = "0.1.0", path = "../progress" }
 types = { version = "0.1.0", path = "../types" }

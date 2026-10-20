@@ -32,6 +32,7 @@ It is a Cargo workspace (Rust edition 2024).
 | `packages/tokenizer/` | `tokenizer` | Source text to `Tokens` (with spans; comments only on request), built on `parser` |
 | `packages/ast/` | `ast` | AST nodes and their token-based construction (`Program`, items, statements, expressions); independent of lines and whitespace |
 | `packages/formatter/` | `formatter` | Token-based source formatter with `FormatOptions` |
+| `packages/package/` | `package` | Reads packages: `Manifest` (the `into-package.json` as a structure), `Package` (a manifest with its directory) and finding a package by alias, in a directory or around a file; the CLI, `moduler`, `native`, `testing` and `analysis` use it |
 | `packages/moduler/` | `moduler` | Import/export resolution, public items, link metadata and library lowering, on top of `ast` |
 | `packages/native/` | `native` | C/C++ native integration: `#[link]` model, native call arguments/operands, ownership records (`OwnershipChange`, `StateCheck`, `Property`), native source compilation to objects or to a shared library |
 | `packages/backend/` | `backend` | Lowering: walks `ast` nodes and emits the message (`Lowerer`, `stmt/`, `expr/`, `emit/`); `lower_test` lowers one test function |
@@ -431,13 +432,29 @@ editor ── LSP (stdio) ── into-lsp ── ipc (stdio) ── intolang-ipc
   `analysis/diagnostics` notification; requests are answered in order.
 - `analysis` owns what Into means: it keeps the open documents, prefers their
   text over the files for imported modules (`moduler::SourceProvider`), reports
-  a syntax error (its token range), imports that name nothing (`0x10AA`) and the
-  first error of `backend::lower_file` (the line of its Into backtrace frame),
-  and keeps the last analysis that parsed for definition, hover and symbols.
-  Names resolve by the token under the cursor: a binding visible at that line,
-  a top-level declaration, a public declaration of an imported module, or a
-  member found through the type of the receiver (`a.b.c` through the declared or
-  inferred type of `a`, then the parents, then `Object`).
+  every syntax error (`ast::Program::parse_recovering` skips to the next
+  statement after one, with its token range), imports that name nothing
+  (`0x10AA`) and every error of `backend::lower_file_all` (the line of its Into
+  backtrace frame; a use of a name whose declaration failed is not reported
+  again), and keeps the last analysis that parsed for definition, hover and
+  symbols. Names resolve by the token under the cursor: a binding visible at
+  that line, a top-level declaration, a public declaration of an imported
+  module, or a member found through the type of the receiver (`a.b.c` through
+  the declared or inferred type of `a`, then the parents, then `Object`). The
+  primitive types are classes of `primitives.into` in the builtin package, so
+  they resolve like any class.
+- The strings and the keywords of `import` and `export` resolve to the package
+  (`moduler::import_target`, `export_target`): hover shows its name, alias,
+  version, licence and location, and the definition is the module, or
+  `into-info.into` for a module that has no file. The name of a function with
+  `#[link]`, and the strings of the attribute, jump to the C or C++ source at
+  the definition of the symbol (`foreign::locate_symbol`); a call still jumps to
+  the Into declaration.
+- Packages are read by the `package` crate: `Manifest` is `into-package.json` as
+  a structure and `Package` is a manifest with its directory, found by alias
+  (`Package::find_by_alias`), as the packages of a directory (`children`) or as
+  the one that holds a file (`enclosing`). Nothing else reads the manifest of a
+  package by hand.
 - The packages the analyzer resolves imports against are linked into a temp
   directory like a build does: the builtin packages from `packagesDir`,
   `INTOLANG_PACKAGES` or a `packages/intolang` above the project, then the

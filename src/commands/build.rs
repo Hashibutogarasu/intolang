@@ -1,44 +1,13 @@
 use clap::{ArgMatches, Args, Command as ClapCommand};
 use errors::{Context, Errors, Result};
+use package::{MANIFEST_FILE, Manifest, Package};
 use progress::Progress;
-use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::commands::command::{Command, arguments};
 use crate::commands::inex;
 use crate::commands::target::{InexTarget, NativeTarget, Project, Target};
-
-#[derive(Deserialize)]
-struct Package {
-    name: String,
-    #[serde(default)]
-    alias: Option<String>,
-    #[serde(rename = "builtConfig", default)]
-    built_config: BuildConfig,
-    runs: Option<String>,
-    library: Option<String>,
-    #[serde(default)]
-    packages: HashMap<String, String>,
-}
-
-#[derive(Deserialize)]
-struct BuildConfig {
-    #[serde(default = "default_dist")]
-    dist: String,
-}
-
-fn default_dist() -> String {
-    "./dist".into()
-}
-
-impl Default for BuildConfig {
-    fn default() -> Self {
-        Self {
-            dist: default_dist(),
-        }
-    }
-}
 
 pub(super) fn run(
     package_path: PathBuf,
@@ -50,33 +19,27 @@ pub(super) fn run(
         return inex::run_file(&package_path);
     }
     let progress = Progress::start("Reading the package manifest", 2);
-    let manifest = if package_path.is_dir() {
-        package_path.join("into-package.json")
+    let manifest_path = if package_path.is_dir() {
+        package_path.join(MANIFEST_FILE)
     } else {
         package_path
     };
-    let manifest =
-        std::fs::canonicalize(&manifest).map_err(|error| Errors::PackageManifestNotFound {
-            path: manifest.display().to_string(),
+    let manifest_path =
+        std::fs::canonicalize(&manifest_path).map_err(|error| Errors::PackageManifestNotFound {
+            path: manifest_path.display().to_string(),
             reason: error.to_string(),
         })?;
-    let package_dir = manifest.parent().ok_or(Errors::ManifestNoParent)?;
-    let package: Package = serde_json::from_slice(
-        &std::fs::read(&manifest).map_err(|error| Errors::read(&manifest, error))?,
-    )
-    .map_err(|error| Errors::PackageManifestInvalid {
-        path: manifest.display().to_string(),
-        reason: error.to_string(),
-    })?;
-    if package.runs.is_some() == package.library.is_some() {
+    let package_dir = manifest_path.parent().ok_or(Errors::ManifestNoParent)?;
+    let manifest = Package::load(package_dir)?.manifest;
+    if manifest.runs.is_some() == manifest.library.is_some() {
         return Err(Errors::ManifestRunsOrLibrary.into());
     }
     let embedded_packages = compiler::builtin_packages_dir();
     if test_mode {
-        progress.finish(&format!("Found the package {}", package.name));
+        progress.finish(&format!("Found the package {}", manifest.name));
         return run_tests(package_dir, &embedded_packages);
     }
-    if vm_output && package.library.is_some() {
+    if vm_output && manifest.library.is_some() {
         return Err(Errors::VmLibraryUnsupported.into());
     }
     let target: Box<dyn Target> = if vm_output {
@@ -84,7 +47,7 @@ pub(super) fn run(
     } else {
         Box::new(NativeTarget)
     };
-    let steps = if package.library.is_some() {
+    let steps = if manifest.library.is_some() {
         3
     } else {
         2 + target.steps()
@@ -92,28 +55,29 @@ pub(super) fn run(
     progress.steps(steps);
     progress.step("Preparing the packages");
     let package_environment =
-        prepare_package_environment(package_dir, &embedded_packages, &package.packages)?;
+        prepare_package_environment(package_dir, &embedded_packages, &manifest.packages)?;
 
-    if let Some(library) = package.library.as_deref() {
+    if let Some(library) = manifest.library.as_deref() {
         return build_library(
             package_dir,
-            &package,
-            &library,
+            &manifest,
+            library,
             package_environment.path(),
             progress,
         );
     }
-    let entry = package_dir.join(package.runs.expect("runs/library validation above"));
+    let entry = package_dir.join(
+        manifest
+            .runs
+            .as_deref()
+            .expect("runs/library validation above"),
+    );
     let source = std::fs::read_to_string(&entry).map_err(|error| Errors::read(&entry, error))?;
     let output_dir = package_dir
-        .join(&package.built_config.dist)
+        .join(&manifest.built_config.dist)
         .join(std::env::consts::OS)
         .join(std::env::consts::ARCH);
-    let executable = package
-        .alias
-        .as_deref()
-        .unwrap_or(&package.name)
-        .replace(' ', "-");
+    let executable = manifest.executable_name();
     let output = target.output(&output_dir, &executable);
     if output.exists() {
         std::fs::remove_file(&output)?;
@@ -191,7 +155,7 @@ impl Command for Run {
 
 fn build_library(
     package_dir: &Path,
-    package: &Package,
+    manifest: &Manifest,
     library: &str,
     package_environment: &Path,
     progress: Progress,
@@ -207,14 +171,10 @@ fn build_library(
     let functions = backend::lower_library(&source, &required_entry, package_environment)
         .context("Could not compile Into library entry point")?;
     let output_dir = package_dir
-        .join(&package.built_config.dist)
+        .join(&manifest.built_config.dist)
         .join(std::env::consts::OS)
         .join(std::env::consts::ARCH);
-    let basename = package
-        .alias
-        .as_deref()
-        .unwrap_or(&package.name)
-        .replace(' ', "-");
+    let basename = manifest.executable_name();
     #[cfg(target_os = "linux")]
     let filename = format!("lib{basename}.so");
     #[cfg(target_os = "macos")]
@@ -265,21 +225,9 @@ fn prepare_package_environment(
 
     let installed = project.join(".into/packages");
     if installed.is_dir() {
-        for entry in std::fs::read_dir(&installed)? {
-            let entry = entry?;
-            if !entry.path().is_dir() {
-                continue;
-            }
-            let manifest_path = entry.path().join("into-package.json");
-            let Ok(contents) = std::fs::read(&manifest_path) else {
-                continue;
-            };
-            let Ok(manifest): std::result::Result<serde_json::Value, _> =
-                serde_json::from_slice(&contents)
-            else {
-                continue;
-            };
-            let Some(alias) = manifest.get("alias").and_then(serde_json::Value::as_str) else {
+        for found in Package::children(&installed)? {
+            let manifest = &found.manifest;
+            let Some(alias) = manifest.alias.as_deref() else {
                 continue;
             };
             let Some(declared) = dependencies
@@ -295,19 +243,15 @@ fn prepare_package_environment(
                 }
                 .into());
             }
-            let installed_version = manifest
-                .get("version")
-                .and_then(serde_json::Value::as_str)
-                .unwrap_or_default();
-            if installed_version != declared {
+            if manifest.version != declared {
                 return Err(Errors::InstalledVersionMismatch {
                     alias: alias.to_string(),
                     declared: declared.to_string(),
-                    installed: installed_version.to_string(),
+                    installed: manifest.version.clone(),
                 }
                 .into());
             }
-            let target = std::fs::canonicalize(entry.path())?;
+            let target = std::fs::canonicalize(&found.root)?;
             moduler::link_directory(&target, &root.join(alias))?;
         }
     }

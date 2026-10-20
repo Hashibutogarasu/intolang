@@ -18,5 +18,6 @@ errors = { version = "0.1.0", path = "../errors" }
 formatter = { version = "0.1.0", path = "../formatter" }
 ipc = { version = "0.1.0", path = "../ipc" }
 moduler = { version = "0.1.0", path = "../moduler" }
+package = { version = "0.1.0", path = "../package" }
 tokenizer = { version = "0.1.0", path = "../tokenizer" }
 types = { version = "0.1.0", path = "../types" }

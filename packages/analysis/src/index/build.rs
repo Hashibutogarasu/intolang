@@ -6,7 +6,7 @@ use ipc::SymbolKind;
 use types::{Literal, Span};
 
 use super::signature;
-use super::symbol::{Index, Symbol};
+use super::symbol::{Index, NativeRef, Symbol};
 use crate::docs::DocComments;
 
 impl Index {
@@ -76,6 +76,7 @@ impl Builder<'_> {
             public: false,
             local: false,
             owner: self.owner,
+            native: None,
         }
     }
 
@@ -134,7 +135,8 @@ impl Builder<'_> {
     }
 
     fn function(&mut self, decl: &FunctionDecl, container: Option<&str>) {
-        self.push(Symbol {
+        let native = native_reference(decl);
+        let mut symbol = Symbol {
             container: container.map(str::to_owned),
             signature: signature::function(decl),
             ty: decl.return_type.as_ref().map(ToString::to_string),
@@ -145,7 +147,19 @@ impl Builder<'_> {
                 decl.name_span.0,
                 decl.line,
             )
-        });
+        };
+        if let Some(native) = &native {
+            let origin = format!(
+                "Native: `{}` `{}` `{}`",
+                native.language, native.source_path, native.target
+            );
+            symbol.docs = Some(match symbol.docs.take() {
+                Some(docs) => format!("{docs}\n\n{origin}"),
+                None => origin,
+            });
+        }
+        symbol.native = native;
+        self.push(symbol);
         self.params(&decl.params, decl.line);
         if let Some(body) = &decl.body {
             self.block(body);
@@ -210,6 +224,21 @@ impl Builder<'_> {
             _ => {}
         }
     }
+}
+
+fn native_reference(decl: &FunctionDecl) -> Option<NativeRef> {
+    let attribute = decl
+        .attributes
+        .iter()
+        .find(|attribute| attribute.name == "link")?;
+    let [language, source_path, target] = attribute.string_args()?[..] else {
+        return None;
+    };
+    Some(NativeRef {
+        language: language.to_owned(),
+        source_path: source_path.to_owned(),
+        target: target.to_owned(),
+    })
 }
 
 fn declared_type(declaration: &Declaration) -> Option<String> {

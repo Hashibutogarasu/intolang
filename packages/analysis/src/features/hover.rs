@@ -23,6 +23,14 @@ pub fn hover(
                 .map(|markdown| Documentation { markdown }),
             range: line_index.range(token),
         }),
+        Resolved::Native { native, token, .. } => Some(Hover {
+            signature: format!(
+                "{} {} {}",
+                native.language, native.source_path, native.target
+            ),
+            documentation: None,
+            range: line_index.range(token),
+        }),
         Resolved::Module { target, token } => Some(Hover {
             signature: format!(
                 "package {} {} ({})",

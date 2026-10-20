@@ -1,6 +1,7 @@
 mod analyzer;
 mod docs;
 mod features;
+mod foreign;
 mod index;
 mod text;
 mod workspace;

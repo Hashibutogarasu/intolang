@@ -25,8 +25,8 @@ pub use module::{
     collect_modules_from, export_target, import_path, import_target, unresolved_imports,
 };
 pub use package::{
-    BUILTIN_ALIAS, BUILTIN_SCHEME, PackageAlias, PackageHash, PackageInfo, find_by_alias,
-    is_builtin, is_installed, link_directory, remove_installed,
+    BUILTIN_ALIAS, BUILTIN_SCHEME, PackageAlias, PackageHash, PackageInfo, is_builtin,
+    is_installed, link_directory, remove_installed,
 };
 pub use project::{Project, Restoration};
 pub use spec::{ExportSpec, ImportSpec};

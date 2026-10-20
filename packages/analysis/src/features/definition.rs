@@ -1,9 +1,10 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use ipc::{Location, Position, Range};
 
 use crate::analyzer::Analysis;
-use crate::index::{Resolved, resolve};
+use crate::foreign::locate_symbol;
+use crate::index::{NativeRef, Resolved, resolve};
 use crate::text::{LineIndex, path_to_uri};
 use crate::workspace::real;
 
@@ -15,6 +16,18 @@ pub fn definition(
     packages_dir: Option<&Path>,
 ) -> Vec<Location> {
     match resolve(analysis, offset, packages_dir) {
+        Some(Resolved::Symbol {
+            module: None,
+            symbol,
+            token,
+        }) if symbol.name_span == token && symbol.native.is_some() => {
+            let native = symbol.native.as_ref().expect("checked above");
+            analysis
+                .root
+                .iter()
+                .flat_map(|root| native_definition(root, native))
+                .collect()
+        }
         Some(Resolved::Symbol {
             module: None,
             symbol,
@@ -34,6 +47,9 @@ pub fn definition(
                 range: module.line_index.range(symbol.name_span),
             }]
         }
+        Some(Resolved::Native { native, root, .. }) => {
+            native_definition(&root, native).into_iter().collect()
+        }
         Some(Resolved::Module { target, .. }) => target
             .file
             .iter()
@@ -44,4 +60,13 @@ pub fn definition(
             .collect(),
         None => Vec::new(),
     }
+}
+
+fn native_definition(root: &PathBuf, native: &NativeRef) -> Option<Location> {
+    let file = root.join(&native.source_path);
+    let text = std::fs::read_to_string(&file).ok()?;
+    Some(Location {
+        uri: path_to_uri(&real(&file)),
+        range: locate_symbol(&text, &native.target).unwrap_or_default(),
+    })
 }

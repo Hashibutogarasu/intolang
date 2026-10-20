@@ -1,10 +1,10 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use ipc::SymbolKind;
 use moduler::ImportTarget;
 use types::{Span, Token, TokenKind};
 
-use super::symbol::{Index, Symbol};
+use super::symbol::{Index, NativeRef, Symbol};
 use crate::analyzer::Analysis;
 
 const ROOT_CLASS: &str = "Object";
@@ -19,6 +19,11 @@ pub enum Resolved<'a> {
     },
     Module {
         target: ImportTarget,
+        token: Span,
+    },
+    Native {
+        native: &'a NativeRef,
+        root: PathBuf,
         token: Span,
     },
 }
@@ -42,7 +47,12 @@ pub fn resolve<'a>(
         })?;
     let token = &tokens[position];
     match &token.kind {
-        TokenKind::String(_) => module(analysis, token, token, packages_dir?),
+        TokenKind::String(_) => {
+            if let Some(native) = link_attribute(analysis, position) {
+                return Some(native);
+            }
+            module(analysis, token, token, packages_dir?)
+        }
         TokenKind::Identifier(word) if matches!(word.as_str(), "import" | "export") => {
             let uri = tokens
                 .get(position + 1)
@@ -71,6 +81,47 @@ pub fn resolve<'a>(
         }
         _ => None,
     }
+}
+
+/// The foreign function of the `#[link("language", "source", "symbol")]`
+/// attribute that holds the string token at `position`.
+fn link_attribute<'a>(analysis: &'a Analysis, position: usize) -> Option<Resolved<'a>> {
+    let tokens = &analysis.tokens;
+    let open = (0..position).rev().find(|&index| {
+        !matches!(
+            tokens[index].kind,
+            TokenKind::String(_) | TokenKind::Symbol(',')
+        )
+    })?;
+    if tokens[open].kind != TokenKind::Symbol('(')
+        || !matches!(&tokens[open.checked_sub(1)?].kind, TokenKind::Identifier(word) if word == "link")
+    {
+        return None;
+    }
+    let arguments = tokens[open + 1..]
+        .iter()
+        .map_while(|token| match &token.kind {
+            TokenKind::String(value) => Some(Some(value.as_str())),
+            TokenKind::Symbol(',') => Some(None),
+            _ => None,
+        })
+        .flatten()
+        .collect::<Vec<_>>();
+    let [language, source_path, target] = arguments[..] else {
+        return None;
+    };
+    let native = analysis.index.symbols.iter().find_map(|symbol| {
+        symbol.native.as_ref().filter(|native| {
+            native.language == language
+                && native.source_path == source_path
+                && native.target == target
+        })
+    })?;
+    Some(Resolved::Native {
+        native,
+        root: analysis.root.clone()?,
+        token: tokens[position].span,
+    })
 }
 
 /// The package and file named by the `import` or `export` whose address is the

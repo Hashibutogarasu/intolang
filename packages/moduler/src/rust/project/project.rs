@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use crate::lock::LockFile;
 use crate::package::{PackageAlias, PackageInfo};
 
-const MANIFEST: &str = "into-package.json";
+use package::MANIFEST_FILE as MANIFEST;
 const PACKAGES: &str = ".into/packages";
 const PENDING_SUFFIX: &str = ".install-tmp";
 

@@ -12,6 +12,7 @@ dependencies = [
  "formatter",
  "ipc",
  "moduler",
+ "package",
  "tokenizer",
  "types",
 ]
@@ -434,6 +435,7 @@ dependencies = [
  "intovm",
  "moduler",
  "native",
+ "package",
  "progress",
  "serde",
  "serde_json",
@@ -571,6 +573,7 @@ dependencies = [
  "ast",
  "errors",
  "native",
+ "package",
  "serde",
  "serde_json",
  "sha2",
@@ -583,6 +586,7 @@ version = "0.1.0"
 dependencies = [
  "ast",
  "errors",
+ "package",
  "parser",
  "serde_json",
  "types",
@@ -608,6 +612,15 @@ name = "once_cell_polyfill"
 version = "1.70.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
+
+[[package]]
+name = "package"
+version = "0.1.0"
+dependencies = [
+ "errors",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "parser"
@@ -789,6 +802,7 @@ dependencies = [
  "errors",
  "intovm",
  "moduler",
+ "package",
  "parser",
  "progress",
  "types",

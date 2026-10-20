@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use ast::Program;
 use errors::Result;
 use moduler::SourceProvider;
+use package::Package;
 use tokenizer::Tokens;
 
 use crate::docs::DocComments;
@@ -22,12 +23,14 @@ pub struct Analysis {
     pub program: Program,
     pub tokens: Tokens,
     pub index: Index,
+    pub root: Option<PathBuf>,
     pub modules: Vec<ModuleAnalysis>,
 }
 
 impl Analysis {
     pub fn build(
         text: &str,
+        path: Option<&Path>,
         packages_dir: Option<&Path>,
         sources: &dyn SourceProvider,
     ) -> Result<Self> {
@@ -48,6 +51,9 @@ impl Analysis {
             program,
             tokens,
             index,
+            root: path
+                .and_then(|path| Package::enclosing(&real(path)))
+                .map(|package| package.root),
             modules,
         })
     }
