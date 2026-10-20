@@ -1,9 +1,7 @@
 use errors::{Error, Errors, IntoLangStackTrace, Layer, NativeStackTrace, PanicStackTrace};
 
 fn ownership() -> Errors {
-    Errors::Ownership {
-        message: "`a` was moved".into(),
-    }
+    Errors::Moved { name: "a".into() }
 }
 
 #[test]
@@ -53,14 +51,14 @@ fn layers_are_printed_from_the_into_language_to_the_raw_panic() {
         assert!(into < rust && rust < native, "{text}");
     }
     assert!(text.contains("undefined reference"));
-    assert!(text.ends_with("error code: 0x2001"), "{text}");
+    assert!(text.ends_with("error code: 0x2002"), "{text}");
 }
 
 #[test]
 fn an_error_of_the_compiler_never_has_an_into_language_layer() {
     let error = Error::into_lang(
-        Errors::Native {
-            message: "Native source compilation failed".into(),
+        Errors::NativeSourceMissing {
+            path: "src/ffi/missing.c".into(),
         },
         IntoLangStackTrace::at("init", "main.into", 7),
     )
@@ -72,9 +70,8 @@ fn an_error_of_the_compiler_never_has_an_into_language_layer() {
 }
 
 #[test]
-fn an_error_can_be_recovered_from_anyhow() {
-    let wrapped: Result<(), _> = Err::<(), _>(Error::new(ownership()));
-    let anyhow_like: Box<dyn std::error::Error + Send + Sync> = Box::new(wrapped.unwrap_err());
-    let recovered = anyhow_like.downcast_ref::<Error>().unwrap();
-    assert_eq!(recovered.code(), Some(0x2001));
+fn an_error_can_be_recovered_from_a_boxed_error() {
+    let boxed: Box<dyn std::error::Error + Send + Sync> = Box::new(Error::new(ownership()));
+    let recovered = boxed.downcast_ref::<Error>().unwrap();
+    assert_eq!(recovered.code(), Some(0x2002));
 }

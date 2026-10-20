@@ -20,8 +20,8 @@ impl TryFrom<&Record> for NativeThrow {
 
 impl Codegen for NativeThrow {
     fn generate(&self, _ctx: &mut CodegenContext) -> Result<CodegenResult> {
-        return Err(errors::Error::from(Errors::ThrowNeedsVm {
+        Err(errors::Error::from(Errors::ThrowNeedsVm {
             message: self.message.to_string(),
-        }));
+        }))
     }
 }

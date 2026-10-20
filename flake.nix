@@ -47,6 +47,8 @@
               pkgs.llvmPackages_23.lld
               pkgs.cargo
               pkgs.rustc
+              pkgs.clippy
+              pkgs.rustfmt
               pkgs.git
               pkgs.libxml2
               pkgs.zlib
@@ -76,6 +78,8 @@
               pkgs.llvmPackages_23.lld
               pkgs.cargo
               pkgs.rustc
+              pkgs.clippy
+              pkgs.rustfmt
               pkgs.git
               pkgs.yt-dlp
               pkgs.ffmpeg

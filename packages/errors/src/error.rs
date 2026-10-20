@@ -12,7 +12,10 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// An error of the toolchain: what happened, the layers of its stack trace and the
 /// context it was found in.
 #[derive(Debug)]
-pub struct Error {
+pub struct Error(Box<Details>);
+
+#[derive(Debug)]
+struct Details {
     kind: Errors,
     trace: StackTraces,
     context: Option<ErrorContext>,
@@ -21,7 +24,7 @@ pub struct Error {
 
 impl Error {
     pub fn new(kind: Errors) -> Self {
-        Self {
+        Self(Box::new(Details {
             kind,
             trace: StackTraces {
                 rust: Some(RustStackTrace::capture()),
@@ -29,7 +32,7 @@ impl Error {
             },
             context: None,
             notes: Vec::new(),
-        }
+        }))
     }
 
     /// An error of the Into program with the frames it has there.
@@ -54,8 +57,8 @@ impl Error {
     /// Into language, so they drop it.
     /// An Into language layer that is there already is kept: it names the innermost place.
     pub fn with_into(mut self, trace: IntoLangStackTrace) -> Self {
-        if self.kind.domain() == Domain::IntoLang {
-            self.trace.into.get_or_insert(trace);
+        if self.0.kind.domain() == Domain::IntoLang {
+            self.0.trace.into.get_or_insert(trace);
         }
         self
     }
@@ -64,15 +67,16 @@ impl Error {
     /// in: the path joins its context and the Into language layer gets its frame. Other errors,
     /// and errors that are bound already, are left as they are.
     pub fn bound_to(mut self, path: &str) -> Self {
-        if self.kind.domain() != Domain::IntoLang || self.trace.into.is_some() {
+        if self.0.kind.domain() != Domain::IntoLang || self.0.trace.into.is_some() {
             return self;
         }
         let scope = self
+            .0
             .context
             .as_ref()
             .and_then(|context| context.syntax.as_ref())
             .map_or_else(|| "module".to_string(), |syntax| syntax.scope.clone());
-        let line = match (&self.kind, &self.context) {
+        let line = match (&self.0.kind, &self.0.context) {
             (Errors::UnterminatedString { line } | Errors::UnterminatedChar { line }, _) => *line,
             (_, Some(context)) => match context.span {
                 Some(span) => span.line,
@@ -81,68 +85,70 @@ impl Error {
             _ => return self,
         };
         let mut context = self
+            .0
             .context
             .take()
-            .unwrap_or_else(|| ErrorContext::of(&self.kind));
+            .unwrap_or_else(|| ErrorContext::of(&self.0.kind));
         context.path = Some(path.to_string());
         context.span.get_or_insert(SourceSpan::on_line(line));
-        self.trace.into = Some(IntoLangStackTrace::at(scope, path, line));
-        self.context = Some(context);
+        self.0.trace.into = Some(IntoLangStackTrace::at(scope, path, line));
+        self.0.context = Some(context);
         self
     }
 
     pub fn with_native(mut self, trace: NativeStackTrace) -> Self {
-        self.trace.native = Some(trace);
+        self.0.trace.native = Some(trace);
         self
     }
 
     pub fn with_panic(mut self, trace: PanicStackTrace) -> Self {
-        self.trace.panic = Some(trace);
+        self.0.trace.panic = Some(trace);
         self
     }
 
     pub fn with_context(mut self, context: ErrorContext) -> Self {
-        self.context = Some(context);
+        self.0.context = Some(context);
         self
     }
 
     /// Say what was being done when the error happened. The notes are printed from the
     /// last one added to the first, before the message of the error.
     pub fn with_note(mut self, note: impl Into<String>) -> Self {
-        self.notes.push(note.into());
+        self.0.notes.push(note.into());
         self
     }
 
     /// The notes in the order they were added, the innermost first.
     pub fn notes(&self) -> &[String] {
-        &self.notes
+        &self.0.notes
     }
 
     pub fn kind(&self) -> &Errors {
-        &self.kind
+        &self.0.kind
     }
 
     pub fn domain(&self) -> Domain {
-        self.kind.domain()
+        self.0.kind.domain()
     }
 
     pub fn code(&self) -> Option<u16> {
-        self.kind.code()
+        self.0.kind.code()
     }
 
     pub fn trace(&self) -> &StackTraces {
-        &self.trace
+        &self.0.trace
     }
 
     pub fn context(&self) -> Option<&ErrorContext> {
-        self.context.as_ref()
+        self.0.context.as_ref()
     }
 
     /// The context given to the error, or the one its kind implies.
     pub fn resolved_context(&self) -> ErrorContext {
-        self.context
+        self.0
+            .context
             .clone()
-            .unwrap_or_else(|| ErrorContext::of(&self.kind))
+            .unwrap_or_else(|| ErrorContext::of(&self.0.kind))
     }
 
     pub fn report(&self, format: ReportFormat) -> String {

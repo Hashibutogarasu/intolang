@@ -1,9 +1,11 @@
-use anyhow::Result;
-use clap::{ArgMatches, Args, Command as ClapCommand, FromArgMatches};
+use clap::{ArgMatches, Args, Command as ClapCommand};
+use errors::{ReportFormat, Result};
 use std::path::PathBuf;
+use std::process::ExitCode;
 
 use crate::commands::build::{self, Build, Run};
-use crate::commands::command::{Command, assemble};
+use crate::commands::command::{Command, arguments, assemble};
+use crate::commands::error_format::ErrorFormat;
 use crate::commands::format::{self, Format};
 use crate::commands::install::Install;
 use crate::commands::new::New;
@@ -21,6 +23,14 @@ struct RootArgs {
     vm: bool,
     #[arg(long = "format")]
     format: bool,
+    /// How failures are written: for people on stderr, or as JSON on stdout
+    #[arg(
+        long = "error-format",
+        global = true,
+        value_enum,
+        default_value = "human"
+    )]
+    error_format: ErrorFormat,
     /// Maximum directory depth to search in format mode (0 means this directory only)
     #[arg(long = "depth", requires = "format")]
     depth: Option<usize>,
@@ -61,7 +71,7 @@ impl Command for Root {
                 }
             }
         }
-        let args = RootArgs::from_arg_matches(matches)?;
+        let args = arguments::<RootArgs>(matches)?;
         if args.format {
             return format::run(args.package, args.depth);
         }
@@ -69,15 +79,28 @@ impl Command for Root {
     }
 }
 
-pub(crate) fn run() -> Result<()> {
+pub(crate) fn run() -> ExitCode {
     let argv = normalize();
     let root = Root;
     let mut command = assemble(&root);
     if argv.len() <= 1 {
-        return command.print_help().map_err(Into::into);
+        return match command.print_help() {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(_) => ExitCode::FAILURE,
+        };
     }
     let matches = command.get_matches_from(argv);
-    root.execute(&matches)
+    let format = matches
+        .get_one::<ErrorFormat>("error_format")
+        .copied()
+        .unwrap_or_default();
+    match root.execute(&matches) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            ReportFormat::from(format).reporter().emit(&error);
+            ExitCode::FAILURE
+        }
+    }
 }
 
 fn normalize() -> Vec<std::ffi::OsString> {

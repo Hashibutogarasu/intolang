@@ -45,9 +45,7 @@ fn a_code_is_the_discriminant_of_its_variant() {
     assert_eq!(syntax.domain(), Domain::IntoLang);
     assert_eq!(syntax.to_string(), "Expected a type name");
 
-    let package = Errors::Package {
-        message: "Package `a` is not installed".into(),
-    };
-    assert_eq!(package.code(), Some(0x8001));
+    let package = Errors::PackageNotInstalled { alias: "a".into() };
+    assert_eq!(package.code(), Some(0x800C));
     assert_eq!(package.domain(), Domain::Compiler);
 }

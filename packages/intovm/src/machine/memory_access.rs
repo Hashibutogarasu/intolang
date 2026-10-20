@@ -12,11 +12,9 @@ pub(super) fn address_of(value: &Value) -> Result<usize> {
     match value {
         Value::Int(address) => Ok(*address as usize),
         Value::Native { ptr, .. } => Ok(*ptr),
-        other => {
-            return Err(errors::Error::from(Errors::NotAPointer {
-                value: format!("{:?}", other),
-            }));
-        }
+        other => Err(errors::Error::from(Errors::NotAPointer {
+            value: format!("{:?}", other),
+        })),
     }
 }
 

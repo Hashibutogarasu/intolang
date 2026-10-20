@@ -1,8 +1,8 @@
-use anyhow::Result;
-use clap::{ArgMatches, Args as ClapArgs, Command as ClapCommand, FromArgMatches};
+use clap::{ArgMatches, Args as ClapArgs, Command as ClapCommand};
+use errors::Result;
 use moduler::Project;
 
-use crate::commands::command::Command;
+use crate::commands::command::{Command, arguments};
 
 #[derive(ClapArgs)]
 struct UninstallArgs {
@@ -27,7 +27,7 @@ impl Command for Uninstall {
     }
 
     fn execute(&self, matches: &ArgMatches) -> Result<()> {
-        let args = UninstallArgs::from_arg_matches(matches)?;
+        let args = arguments::<UninstallArgs>(matches)?;
         let project = Project::new(std::env::current_dir()?);
         for alias in &args.packages {
             let package = project.uninstall(alias)?;

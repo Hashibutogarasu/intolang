@@ -1,4 +1,4 @@
-use errors::{Domain, Errors, Layer, StackTrace};
+use errors::{Domain, Errors, Layer};
 use native::{SharedSource, compile_shared_library};
 use std::path::PathBuf;
 use std::sync::Mutex;

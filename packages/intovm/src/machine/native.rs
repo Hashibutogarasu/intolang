@@ -58,7 +58,7 @@ impl Vm {
                 })?;
                 Ok(unsafe { read_field(*ptr, field) })
             }
-            _ => return Err(errors::Error::from(Errors::ValueNoInstance)),
+            _ => Err(errors::Error::from(Errors::ValueNoInstance)),
         }
     }
 
@@ -101,7 +101,7 @@ impl Vm {
                 unsafe { write_field(*ptr, field, &value, &mut self.retained_strings, &raw_of) };
                 Ok(())
             }
-            _ => return Err(errors::Error::from(Errors::ValueNoInstance)),
+            _ => Err(errors::Error::from(Errors::ValueNoInstance)),
         }
     }
 
@@ -110,7 +110,7 @@ impl Vm {
         match value {
             Value::Ref(reference) => Ok(self.instance(*reference)?.class.clone()),
             Value::Native { class, .. } => Ok(class.clone()),
-            _ => return Err(errors::Error::from(Errors::ValueNoInstance)),
+            _ => Err(errors::Error::from(Errors::ValueNoInstance)),
         }
     }
 
@@ -124,7 +124,7 @@ impl Vm {
             Value::Int(number) => Ok(*number as usize),
             Value::Native { ptr, .. } => Ok(*ptr),
             Value::Unit => Ok(0),
-            Value::Float(_) => return Err(errors::Error::from(Errors::FloatArgument)),
+            Value::Float(_) => Err(errors::Error::from(Errors::FloatArgument)),
             Value::Str(bytes) => {
                 let text = CString::new(
                     bytes

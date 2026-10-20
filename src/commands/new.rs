@@ -1,8 +1,8 @@
-use anyhow::{Context, Result};
-use clap::{ArgMatches, Args as ClapArgs, Command as ClapCommand, FromArgMatches};
+use clap::{ArgMatches, Args as ClapArgs, Command as ClapCommand};
+use errors::{Context, Errors, Result};
 use std::path::{Path, PathBuf};
 
-use crate::commands::command::Command;
+use crate::commands::command::{Command, arguments};
 
 #[derive(ClapArgs)]
 struct NewArgs {
@@ -29,7 +29,7 @@ impl Command for New {
     }
 
     fn execute(&self, matches: &ArgMatches) -> Result<()> {
-        let args = NewArgs::from_arg_matches(matches)?;
+        let args = arguments::<NewArgs>(matches)?;
         create(args)
     }
 }
@@ -39,20 +39,20 @@ fn create(args: NewArgs) -> Result<()> {
         .path
         .file_name()
         .and_then(|name| name.to_str())
-        .context("Project path must end with a valid project name")?;
+        .ok_or(Errors::ProjectNameInvalid)?;
     if args.path == Path::new(".") || args.path == Path::new("..") {
-        anyhow::bail!("Project path must name a new directory");
+        return Err(Errors::ProjectPathNotNew.into());
     }
     if args.path.exists() {
-        anyhow::bail!(
-            "Project destination already exists: {}",
-            args.path.display()
-        );
+        return Err(Errors::ProjectExists {
+            path: args.path.display().to_string(),
+        }
+        .into());
     }
 
     if let Some(parent) = args.path.parent() {
         std::fs::create_dir_all(parent)
-            .with_context(|| format!("Could not create parent directory {}", parent.display()))?;
+            .map_err(|error| Errors::file_action("create directory", parent, error))?;
     }
     copy_directory(&compiler::hello_world_template_dir(), &args.path).with_context(|| {
         format!(

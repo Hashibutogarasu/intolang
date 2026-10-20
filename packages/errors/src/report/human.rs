@@ -22,4 +22,8 @@ impl ErrorReport for HumanReport {
         }
         text
     }
+
+    fn emit(&self, error: &Error) {
+        eprintln!("{}", self.report(error));
+    }
 }

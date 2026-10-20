@@ -1,5 +1,5 @@
-use anyhow::{Context, Result};
 use bundle::Bundle;
+use errors::{Context, Errors, Result};
 use intovm::{Inex, Vm, VmOptions};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -31,7 +31,7 @@ pub(super) fn resources(directory: &Path, message: &str) -> Result<Bundle> {
         } else if resources.is_file() {
             add_file(&mut bundle, &required, &resources)?;
         } else {
-            anyhow::bail!("`{required}` is named to be bundled, but the package lacks it");
+            return Err(Errors::BundleResourceMissing { path: required }.into());
         }
     }
     Ok(bundle)
@@ -76,15 +76,13 @@ pub(super) fn assemble(
 }
 
 fn add_file(bundle: &mut Bundle, target: &str, source: &Path) -> Result<()> {
-    let contents =
-        std::fs::read(source).with_context(|| format!("Could not read {}", source.display()))?;
+    let contents = std::fs::read(source).map_err(|error| Errors::read(source, error))?;
     Ok(bundle.add_file(target, contents, FILE_MODE)?)
 }
 
 /// Write `inex` to `output`, executable where the platform has such a mode.
 pub(super) fn write(inex: &Inex, output: &Path) -> Result<()> {
-    std::fs::write(output, Vec::from(inex))
-        .with_context(|| format!("Could not write {}", output.display()))?;
+    std::fs::write(output, Vec::from(inex)).map_err(|error| Errors::write(output, error))?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -95,8 +93,7 @@ pub(super) fn write(inex: &Inex, output: &Path) -> Result<()> {
 
 /// Read an `.inex` file and run it.
 pub(super) fn run_file(path: &PathBuf) -> Result<()> {
-    let bytes =
-        std::fs::read(path).with_context(|| format!("Could not read {}", path.display()))?;
+    let bytes = std::fs::read(path).map_err(|error| Errors::read(path, error))?;
     let inex = Inex::try_from(bytes.as_slice())
         .with_context(|| format!("Could not load {}", path.display()))?;
     execute(&inex)

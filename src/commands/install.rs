@@ -1,9 +1,9 @@
-use anyhow::{Context, Result};
-use clap::{ArgMatches, Args as ClapArgs, Command as ClapCommand, FromArgMatches};
+use clap::{ArgMatches, Args as ClapArgs, Command as ClapCommand};
+use errors::{Errors, Result};
 use moduler::{Project, find_by_alias, is_builtin};
 use std::path::PathBuf;
 
-use crate::commands::command::Command;
+use crate::commands::command::{Command, arguments};
 
 #[derive(ClapArgs)]
 struct InstallArgs {
@@ -27,15 +27,18 @@ impl Command for Install {
     }
 
     fn execute(&self, matches: &ArgMatches) -> Result<()> {
-        let args = InstallArgs::from_arg_matches(matches)?;
+        let args = arguments::<InstallArgs>(matches)?;
         let project = Project::new(std::env::current_dir()?);
         let embedded = compiler::builtin_packages_dir();
         match args.source {
             Some(source) => {
                 let source = match source.to_str() {
                     Some(name) if is_builtin(name) && !source.exists() => {
-                        find_by_alias(&embedded, moduler::BUILTIN_ALIAS)?
-                            .context("The compiler does not embed the builtin package")?
+                        find_by_alias(&embedded, moduler::BUILTIN_ALIAS)?.ok_or_else(|| {
+                            Errors::PackageNotEmbedded {
+                                alias: moduler::BUILTIN_ALIAS.to_string(),
+                            }
+                        })?
                     }
                     _ => source,
                 };

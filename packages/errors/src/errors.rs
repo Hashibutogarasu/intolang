@@ -346,12 +346,6 @@ declare_errors! {
         DuplicateEnumVariant { name: String } = 0x4013,
         #[error("Duplicate enum `{name}`")]
         DuplicateEnum { name: String } = 0x4014,
-        #[error("{message}")]
-        Semantic { message: String } = 0x1001,
-        #[error("{message}")]
-        Ownership { message: String } = 0x2001,
-        #[error("{message}")]
-        Runtime { message: String } = 0x6001,
         #[error("{path}: test module must import `{function}`")]
         TestMustImportAssertion { path: String, function: String } = 0x7001,
         #[error("{path}: test module must import the test macro")]
@@ -450,8 +444,6 @@ declare_errors! {
         UnknownFieldIndexOf { index: String, class: String } = 0x602C,
     }
     Compiler {
-        #[error("{message}")]
-        Package { message: String } = 0x8001,
         #[error("`{text}` is not a package hash")]
         PackageHashInvalid { text: String } = 0x8002,
         #[error("Invalid package alias `{text}`")]
@@ -514,8 +506,6 @@ declare_errors! {
         LibraryExportModuleInvalid { uri: String } = 0x801F,
         #[error("Library entry does not export any modules")]
         LibraryNoExports = 0x8020,
-        #[error("{message}")]
-        Native { message: String } = 0x9001,
         #[error("Malformed {kind} record")]
         MalformedRecord { kind: String } = 0x9002,
         #[error("Malformed function parameter `{field}`")]
@@ -548,8 +538,6 @@ declare_errors! {
         NativeLibraryLinkFailed = 0x9010,
         #[error("Embedding the bundle failed")]
         BundleEmbedFailed = 0x9011,
-        #[error("{message}")]
-        Codegen { message: String } = 0xA001,
         #[error("Unknown native class `{class}`")]
         UnknownNativeClass { class: String } = 0xA002,
         #[error("Unknown field index for class `{class}`")]
@@ -684,5 +672,37 @@ declare_errors! {
         InexNoIntoc = 0xB209,
         #[error("The intoc of the inex is not text")]
         IntocNotText = 0xB20A,
+        #[error("Could not find package manifest: {path}: {reason}")]
+        PackageManifestNotFound { path: String, reason: String } = 0xB301,
+        #[error("Manifest has no parent directory")]
+        ManifestNoParent = 0xB302,
+        #[error("Package manifest must specify exactly one of `runs` or `library`")]
+        ManifestRunsOrLibrary = 0xB303,
+        #[error("`--vm` builds executables; a library package has no .inex form")]
+        VmLibraryUnsupported = 0xB304,
+        #[error("Library packages require src/main/lib.into as their library entry point")]
+        LibraryEntryInvalid = 0xB305,
+        #[error("No Into test files found under {path}")]
+        NoTestFiles { path: String } = 0xB306,
+        #[error("{count} Into test(s) failed")]
+        TestsFailed { count: usize } = 0xB307,
+        #[error("Invalid installed package alias `{alias}`")]
+        InstalledAliasInvalid { alias: String } = 0xB308,
+        #[error("Package `{alias}` is declared as version {declared} but version {installed} is installed")]
+        InstalledVersionMismatch { alias: String, declared: String, installed: String } = 0xB309,
+        #[error("Program exited with status {status}")]
+        ProgramFailed { status: String } = 0xB30A,
+        #[error("No .into files found under {path}")]
+        NoIntoFiles { path: String } = 0xB30B,
+        #[error("Format mode expects an .into file or directory path")]
+        FormatExpectsInto = 0xB30C,
+        #[error("Project path must end with a valid project name")]
+        ProjectNameInvalid = 0xB30D,
+        #[error("Project path must name a new directory")]
+        ProjectPathNotNew = 0xB30E,
+        #[error("Project destination already exists: {path}")]
+        ProjectExists { path: String } = 0xB30F,
+        #[error("`{path}` is named to be bundled, but the package lacks it")]
+        BundleResourceMissing { path: String } = 0xB310,
     }
 }

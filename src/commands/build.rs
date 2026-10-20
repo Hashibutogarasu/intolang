@@ -1,11 +1,11 @@
-use anyhow::{Context, Result};
-use clap::{ArgMatches, Args, Command as ClapCommand, FromArgMatches};
+use clap::{ArgMatches, Args, Command as ClapCommand};
+use errors::{Context, Errors, Result};
 use progress::Progress;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use crate::commands::command::Command;
+use crate::commands::command::{Command, arguments};
 use crate::commands::inex;
 use crate::commands::target::{InexTarget, NativeTarget, Project, Target};
 
@@ -54,22 +54,28 @@ pub(super) fn run(
     } else {
         package_path
     };
-    let manifest = std::fs::canonicalize(&manifest)
-        .with_context(|| format!("Could not find package manifest: {}", manifest.display()))?;
-    let package_dir = manifest
-        .parent()
-        .context("Manifest has no parent directory")?;
-    let package: Package = serde_json::from_slice(&std::fs::read(&manifest)?)
-        .with_context(|| format!("Invalid package manifest: {}", manifest.display()))?;
+    let manifest =
+        std::fs::canonicalize(&manifest).map_err(|error| Errors::PackageManifestNotFound {
+            path: manifest.display().to_string(),
+            reason: error.to_string(),
+        })?;
+    let package_dir = manifest.parent().ok_or(Errors::ManifestNoParent)?;
+    let package: Package = serde_json::from_slice(
+        &std::fs::read(&manifest).map_err(|error| Errors::read(&manifest, error))?,
+    )
+    .map_err(|error| Errors::PackageManifestInvalid {
+        path: manifest.display().to_string(),
+        reason: error.to_string(),
+    })?;
     if package.runs.is_some() == package.library.is_some() {
-        anyhow::bail!("Package manifest must specify exactly one of `runs` or `library`");
+        return Err(Errors::ManifestRunsOrLibrary.into());
     }
     let embedded_packages = compiler::builtin_packages_dir();
     if test_mode {
         return run_tests(package_dir, &embedded_packages);
     }
     if vm_output && package.library.is_some() {
-        anyhow::bail!("`--vm` builds executables; a library package has no .inex form");
+        return Err(Errors::VmLibraryUnsupported.into());
     }
     let target: Box<dyn Target> = if vm_output {
         Box::new(InexTarget)
@@ -95,8 +101,7 @@ pub(super) fn run(
         );
     }
     let entry = package_dir.join(package.runs.expect("runs/library validation above"));
-    let source = std::fs::read_to_string(&entry)
-        .with_context(|| format!("Could not read package entry point: {}", entry.display()))?;
+    let source = std::fs::read_to_string(&entry).map_err(|error| Errors::read(&entry, error))?;
     let output_dir = package_dir
         .join(&package.built_config.dist)
         .join(std::env::consts::OS)
@@ -149,7 +154,7 @@ impl Command for Build {
     }
 
     fn execute(&self, matches: &ArgMatches) -> Result<()> {
-        let args = BuildArgs::from_arg_matches(matches)?;
+        let args = arguments::<BuildArgs>(matches)?;
         run(args.package, args.test, false, args.vm)
     }
 }
@@ -176,7 +181,7 @@ impl Command for Run {
     }
 
     fn execute(&self, matches: &ArgMatches) -> Result<()> {
-        let args = RunArgs::from_arg_matches(matches)?;
+        let args = arguments::<RunArgs>(matches)?;
         run(args.package, false, true, args.vm)
     }
 }
@@ -192,14 +197,10 @@ fn build_library(
     let required_entry = package_dir.join("src/main/lib.into");
     let library_entry = package_dir.join(library);
     if library_entry != required_entry || !required_entry.is_file() {
-        anyhow::bail!("Library packages require src/main/lib.into as their library entry point");
+        return Err(Errors::LibraryEntryInvalid.into());
     }
-    let source = std::fs::read_to_string(&required_entry).with_context(|| {
-        format!(
-            "Could not read library entry point: {}",
-            required_entry.display()
-        )
-    })?;
+    let source = std::fs::read_to_string(&required_entry)
+        .map_err(|error| Errors::read(&required_entry, error))?;
     let functions = backend::lower_library(&source, &required_entry, package_environment)
         .context("Could not compile Into library entry point")?;
     let output_dir = package_dir
@@ -286,16 +287,22 @@ fn prepare_package_environment(
                 continue;
             };
             if !valid_alias(alias) {
-                anyhow::bail!("Invalid installed package alias `{alias}`");
+                return Err(Errors::InstalledAliasInvalid {
+                    alias: alias.to_string(),
+                }
+                .into());
             }
             let installed_version = manifest
                 .get("version")
                 .and_then(serde_json::Value::as_str)
                 .unwrap_or_default();
             if installed_version != declared {
-                anyhow::bail!(
-                    "Package `{alias}` is declared as version {declared} but version {installed_version} is installed"
-                );
+                return Err(Errors::InstalledVersionMismatch {
+                    alias: alias.to_string(),
+                    declared: declared.to_string(),
+                    installed: installed_version.to_string(),
+                }
+                .into());
             }
             let target = std::fs::canonicalize(entry.path())?;
             moduler::link_directory(&target, &root.join(alias))?;
@@ -318,12 +325,15 @@ fn run_tests(package_dir: &Path, embedded_packages: &Path) -> Result<()> {
     let mut test_files = Vec::new();
     collect_into_files(&test_root, &mut test_files)?;
     if test_files.is_empty() {
-        anyhow::bail!("No Into test files found under {}", test_root.display());
+        return Err(Errors::NoTestFiles {
+            path: test_root.display().to_string(),
+        }
+        .into());
     }
     let mut passed = 0;
     let mut failed = 0;
     for file in test_files {
-        let source = std::fs::read_to_string(&file)?;
+        let source = std::fs::read_to_string(&file).map_err(|error| Errors::read(&file, error))?;
         let result = testing::run_tests(&source, &file, embedded_packages)
             .with_context(|| format!("Failed running tests in {}", file.display()))?;
         passed += result.passed;
@@ -334,7 +344,7 @@ fn run_tests(package_dir: &Path, embedded_packages: &Path) -> Result<()> {
         if failed == 0 { "ok" } else { "FAILED" }
     ));
     if failed > 0 {
-        anyhow::bail!("{failed} Into test(s) failed");
+        return Err(Errors::TestsFailed { count: failed }.into());
     }
     Ok(())
 }

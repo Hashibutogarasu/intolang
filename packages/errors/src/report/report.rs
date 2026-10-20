@@ -4,6 +4,9 @@ use crate::error::Error;
 /// A way to write an error. Both ways report the same error; only the text differs.
 pub trait ErrorReport {
     fn report(&self, error: &Error) -> String;
+
+    /// Write the report where this way of reporting belongs.
+    fn emit(&self, error: &Error);
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

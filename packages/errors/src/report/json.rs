@@ -41,4 +41,8 @@ impl ErrorReport for JsonReport {
         };
         serde_json::to_string(&report).expect("an error report is plain data")
     }
+
+    fn emit(&self, error: &Error) {
+        println!("{}", self.report(error));
+    }
 }
