@@ -93,6 +93,46 @@ fn members_are_found_through_the_type_of_the_receiver() {
 }
 
 #[test]
+fn a_break_jumps_to_the_loop_it_leaves() {
+    let source = r#"init {
+    into rows = 0;
+    while (rows < 3) {
+        into columns = 0;
+        while (columns < 3) {
+            if (columns == 1) {
+                break;
+            }
+            columns = columns + 1;
+        }
+        if (rows == 2) {
+            break;
+        }
+        rows = rows + 1;
+    }
+}
+"#;
+    assert_eq!(
+        jump(source, "break", 0),
+        Some(names(source, "while (columns", 0, 5))
+    );
+    assert_eq!(
+        jump(source, "break", 1),
+        Some(names(source, "while (rows", 0, 5))
+    );
+}
+
+#[test]
+fn a_break_outside_a_loop_jumps_nowhere() {
+    let source = r#"init {
+    if (1 == 1) {
+        break;
+    }
+}
+"#;
+    assert_eq!(jump(source, "break", 0), None);
+}
+
+#[test]
 fn a_name_that_is_declared_nowhere_jumps_nowhere() {
     let source = "init {\n    missing();\n}\n";
     assert_eq!(jump(source, "missing", 0), None);

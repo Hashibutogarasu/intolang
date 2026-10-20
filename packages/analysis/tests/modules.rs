@@ -143,3 +143,39 @@ fn an_open_buffer_of_the_module_wins_over_the_file() {
     assert_eq!(locations[0].range.start.line, 4);
     fs::remove_dir_all(base).unwrap();
 }
+
+#[test]
+fn an_import_jumps_into_a_module_nested_in_a_package() {
+    let base = packages();
+    let nested = base.join("system/modules/cpp");
+    fs::create_dir_all(nested.join("src/main/standard")).unwrap();
+    fs::write(
+        base.join("system/into-package.json"),
+        r#"{"name":"system","alias":"system","version":"0.1.0","LICENCE":"MIT","modules":{"cpp":"modules/cpp"}}"#,
+    )
+    .unwrap();
+    fs::write(
+        nested.join("into-package.json"),
+        r#"{"name":"cpp","alias":"cpp","version":"0.1.0","LICENCE":"MIT","library":"src/main/lib.into"}"#,
+    )
+    .unwrap();
+    fs::write(
+        nested.join("src/main/standard/time.into"),
+        r#"pub fun now(): Int32 {
+    return 0;
+}
+"#,
+    )
+    .unwrap();
+    let program = r#"import "cpp://standard/time";
+"#;
+    let mut editor = session_with(Some(base.to_str().unwrap()));
+    editor.open(URI, program);
+    let locations = editor.definition(URI, position_of(program, "\"cpp://", 0));
+    assert_eq!(locations.len(), 1);
+    assert_eq!(
+        locations[0].uri,
+        path_to_uri(&base.join("system/modules/cpp/src/main/standard/time.into"))
+    );
+    fs::remove_dir_all(base).unwrap();
+}

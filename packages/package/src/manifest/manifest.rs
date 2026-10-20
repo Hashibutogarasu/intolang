@@ -28,6 +28,8 @@ pub struct Manifest {
     pub packages: HashMap<String, String>,
     #[serde(rename = "nativeDependencies", default)]
     pub native_dependencies: HashMap<String, Vec<String>>,
+    #[serde(default)]
+    pub modules: HashMap<String, String>,
 }
 
 impl Manifest {

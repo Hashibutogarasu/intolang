@@ -50,6 +50,9 @@ impl Environment {
             if let Some(name) = package.root.file_name() {
                 let _ = moduler::link_directory(&package.root, &self.dir.join(name));
             }
+            for (name, path) in &package.manifest.modules {
+                let _ = moduler::link_directory(&package.join(path), &self.dir.join(name));
+            }
         }
     }
 }

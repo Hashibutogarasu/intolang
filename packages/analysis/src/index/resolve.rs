@@ -12,7 +12,6 @@ const MAX_PARENTS: usize = 16;
 
 pub enum Resolved<'a> {
     Symbol {
-        /// The module that declares the symbol; `None` for the document itself.
         module: Option<usize>,
         symbol: &'a Symbol,
         token: Span,
@@ -24,6 +23,10 @@ pub enum Resolved<'a> {
     Native {
         native: &'a NativeRef,
         root: PathBuf,
+        token: Span,
+    },
+    Loop {
+        keyword: Span,
         token: Span,
     },
 }
@@ -59,6 +62,12 @@ pub fn resolve<'a>(
                 .filter(|next| matches!(next.kind, TokenKind::String(_)))?;
             module(analysis, token, uri, packages_dir?)
         }
+        TokenKind::Identifier(word) if word == "break" => {
+            enclosing_loop(tokens, position).map(|keyword| Resolved::Loop {
+                keyword: tokens[keyword].span,
+                token: token.span,
+            })
+        }
         TokenKind::Identifier(word) => {
             let scope = Scope { analysis };
             if let Some(symbol) = analysis.index.at(token.span.start) {
@@ -81,6 +90,42 @@ pub fn resolve<'a>(
         }
         _ => None,
     }
+}
+
+/// The `while` whose body holds the token at `position`, the innermost one.
+fn enclosing_loop(tokens: &[Token], position: usize) -> Option<usize> {
+    let mut closed = 0;
+    for index in (0..position).rev() {
+        match tokens[index].kind {
+            TokenKind::Symbol('}') => closed += 1,
+            TokenKind::Symbol('{') if closed > 0 => closed -= 1,
+            TokenKind::Symbol('{') => {
+                if let Some(keyword) = loop_keyword(tokens, index) {
+                    return Some(keyword);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// The `while` of `while (condition) {` when `open` is that brace.
+fn loop_keyword(tokens: &[Token], open: usize) -> Option<usize> {
+    let mut parentheses = 0;
+    let start = (0..open).rev().find(|&index| {
+        match tokens[index].kind {
+            TokenKind::Symbol(')') => parentheses += 1,
+            TokenKind::Symbol('(') => parentheses -= 1,
+            _ => {}
+        }
+        parentheses == 0
+    })?;
+    let keyword = start.checked_sub(1)?;
+    (tokens[open - 1].kind == TokenKind::Symbol(')')
+        && tokens[start].kind == TokenKind::Symbol('(')
+        && matches!(&tokens[keyword].kind, TokenKind::Identifier(word) if word == "while"))
+    .then_some(keyword)
 }
 
 /// The foreign function of the `#[link("language", "source", "symbol")]`
@@ -217,7 +262,10 @@ impl<'a> Scope<'a> {
                 .map(move |symbol| (module, symbol))
         });
         let first = candidates.next()?;
-        candidates.next().is_none().then_some(first)
+        if candidates.next().is_none() {
+            return Some(first);
+        }
+        self.member(ROOT_CLASS, word)
     }
 
     fn receiver_type(&self, tokens: &[Token], position: usize, line: usize) -> Option<String> {

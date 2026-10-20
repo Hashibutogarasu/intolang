@@ -27,6 +27,39 @@ pub struct Analysis {
     pub modules: Vec<ModuleAnalysis>,
 }
 
+const BUILTIN_FUNCTIONS: &str = "src/main/builtin";
+
+/// The functions the compiler provides without an import, such as `println`,
+/// declared one to a file in the builtin package.
+fn builtin_functions(packages_dir: &Path, sources: &dyn SourceProvider) -> Vec<ModuleAnalysis> {
+    let Ok(Some(builtin)) = Package::find_by_alias(packages_dir, moduler::BUILTIN_ALIAS) else {
+        return Vec::new();
+    };
+    let Ok(entries) = std::fs::read_dir(builtin.join(BUILTIN_FUNCTIONS)) else {
+        return Vec::new();
+    };
+    let mut files: Vec<PathBuf> = entries
+        .filter_map(|entry| Some(entry.ok()?.path()))
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "into")
+        })
+        .collect();
+    files.sort();
+    files
+        .into_iter()
+        .filter_map(|path| {
+            let contents = sources.read(&path)?;
+            let program = contents.parse::<Program>().ok()?;
+            Some(ModuleAnalysis {
+                index: Index::build(&program, &DocComments::new(&contents)),
+                line_index: LineIndex::new(&contents),
+                path: real(&path),
+            })
+        })
+        .collect()
+}
+
 impl Analysis {
     pub fn build(
         text: &str,
@@ -37,7 +70,7 @@ impl Analysis {
         let tokens: Tokens = text.parse()?;
         let program = Program::try_from(&tokens)?;
         let index = Index::build(&program, &DocComments::new(text));
-        let modules = packages_dir
+        let mut modules: Vec<ModuleAnalysis> = packages_dir
             .and_then(|dir| moduler::collect_modules_from(&program, dir, sources).ok())
             .unwrap_or_default()
             .into_iter()
@@ -47,6 +80,9 @@ impl Analysis {
                 path: real(&module.module.source_path),
             })
             .collect();
+        if let Some(dir) = packages_dir {
+            modules.extend(builtin_functions(dir, sources));
+        }
         Ok(Self {
             program,
             tokens,
