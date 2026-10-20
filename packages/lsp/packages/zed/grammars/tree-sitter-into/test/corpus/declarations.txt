@@ -1,0 +1,91 @@
+================================================================================
+Import and export
+================================================================================
+
+import "intolang://builtin/std";
+export "builtin://list";
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (import_statement
+    (string
+      (string_content)))
+  (export_statement
+    (string
+      (string_content))))
+
+================================================================================
+Class with a foreign function and a field
+================================================================================
+
+/// A process.
+pub Process() {
+    pub into: Int32 pid = 0;
+
+    #[link("c", "src/ffi/ps/process.c", "ps_process_kill")]
+    pub c fun kill(): Int32;
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (doc_comment)
+  (class_declaration
+    (modifiers)
+    name: (type_identifier)
+    (class_body
+      (field_declaration
+        (modifiers)
+        type: (primitive_type)
+        name: (identifier)
+        value: (number))
+      (attribute_item
+        name: (identifier)
+        (string
+          (string_content))
+        (string
+          (string_content))
+        (string
+          (string_content)))
+      (function_declaration
+        (modifiers)
+        (foreign)
+        name: (identifier)
+        (parameters)
+        return_type: (primitive_type)))))
+
+================================================================================
+Event, enum and macro
+================================================================================
+
+pub event started(process: Process&) {}
+enum Format { Text, JSON = 2 }
+pub macro test {
+    #[test]
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (event_declaration
+    (modifiers)
+    name: (identifier)
+    (parameters
+      (parameter
+        name: (identifier)
+        type: (reference_type
+          (type_identifier))))
+    (block))
+  (enum_declaration
+    name: (type_identifier)
+    (enum_variant
+      name: (identifier))
+    (enum_variant
+      name: (identifier)
+      value: (number)))
+  (macro_declaration
+    (modifiers)
+    name: (identifier)
+    (attribute_item
+      name: (identifier))))

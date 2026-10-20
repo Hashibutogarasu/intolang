@@ -1,0 +1,107 @@
+================================================================================
+Bindings and the entry point
+================================================================================
+
+const now into a = 3;
+late into b: Int64 = 4
+init {
+    unload a;
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (variable_declaration
+    name: (identifier)
+    value: (number))
+  (variable_declaration
+    name: (identifier)
+    type: (primitive_type)
+    value: (number))
+  (init_block
+    (block
+      (unload_statement
+        (identifier)))))
+
+================================================================================
+Control flow without a semicolon before the closing brace
+================================================================================
+
+while (i < 3) {
+    if i == 1 {
+        break
+    } else {
+        i = i + 1
+    }
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (while_statement
+    condition: (parenthesized_expression
+      (binary_expression
+        left: (identifier)
+        right: (number)))
+    (block
+      (if_statement
+        condition: (binary_expression
+          left: (identifier)
+          right: (number))
+        consequence: (block
+          (break_statement))
+        alternative: (block
+          (expression_statement
+            (assignment_expression
+              left: (identifier)
+              right: (binary_expression
+                left: (identifier)
+                right: (number)))))))))
+
+================================================================================
+Lambda, thread and await
+================================================================================
+
+started.on((process) => {
+    println("started");
+});
+now into task = thread { println('x'); }.run();
+await task;
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (expression_statement
+    (call_expression
+      function: (member_expression
+        object: (identifier)
+        property: (property_identifier))
+      arguments: (arguments
+        (lambda_expression
+          (lambda_parameters
+            (lambda_parameter
+              name: (identifier)))
+          body: (block
+            (expression_statement
+              (call_expression
+                function: (identifier)
+                arguments: (arguments
+                  (string
+                    (string_content))))))))))
+  (variable_declaration
+    name: (identifier)
+    value: (call_expression
+      function: (member_expression
+        object: (thread_expression
+          (block
+            (expression_statement
+              (call_expression
+                function: (identifier)
+                arguments: (arguments
+                  (char
+                    (string_content)))))))
+        property: (property_identifier))
+      arguments: (arguments)))
+  (expression_statement
+    (await_expression
+      (identifier))))

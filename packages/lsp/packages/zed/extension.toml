@@ -6,6 +6,11 @@ schema_version = 1
 authors = ["Hashibutogarasu"]
 repository = "https://github.com/Hashibutogarasu/intolang"
 
+[grammars.into]
+repository = "https://github.com/Hashibutogarasu/intolang"
+rev = "0000000000000000000000000000000000000000"
+path = "packages/lsp/packages/zed/grammars/tree-sitter-into"
+
 [language_servers.into-lsp]
 name = "Into Language Server"
 languages = ["Into"]
