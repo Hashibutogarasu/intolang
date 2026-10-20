@@ -55,6 +55,7 @@
               pkgs.pkg-config
               pkgs.nodejs
               pkgs.pnpm
+              pkgs.tree-sitter
               pkgs.vscode-extensions.vadimcn.vscode-lldb.adapter
             ];
 
