@@ -20,9 +20,6 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/playground
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -35,9 +32,10 @@ jobs:
             experimental-features = nix-command flakes
       - name: Build in the playground dev shell and deploy the output
         run: |
-          nix develop ../..#playground -c sh -ec '
-            pnpm install --frozen-lockfile
-            pnpm exec vercel pull --yes --environment=production
-            pnpm exec vercel build --prod
-            pnpm exec vercel deploy --prebuilt --prod
+          nix develop .#playground -c sh -ec '
+            pnpm --dir apps/playground install --frozen-lockfile
+            vercel=apps/playground/node_modules/.bin/vercel
+            $vercel pull --yes --environment=production
+            $vercel build --prod
+            $vercel deploy --prebuilt --prod
           '
