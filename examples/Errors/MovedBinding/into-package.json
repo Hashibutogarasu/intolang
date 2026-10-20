@@ -1,0 +1,13 @@
+{
+  "LICENCE": "MIT",
+  "alias": "moved-binding",
+  "builtConfig": {
+    "dist": "./dist"
+  },
+  "name": "Moved Binding",
+  "packages": {
+    "builtin": "0.0.1"
+  },
+  "runs": "src/main/moved-binding.into",
+  "version": "0.0.1"
+}

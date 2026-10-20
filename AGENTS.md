@@ -42,7 +42,7 @@ It is a Cargo workspace (Rust edition 2024).
 | `packages/ps/` | package, alias `ps` | `Process`, `Signal`, `Usage`, the `started`, `exited` and `signalReceived` events, `dispatch` and `exit` |
 | `packages/system/modules/{c,cpp,json}/` | native packages | Language system modules (C stdio, C++ http/filesystem/time/string, JSON) |
 | `packages/{fs,path,ffmpeg,sdl2,wayland,vulkan}/` | native packages | File access, paths, FFmpeg decoding, SDL2 audio, Wayland windows and Vulkan rendering |
-| `examples/` | Into projects | Sample programs (`HelloWorld`, `Fibonacci`, `Json`, `Networking`, `Memory`, `Ownership`, `Process`, `NativeLib`, `Types`, `Bad Apple!!`) |
+| `examples/` | Into projects | Sample programs (`HelloWorld`, `Fibonacci`, `Json`, `Networking`, `Memory`, `Ownership`, `Process`, `NativeLib`, `Types`, `Bad Apple!!`) and `examples/Errors/*`, projects that fail on purpose with the code and message listed in its README |
 | `dist/` | Cargo target dir | Git-ignored; the flake sets `CARGO_TARGET_DIR=$PWD/dist` |
 
 Each Into package has an `into-package.json` manifest, `src/main/`, and build

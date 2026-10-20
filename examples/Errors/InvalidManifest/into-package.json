@@ -1,0 +1,14 @@
+{
+  "LICENCE": "MIT",
+  "alias": "invalid-manifest",
+  "builtConfig": {
+    "dist": "./dist"
+  },
+  "library": "src/main/lib.into",
+  "name": "Invalid Manifest",
+  "packages": {
+    "builtin": "0.0.1"
+  },
+  "runs": "src/main/invalid-manifest.into",
+  "version": "0.0.1"
+}

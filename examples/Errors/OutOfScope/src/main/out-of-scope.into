@@ -1,0 +1,4 @@
+import "intolang://builtin/std";
+
+into number = 0;
+println(number);

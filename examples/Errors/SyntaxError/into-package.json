@@ -1,0 +1,13 @@
+{
+  "LICENCE": "MIT",
+  "alias": "syntax-error",
+  "builtConfig": {
+    "dist": "./dist"
+  },
+  "name": "Syntax Error",
+  "packages": {
+    "builtin": "0.0.1"
+  },
+  "runs": "src/main/syntax-error.into",
+  "version": "0.0.1"
+}

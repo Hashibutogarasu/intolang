@@ -1,0 +1,13 @@
+{
+  "LICENCE": "MIT",
+  "alias": "type-mismatch",
+  "builtConfig": {
+    "dist": "./dist"
+  },
+  "name": "Type Mismatch",
+  "packages": {
+    "builtin": "0.0.1"
+  },
+  "runs": "src/main/type-mismatch.into",
+  "version": "0.0.1"
+}

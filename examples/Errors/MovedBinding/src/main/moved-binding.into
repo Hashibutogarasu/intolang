@@ -1,0 +1,10 @@
+import "intolang://builtin/std";
+
+pub Counter() {
+    pub into: Int32 value = 0;
+}
+
+now into counter = Counter();
+now into moved = counter.move();
+println(moved.value);
+println(counter.value);
