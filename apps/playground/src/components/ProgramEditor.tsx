@@ -2,22 +2,22 @@ import Editor, { type OnMount } from "@monaco-editor/react";
 import type * as monaco from "monaco-editor";
 import { useEffect, useRef, useState } from "react";
 
-import { useDarkScheme } from "@/hooks/useColorScheme";
 import { Engine } from "@/lib/engine";
 import { DOCUMENT_URI, LANGUAGE, followDocument, registerLanguage } from "@/lib/language";
 import { configureMonaco } from "@/lib/monaco";
-import Loading from "./Loading";
 
 type Props = {
   defaultValue: string;
+  dark: boolean;
   /** Receives a function that reads the program as it is now. */
   onReady: (readSource: () => string) => void;
+  /** Called once the language service is behind the editor, or has failed to be. */
+  onLoaded: () => void;
 };
 
 /** The editor of one program, with the language service of Into behind it. */
-export default function ProgramEditor({ defaultValue, onReady }: Props) {
+export default function ProgramEditor({ defaultValue, dark, onReady, onLoaded }: Props) {
   useState(configureMonaco);
-  const dark = useDarkScheme();
   const cleanup = useRef<(() => void) | null>(null);
 
   useEffect(() => () => cleanup.current?.(), []);
@@ -31,15 +31,18 @@ export default function ProgramEditor({ defaultValue, onReady }: Props) {
     const engine = new Engine();
     const disposables: monaco.IDisposable[] = [];
     let disposed = false;
-    void registerLanguage(monacoApi, engine).then((registration) => {
-      if (disposed) {
-        registration.dispose();
-        return;
-      }
-      disposables.push(registration);
-      monacoApi.editor.setModelLanguage(model, LANGUAGE);
-      disposables.push(followDocument(monacoApi, engine, model));
-    });
+    void registerLanguage(monacoApi, engine)
+      .then((registration) => {
+        if (disposed) {
+          registration.dispose();
+          return;
+        }
+        disposables.push(registration);
+        monacoApi.editor.setModelLanguage(model, LANGUAGE);
+        disposables.push(followDocument(monacoApi, engine, model));
+      })
+      .catch(() => undefined)
+      .finally(onLoaded);
     cleanup.current = () => {
       disposed = true;
       disposables.forEach((disposable) => disposable.dispose());
@@ -53,7 +56,7 @@ export default function ProgramEditor({ defaultValue, onReady }: Props) {
       defaultLanguage="plaintext"
       defaultValue={defaultValue}
       theme={dark ? "vs-dark" : "light"}
-      loading={<Loading />}
+      loading={null}
       onMount={mount}
       options={{
         minimap: { enabled: false },

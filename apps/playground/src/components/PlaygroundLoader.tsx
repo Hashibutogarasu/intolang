@@ -2,11 +2,11 @@
 
 import dynamic from "next/dynamic";
 
-import Loading from "./Loading";
+import Overlay from "./Overlay";
 
 const Playground = dynamic(() => import("./Playground"), {
   ssr: false,
-  loading: Loading,
+  loading: () => <Overlay visible />,
 });
 
 export default function PlaygroundLoader() {

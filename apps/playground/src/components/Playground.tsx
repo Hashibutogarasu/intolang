@@ -1,31 +1,43 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { FaPlay } from "react-icons/fa";
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { useColorScheme } from "@/hooks/useColorScheme";
 import { useRunner } from "@/hooks/useRunner";
 import { sampleProgram } from "@/lib/sample";
+import Overlay from "./Overlay";
 import ProgramEditor from "./ProgramEditor";
 
 export default function Playground() {
   const [stdin, setStdin] = useState("");
+  const [loaded, setLoaded] = useState(false);
   const readSource = useRef<() => string>(() => "");
   const { running, output, failure, run } = useRunner();
+  const { dark, covered, fadeMs } = useColorScheme();
 
   return (
     <div className="flex h-screen flex-col">
+      <Overlay visible={!loaded || covered} fadeMs={fadeMs} />
       <header className="flex items-center justify-between border-b px-4 py-2">
         <h1 className="text-sm font-medium">Into Playground</h1>
-        <Button onClick={() => void run(readSource.current(), stdin)} disabled={running}>
-          {running && <Spinner data-icon="inline-start" />}
-          {running ? "Running" : "Run"}
+        <Button
+          size="icon"
+          aria-label="Run"
+          onClick={() => void run(readSource.current(), stdin)}
+          disabled={running}
+        >
+          {running ? <Spinner /> : <FaPlay />}
         </Button>
       </header>
       <main className="grid min-h-0 flex-1 grid-rows-2 md:grid-cols-2 md:grid-rows-1">
         <section className="min-h-0">
           <ProgramEditor
             defaultValue={sampleProgram()}
+            dark={dark}
+            onLoaded={() => setLoaded(true)}
             onReady={(read) => {
               readSource.current = read;
             }}
