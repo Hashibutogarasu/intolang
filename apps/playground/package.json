@@ -3,8 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "wasm": "cargo build -p wasm --release --target wasm32-unknown-unknown && wasm-bindgen --target web --out-dir public/wasm --out-name wasm ${CARGO_TARGET_DIR:-../../target}/wasm32-unknown-unknown/release/wasm.wasm",
-    "grammar": "mkdir -p public/tree-sitter && tree-sitter build --wasm ../../packages/tree-sitter-into --output public/tree-sitter/into.wasm && cp ../../packages/tree-sitter-into/queries/highlights.scm node_modules/web-tree-sitter/web-tree-sitter.wasm public/tree-sitter/",
+    "wasm": "nix develop ../..#playground -c pnpm wasm:build",
+    "wasm:build": "cargo build -p wasm --release --target wasm32-unknown-unknown && wasm-bindgen --target web --out-dir public/wasm --out-name wasm $CARGO_TARGET_DIR/wasm32-unknown-unknown/release/wasm.wasm",
+    "grammar": "nix develop ../..#playground -c pnpm grammar:build",
+    "grammar:build": "mkdir -p public/tree-sitter && tree-sitter build --wasm ../../packages/tree-sitter-into --output public/tree-sitter/into.wasm && cp ../../packages/tree-sitter-into/queries/highlights.scm node_modules/web-tree-sitter/web-tree-sitter.wasm public/tree-sitter/",
     "predev": "pnpm wasm && pnpm grammar",
     "dev": "next dev",
     "prebuild": "pnpm wasm && pnpm grammar",
