@@ -39,8 +39,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.2",
-    "typescript": "^5",
-    "vercel": "^64.5.0"
+    "typescript": "^5"
   },
   "packageManager": "pnpm@12.11.2"
 }
