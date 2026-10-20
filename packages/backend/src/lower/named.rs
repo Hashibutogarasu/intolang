@@ -1,5 +1,5 @@
 use anyhow::{Result, anyhow};
-use ast::{Item, Program, Stmt};
+use ast::{Item, Program, Stmt, SyntaxError};
 use parser::PathLexeme;
 use std::path::Path;
 
@@ -10,7 +10,6 @@ use crate::collect::{
     runtime_functions,
 };
 use crate::context::{Env, FieldDef, Lowerer, OBJECT};
-use crate::diagnostic::syntax_diagnostic;
 use crate::emit;
 
 const ANONYMOUS_SOURCE: &str = "<source>";
@@ -62,7 +61,7 @@ fn lower_entry(
 ) -> Result<String> {
     let program = source
         .parse::<Program>()
-        .map_err(|error| syntax_diagnostic(source_path, error))?;
+        .map_err(|error| SyntaxError::bind(error, source_path))?;
     let mut env = prepare(&program, packages_dir, source_path)?;
     env.strict_calls = test.is_some();
 
