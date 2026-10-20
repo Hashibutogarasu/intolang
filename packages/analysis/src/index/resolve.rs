@@ -25,8 +25,11 @@ pub enum Resolved<'a> {
         root: PathBuf,
         token: Span,
     },
-    Loop {
-        keyword: Span,
+    /// A keyword that continues a statement begun elsewhere: `break` and the
+    /// `while` it leaves, `else` and `else if` and the branch they follow.
+    Keyword {
+        label: &'static str,
+        target: Span,
         token: Span,
     },
 }
@@ -63,9 +66,19 @@ pub fn resolve<'a>(
             module(analysis, token, uri, packages_dir?)
         }
         TokenKind::Identifier(word) if word == "break" => {
-            enclosing_loop(tokens, position).map(|keyword| Resolved::Loop {
-                keyword: tokens[keyword].span,
+            enclosing_loop(tokens, position).map(|keyword| Resolved::Keyword {
+                label: "break",
+                target: tokens[keyword].span,
                 token: token.span,
+            })
+        }
+        TokenKind::Identifier(word) if matches!(word.as_str(), "else" | "if") => {
+            let (first, last) = branch(tokens, position)?;
+            let (previous, previous_last) = previous_branch(tokens, first)?;
+            Some(Resolved::Keyword {
+                label: if first == last { "else" } else { "else if" },
+                target: join(tokens[previous].span, tokens[previous_last].span),
+                token: join(tokens[first].span, tokens[last].span),
             })
         }
         TokenKind::Identifier(word) => {
@@ -89,6 +102,64 @@ pub fn resolve<'a>(
             })
         }
         _ => None,
+    }
+}
+
+fn is_word(token: &Token, expected: &str) -> bool {
+    matches!(&token.kind, TokenKind::Identifier(word) if word == expected)
+}
+
+/// The tokens `first..=last` of the `else` or `else if` that holds the token at
+/// `position`. `else if` is one keyword whatever lies between its two words;
+/// a plain `if` begins a statement and is no branch.
+fn branch(tokens: &[Token], position: usize) -> Option<(usize, usize)> {
+    let before = position
+        .checked_sub(1)
+        .filter(|&before| is_word(&tokens[before], "else"));
+    if is_word(&tokens[position], "if") {
+        return before.map(|before| (before, position));
+    }
+    let after = position + 1;
+    Some(match tokens.get(after) {
+        Some(next) if is_word(next, "if") => (position, after),
+        _ => (position, position),
+    })
+}
+
+/// The `if`, `else if` or `else` whose block ends right before the token
+/// `first`: the branch that `first` continues.
+fn previous_branch(tokens: &[Token], first: usize) -> Option<(usize, usize)> {
+    if tokens[first.checked_sub(1)?].kind != TokenKind::Symbol('}') {
+        return None;
+    }
+    let mut closed = 0;
+    let open = (0..first).rev().find(|&index| {
+        match tokens[index].kind {
+            TokenKind::Symbol('}') => closed += 1,
+            TokenKind::Symbol('{') => closed -= 1,
+            _ => {}
+        }
+        closed == 0
+    })?;
+    if open > 0 && is_word(&tokens[open - 1], "else") {
+        return Some((open - 1, open - 1));
+    }
+    let keyword = (0..open)
+        .rev()
+        .find(|&index| is_word(&tokens[index], "if"))?;
+    match keyword.checked_sub(1) {
+        Some(before) if is_word(&tokens[before], "else") => Some((before, keyword)),
+        _ => Some((keyword, keyword)),
+    }
+}
+
+/// The span from the start of `first` to the end of `last`.
+fn join(first: Span, last: Span) -> Span {
+    Span {
+        line: first.line,
+        end_line: last.end_line,
+        start: first.start,
+        end: last.end,
     }
 }
 

@@ -31,8 +31,8 @@ pub fn hover(
             documentation: None,
             range: line_index.range(token),
         }),
-        Resolved::Loop { token, .. } => Some(Hover {
-            signature: "break".to_owned(),
+        Resolved::Keyword { label, token, .. } => Some(Hover {
+            signature: label.to_owned(),
             documentation: None,
             range: line_index.range(token),
         }),

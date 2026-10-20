@@ -50,9 +50,9 @@ pub fn definition(
         Some(Resolved::Native { native, root, .. }) => {
             native_definition(&root, native).into_iter().collect()
         }
-        Some(Resolved::Loop { keyword, .. }) => vec![Location {
+        Some(Resolved::Keyword { target, .. }) => vec![Location {
             uri: uri.to_owned(),
-            range: line_index.range(keyword),
+            range: line_index.range(target),
         }],
         Some(Resolved::Module { target, .. }) => target
             .file
