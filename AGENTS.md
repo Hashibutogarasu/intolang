@@ -126,7 +126,8 @@ has a test in the `tests/` directory of the crate that implements it.
 
 - Source is a sequence of tokens. The language is whitespace and newline
   independent: tokenizing, AST construction and formatting never look at source
-  lines. A missing `;` is accepted before a `}` or a line break.
+  lines. Every statement ends with `;`; a missing `;` is a syntax error, also
+  before a `}` or a line break.
 - `//` starts a line comment. Braces inside strings and comments are ignored by
   the formatter.
 - `///` is a doc comment. A run of consecutive `///` lines documents the

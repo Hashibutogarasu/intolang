@@ -290,19 +290,9 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    /// Consume a statement terminator. A missing `;` is accepted when the
-    /// next token closes a block or begins on a later line.
+    /// Consume a statement terminator. The `;` is required.
     pub fn end_statement(&mut self) -> Result<()> {
         if self.eat_punct(Punct::Semicolon) {
-            return Ok(());
-        }
-        let ends = match self.peek() {
-            None => true,
-            Some(next) => {
-                self.is_punct(Punct::RightBrace) || next.line() > self.previous_end_line()
-            }
-        };
-        if ends {
             Ok(())
         } else {
             Err(self.expected("`;`"))

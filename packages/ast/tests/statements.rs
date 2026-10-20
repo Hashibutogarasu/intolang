@@ -128,15 +128,15 @@ fn distinguishes_assignment_from_comparison() {
 }
 
 #[test]
-fn semicolons_are_optional_at_line_and_block_ends() {
+fn statements_end_with_semicolons() {
     let kinds = statements(
-        r#"break
-print("x")
-return
-unload y"#,
+        r#"break;
+print("x");
+return;
+unload y;"#,
     );
     assert_eq!(kinds.len(), 4);
-    let nested = statements("init { f() }");
+    let nested = statements("init { f(); }");
     assert!(matches!(nested[0], StmtKind::Init(_)));
 }
 
