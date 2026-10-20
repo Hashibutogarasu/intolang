@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use errors::{Errors, Result};
 use std::rc::Rc;
 
 use super::table::{Handle, ProcessState};
@@ -27,17 +27,20 @@ fn pid_of(vm: &Vm, value: &Value) -> Result<Option<i32>> {
             .handles
             .get(reference)
             .map(|handle| Some(handle.pid))
-            .ok_or_else(|| anyhow!("The value is not a process handle")),
+            .ok_or_else(|| errors::Error::from(Errors::NotProcessHandleBare)),
         Value::Int(0) => Ok(None),
-        other => Err(anyhow!("{other:?} is not a process handle")),
+        other => Err(errors::Error::from(Errors::NotProcessHandle {
+            value: format!("{:?}", other),
+        })),
     }
 }
 
 fn int(value: &Value) -> Result<i32> {
-    value
-        .int()
-        .map(|number| number as i32)
-        .ok_or_else(|| anyhow!("{value:?} is not an integer"))
+    value.int().map(|number| number as i32).ok_or_else(|| {
+        errors::Error::from(Errors::NotAnInteger {
+            value: format!("{:?}", value),
+        })
+    })
 }
 
 fn text(value: &Value) -> String {
@@ -48,8 +51,11 @@ fn text(value: &Value) -> String {
 }
 
 fn argument(args: &[Value], index: usize) -> Result<&Value> {
-    args.get(index)
-        .ok_or_else(|| anyhow!("The native call is missing argument {index}"))
+    args.get(index).ok_or_else(|| {
+        errors::Error::from(Errors::MissingNativeArgument {
+            index: index.to_string(),
+        })
+    })
 }
 
 fn release(vm: &mut Vm, args: &[Value]) -> Result<Value> {

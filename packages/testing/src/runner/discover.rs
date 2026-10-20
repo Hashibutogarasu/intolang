@@ -1,5 +1,5 @@
-use anyhow::{Context, Result, anyhow};
 use ast::Program;
+use errors::{Errors, Result};
 use std::path::Path;
 
 use super::builtins::{SOURCE_ROOT, TEST_MACRO};
@@ -12,11 +12,10 @@ pub struct TestCase {
 
 fn parse_module(package: &Path, module: &str) -> Result<Program> {
     let path = package.join(SOURCE_ROOT).join(format!("{module}.into"));
-    let source = std::fs::read_to_string(&path)
-        .with_context(|| format!("Could not read {}", path.display()))?;
+    let source = std::fs::read_to_string(&path).map_err(|error| Errors::read(&path, error))?;
     source
         .parse::<Program>()
-        .with_context(|| format!("Could not parse {}", path.display()))
+        .map_err(|error| error.bound_to(&path.display().to_string()))
 }
 
 /// The attribute name the builtin `test` macro declares.
@@ -27,7 +26,7 @@ pub fn test_attribute(package: &Path) -> Result<String> {
         .find(|decl| decl.name == TEST_MACRO.function)
         .and_then(|decl| decl.attributes.first())
         .map(|attribute| attribute.name.clone())
-        .ok_or_else(|| anyhow!("test macro does not define the #[test] annotation"))
+        .ok_or_else(|| Errors::TestMacroNoAnnotation.into())
 }
 
 /// The functions of `program` carrying `attribute`, in source order.

@@ -102,7 +102,6 @@ checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 name = "backend"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "ast",
  "errors",
  "moduler",
@@ -221,7 +220,6 @@ checksum = "1c133bc6a41be0d194c306b5506d15e6feeea7b1d6604bd3f8310dfb2ca96486"
 name = "codegen"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "errors",
  "llvm-sys",
  "moduler",
@@ -365,7 +363,7 @@ checksum = "aedcfb3409746eddb02b9e19ebda1c3394f759a152e48ee875a0844d1b955484"
 name = "formatter"
 version = "0.1.0"
 dependencies = [
- "anyhow",
+ "errors",
  "parser",
  "tokenizer",
  "types",
@@ -483,7 +481,6 @@ dependencies = [
 name = "intovm"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "bundle",
  "errors",
  "native",
@@ -806,10 +803,10 @@ dependencies = [
 name = "testing"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "ast",
  "backend",
  "compiler",
+ "errors",
  "intovm",
  "moduler",
  "parser",

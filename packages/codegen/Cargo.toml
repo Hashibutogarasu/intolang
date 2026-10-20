@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-anyhow = "1.0.104"
 errors = { version = "0.1.0", path = "../errors" }
 llvm-sys = "231.0.1"
 moduler = { version = "0.1.0", path = "../moduler" }

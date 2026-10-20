@@ -352,6 +352,102 @@ declare_errors! {
         Ownership { message: String } = 0x2001,
         #[error("{message}")]
         Runtime { message: String } = 0x6001,
+        #[error("{path}: test module must import `{function}`")]
+        TestMustImportAssertion { path: String, function: String } = 0x7001,
+        #[error("{path}: test module must import the test macro")]
+        TestMustImportMacro { path: String } = 0x7002,
+        #[error("{path}: no #[test] functions found")]
+        NoTestFunctions { path: String } = 0x7003,
+        #[error("test macro does not define the #[test] annotation")]
+        TestMacroNoAnnotation = 0x7004,
+        #[error("{path}: no function `{name}` to run as a test")]
+        NoTestFunction { path: String, name: String } = 0x7005,
+        #[error("Into assertion failed: {message}")]
+        AssertionFailed { message: String } = 0x6002,
+        #[error("Every thread is waiting: deadlock")]
+        ThreadsDeadlock = 0x6003,
+        #[error("Waiting for process {pid}, which never exits: deadlock")]
+        ProcessDeadlock { pid: String } = 0x6004,
+        #[error("Division by zero")]
+        DivisionByZero = 0x6005,
+        #[error("Stack overflow in `{function}`")]
+        StackOverflow { function: String } = 0x6006,
+        #[error("Stack overflow in a call of `{slot}`")]
+        StackOverflowIndirect { slot: String } = 0x6007,
+        #[error("`{slot}` does not refer to a function")]
+        NotAFunction { slot: String } = 0x6008,
+        #[error("`{slot}` refers to the unknown function `{name}`")]
+        UnknownFunctionReference { slot: String, name: String } = 0x6009,
+        #[error("`{slot}` holds no instance")]
+        NoInstance { slot: String } = 0x600A,
+        #[error("`{name}` has no binding")]
+        NoBinding { name: String } = 0x600B,
+        #[error("The value holds no instance")]
+        ValueNoInstance = 0x600C,
+        #[error("Arithmetic needs numbers")]
+        ArithmeticNeedsNumbersVm = 0x600D,
+        #[error("Values of different kinds cannot be compared")]
+        KindsNotComparable = 0x600E,
+        #[error("A value of type `{ty}` cannot be printed")]
+        NotPrintable { ty: String } = 0x600F,
+        #[error("`{task}` holds no thread")]
+        NoThread { task: String } = 0x6010,
+        #[error("`{symbol}` takes more than {max} arguments")]
+        TooManyNativeArguments { symbol: String, max: usize } = 0x6011,
+        #[error("Floating point arguments are not supported in native calls")]
+        FloatArgument = 0x6012,
+        #[error("{value} is not a pointer")]
+        NotAPointer { value: String } = 0x6013,
+        #[error("An item of the type `{ty}` cannot be read from memory")]
+        ItemNotReadable { ty: String } = 0x6014,
+        #[error("`{pointer}` is a null pointer")]
+        NullPointer { pointer: String } = 0x6015,
+        #[error("The index is not a number")]
+        IndexNotNumber = 0x6016,
+        #[error("{value} is not a number")]
+        NotANumber { value: String } = 0x6017,
+        #[error("{value} cannot be written as an item of type `{ty}`")]
+        ItemNotWritable { value: String, ty: String } = 0x6018,
+        #[error("{value} is not text")]
+        NotTextValue { value: String } = 0x6019,
+        #[error("{value} is not a list")]
+        NotAList { value: String } = 0x601A,
+        #[error("The list call is missing its index")]
+        ListMissingIndex = 0x601B,
+        #[error("The list call is missing its item")]
+        ListMissingItem = 0x601C,
+        #[error("The list was freed")]
+        ListFreed = 0x601D,
+        #[error("`asset` takes a path")]
+        AssetNeedsPath = 0x601E,
+        #[error("`Assets.read` takes the path of a file")]
+        AssetsReadNeedsPath = 0x601F,
+        #[error("The program has no assets; call `require` first")]
+        NoAssets = 0x6020,
+        #[error("The asset `{path}` is not in the bundle")]
+        AssetNotInBundle { path: String } = 0x6021,
+        #[error("{value} is not a path")]
+        NotAPath { value: String } = 0x6022,
+        #[error("{value} is not a process handle")]
+        NotProcessHandle { value: String } = 0x6023,
+        #[error("The value is not a process handle")]
+        NotProcessHandleBare = 0x6024,
+        #[error("{value} is not an integer")]
+        NotAnInteger { value: String } = 0x6025,
+        #[error("The native call is missing argument {index}")]
+        MissingNativeArgument { index: String } = 0x6026,
+        #[error("The native call is missing the integer argument {index}")]
+        MissingIntegerArgument { index: String } = 0x6027,
+        #[error("The native function `{symbol}` is not available in the VM")]
+        NativeFunctionUnavailable { symbol: String } = 0x6028,
+        #[error("No running frame")]
+        NoFrame = 0x6029,
+        #[error("Dangling reference {reference}")]
+        DanglingReference { reference: String } = 0x602A,
+        #[error("Unknown field index {index}")]
+        UnknownFieldIndexVm { index: String } = 0x602B,
+        #[error("Unknown field index {index} of `{class}`")]
+        UnknownFieldIndexOf { index: String, class: String } = 0x602C,
     }
     Compiler {
         #[error("{message}")]
@@ -558,5 +654,35 @@ declare_errors! {
         InvalidNumber { reason: String } = 0xC006,
         #[error("Invalid native string: {reason}")]
         InvalidCString { reason: String } = 0xC007,
+        #[error("Builtin package is not bundled")]
+        BuiltinNotBundled = 0xC108,
+        #[error("The message ends inside an unfinished block")]
+        MessageUnfinishedBlock = 0xC101,
+        #[error("{record} has no matching {expected}")]
+        NoMatching { record: String, expected: String } = 0xC102,
+        #[error("NATIVE_BREAK is outside a loop")]
+        RecordBreakOutsideLoop = 0xC103,
+        #[error("`{symbol}` is not a symbol")]
+        NotASymbol { symbol: String } = 0xC104,
+        #[error("Could not load the native library {path}: {reason}")]
+        NativeLibraryLoad { path: String, reason: String } = 0xC106,
+        #[error("The inex file is truncated")]
+        InexTruncated = 0xB201,
+        #[error("The inex file has a name that is not text")]
+        InexNameNotText = 0xB202,
+        #[error("Not an inex file")]
+        NotInex = 0xB203,
+        #[error("inex version {version} is not supported")]
+        InexVersionUnsupported { version: String } = 0xB204,
+        #[error("The inex file is truncated or has the entry `{path}` outside its data")]
+        InexEntryOutside { path: String } = 0xB206,
+        #[error("The hash of `{path}` does not match its contents")]
+        InexHashMismatch { path: String } = 0xB207,
+        #[error("The inex file has an entry of the unknown kind {kind}")]
+        InexUnknownKind { kind: String } = 0xB208,
+        #[error("inex has no intoc")]
+        InexNoIntoc = 0xB209,
+        #[error("The intoc of the inex is not text")]
+        IntocNotText = 0xB20A,
     }
 }

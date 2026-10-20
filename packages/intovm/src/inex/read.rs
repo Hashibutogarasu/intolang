@@ -1,5 +1,5 @@
-use anyhow::{Context, Error, Result, anyhow, bail};
 use bundle::{Bundle, Entry};
+use errors::{Context, Error, Errors, Result};
 
 use super::layout::*;
 use super::model::Inex;
@@ -16,7 +16,7 @@ impl<'a> Reader<'a> {
             .position
             .checked_add(length)
             .filter(|end| *end <= self.bytes.len())
-            .ok_or_else(|| anyhow!("The inex file is truncated"))?;
+            .ok_or_else(|| errors::Error::from(Errors::InexTruncated))?;
         let taken = &self.bytes[self.position..end];
         self.position = end;
         Ok(taken)
@@ -41,7 +41,7 @@ impl<'a> Reader<'a> {
     fn text(&mut self) -> Result<String> {
         let length = self.u32()? as usize;
         String::from_utf8(self.take(length)?.to_vec())
-            .map_err(|_| anyhow!("The inex file has a name that is not text"))
+            .map_err(|_| errors::Error::from(Errors::InexNameNotText))
     }
 
     fn rest(&self) -> &'a [u8] {
@@ -71,11 +71,11 @@ impl TryFrom<&[u8]> for Inex {
             let end = bytes
                 .iter()
                 .position(|byte| *byte == b'\n')
-                .ok_or_else(|| anyhow!("Not an inex file"))?;
+                .ok_or_else(|| errors::Error::from(Errors::NotInex))?;
             bytes = &bytes[end + 1..];
         }
         let Some(rest) = bytes.strip_prefix(MAGIC) else {
-            bail!("Not an inex file");
+            return Err(errors::Error::from(Errors::NotInex));
         };
         if let Some(text) = rest.strip_prefix(b" ") {
             let digits: String = text
@@ -83,16 +83,24 @@ impl TryFrom<&[u8]> for Inex {
                 .take_while(|byte| byte.is_ascii_digit())
                 .map(|byte| char::from(*byte))
                 .collect();
-            let version: u32 = digits.parse().map_err(|_| anyhow!("Not an inex file"))?;
-            bail!("inex version {version} is not supported");
+            let version: u32 = digits
+                .parse()
+                .map_err(|_| errors::Error::from(Errors::NotInex))?;
+            return Err(errors::Error::from(Errors::InexVersionUnsupported {
+                version: version.to_string(),
+            }));
         }
         let mut reader = Reader {
             bytes: rest,
             position: 0,
         };
-        let version = reader.u32().map_err(|_| anyhow!("Not an inex file"))?;
+        let version = reader
+            .u32()
+            .map_err(|_| errors::Error::from(Errors::NotInex))?;
         if version != VERSION {
-            bail!("inex version {version} is not supported");
+            return Err(errors::Error::from(Errors::InexVersionUnsupported {
+                version: version.to_string(),
+            }));
         }
         let generator = reader.text()?;
         let count = reader.u32()?;
@@ -128,10 +136,9 @@ impl TryFrom<&[u8]> for Inex {
                         .and_then(|(offset, size)| Some(offset..offset.checked_add(size)?))
                         .filter(|range| range.end <= data.len())
                         .ok_or_else(|| {
-                            anyhow!(
-                                "The inex file is truncated or has the entry `{}` outside its data",
-                                raw.path
-                            )
+                            errors::Error::from(Errors::InexEntryOutside {
+                                path: raw.path.to_string(),
+                            })
                         })?;
                     bundle
                         .add_file(&raw.path, &data[range], raw.mode)
@@ -141,10 +148,16 @@ impl TryFrom<&[u8]> for Inex {
                         Some(Entry::File { hash, .. }) if *hash == hex(&raw.digest)
                     );
                     if !matches {
-                        bail!("The hash of `{}` does not match its contents", raw.path);
+                        return Err(errors::Error::from(Errors::InexHashMismatch {
+                            path: raw.path.to_string(),
+                        }));
                     }
                 }
-                other => bail!("The inex file has an entry of the unknown kind {other}"),
+                other => {
+                    return Err(errors::Error::from(Errors::InexUnknownKind {
+                        kind: other.to_string(),
+                    }));
+                }
             }
         }
         Ok(Inex { generator, bundle })

@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow, bail};
+use errors::{Errors, Result};
 use std::ffi::{CStr, CString, c_char, c_int, c_void};
 use std::path::Path;
 
@@ -31,17 +31,21 @@ impl Library {
                     .to_string_lossy()
                     .into_owned()
             };
-            bail!(
-                "Could not load the native library {}: {reason}",
-                path.display()
-            );
+            return Err(errors::Error::from(Errors::NativeLibraryLoad {
+                path: path.display().to_string(),
+                reason,
+            }));
         }
         Ok(Self { handle })
     }
 
     /// The address of the function `symbol`, if the library defines it.
     pub fn symbol(&self, symbol: &str) -> Result<Option<*const c_void>> {
-        let name = CString::new(symbol).map_err(|_| anyhow!("`{symbol}` is not a symbol"))?;
+        let name = CString::new(symbol).map_err(|_| {
+            errors::Error::from(Errors::NotASymbol {
+                symbol: symbol.to_string(),
+            })
+        })?;
         let address = unsafe { dlsym(self.handle, name.as_ptr()) };
         Ok((!address.is_null()).then_some(address as *const c_void))
     }

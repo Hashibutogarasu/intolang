@@ -143,7 +143,7 @@ pub fun assertNotDestroyed(value: Object) {
         )
 }
 
-fn run(source: &str) -> anyhow::Result<TestSummary> {
+fn run(source: &str) -> errors::Result<TestSummary> {
     let workspace = Workspace::with_packages(&[builtin()])?;
     run_tests(source, Path::new("memory.into"), workspace.path())
 }

@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow, bail};
+use errors::{Errors, Result};
 use native::LinkCall;
 use std::collections::HashMap;
 use std::io::Write;
@@ -191,9 +191,11 @@ impl Vm {
     }
 
     pub fn instance(&self, reference: usize) -> Result<&Instance> {
-        self.heap
-            .get(reference)
-            .ok_or_else(|| anyhow!("Dangling reference {reference}"))
+        self.heap.get(reference).ok_or_else(|| {
+            errors::Error::from(Errors::DanglingReference {
+                reference: reference.to_string(),
+            })
+        })
     }
 
     pub fn run(&mut self) -> Result<()> {
@@ -308,14 +310,14 @@ impl Vm {
                 let holder = self.load_slot(&load.slot)?;
                 let value = self
                     .read_instance_field(&holder, load.index)
-                    .map_err(|error| anyhow!("`{}`: {error}", load.slot))?;
+                    .map_err(|error| error.with_note(format!("`{}`", load.slot)))?;
                 self.store(&load.target, value);
             }
             Instr::FieldAssign(assign) => {
                 let holder = self.load_slot(&assign.slot)?;
                 let value = self.operand(&assign.operand, &assign.ty)?;
                 self.write_instance_field(&holder, assign.index, value)
-                    .map_err(|error| anyhow!("`{}`: {error}", assign.slot))?;
+                    .map_err(|error| error.with_note(format!("`{}`", assign.slot)))?;
             }
             Instr::Cast(cast) => {
                 let value = self.load_slot(&cast.source)?;
@@ -344,9 +346,11 @@ impl Vm {
                 newline,
             } => {
                 let holder = self.load_slot(variable)?;
-                let class = self
-                    .class_of(&holder)
-                    .map_err(|_| anyhow!("`{variable}` holds no instance"))?;
+                let class = self.class_of(&holder).map_err(|_| {
+                    errors::Error::from(Errors::NoInstance {
+                        slot: variable.to_string(),
+                    })
+                })?;
                 let value = self.read_instance_field(&holder, *index)?;
                 let ty = program
                     .classes
@@ -367,9 +371,11 @@ impl Vm {
             }
             Instr::Copy { target, source } => {
                 let holder = self.load_slot(source)?;
-                let class = self
-                    .class_of(&holder)
-                    .map_err(|_| anyhow!("`{source}` holds no instance"))?;
+                let class = self.class_of(&holder).map_err(|_| {
+                    errors::Error::from(Errors::NoInstance {
+                        slot: source.to_string(),
+                    })
+                })?;
                 let copy = match holder {
                     Value::Native { ptr, .. } => {
                         let size = self.layout_of(&class).size;
@@ -386,7 +392,9 @@ impl Vm {
                     }
                     other => {
                         let Value::Ref(reference) = other else {
-                            bail!("`{source}` holds no instance");
+                            return Err(errors::Error::from(Errors::NoInstance {
+                                slot: source.to_string(),
+                            }));
                         };
                         let instance = self.instance(reference)?.clone();
                         Value::Ref(self.allocate(instance))
@@ -426,7 +434,11 @@ impl Vm {
                 }
             }
             Instr::Ownership(change) => self.apply(change)?,
-            Instr::Throw(message) => bail!("Into assertion failed: {message}"),
+            Instr::Throw(message) => {
+                return Err(errors::Error::from(Errors::AssertionFailed {
+                    message: message.to_string(),
+                }));
+            }
             Instr::Branch { cond, otherwise } => {
                 if !self.condition(cond)? {
                     self.jump(*otherwise);
@@ -447,12 +459,15 @@ impl Vm {
             }
             Instr::CallFn(call) => {
                 if self.frames.len() >= MAX_CALL_DEPTH {
-                    bail!("Stack overflow in `{}`", call.name);
+                    return Err(errors::Error::from(Errors::StackOverflow {
+                        function: call.name.to_string(),
+                    }));
                 }
-                let function = program
-                    .functions
-                    .get(&call.name)
-                    .ok_or_else(|| anyhow!("Call of the undefined function `{}`", call.name))?;
+                let function = program.functions.get(&call.name).ok_or_else(|| {
+                    errors::Error::from(Errors::UndefinedFunctionCall {
+                        name: call.name.to_string(),
+                    })
+                })?;
                 let values = call
                     .args
                     .iter()
@@ -475,15 +490,22 @@ impl Vm {
             }
             Instr::CallIndirect(call) => {
                 if self.frames.len() >= MAX_CALL_DEPTH {
-                    bail!("Stack overflow in a call of `{}`", call.slot);
+                    return Err(errors::Error::from(Errors::StackOverflowIndirect {
+                        slot: call.slot.to_string(),
+                    }));
                 }
                 let reference = self.load_slot(&call.slot)?;
                 let Value::Str(bytes) = reference else {
-                    bail!("`{}` does not refer to a function", call.slot);
+                    return Err(errors::Error::from(Errors::NotAFunction {
+                        slot: call.slot.to_string(),
+                    }));
                 };
                 let name = String::from_utf8_lossy(&bytes).into_owned();
                 let function = program.functions.get(&name).ok_or_else(|| {
-                    anyhow!("`{}` refers to the unknown function `{name}`", call.slot)
+                    errors::Error::from(Errors::UnknownFunctionReference {
+                        slot: call.slot.to_string(),
+                        name: name.to_string(),
+                    })
                 })?;
                 let values = call
                     .args
@@ -558,8 +580,11 @@ impl Vm {
         if let Some(intrinsic) = self.intrinsics.get(symbol).cloned() {
             return intrinsic(self, args);
         }
-        self.call_native(symbol, args, return_type)?
-            .ok_or_else(|| anyhow!("The native function `{symbol}` is not available in the VM"))
+        self.call_native(symbol, args, return_type)?.ok_or_else(|| {
+            errors::Error::from(Errors::NativeFunctionUnavailable {
+                symbol: symbol.to_string(),
+            })
+        })
     }
 
     fn print(&mut self, ty: &str, value: &Value, newline: bool) -> Result<()> {
@@ -574,7 +599,9 @@ impl Vm {
             Value::Float(number) => format!("{number:.6}").into_bytes(),
             Value::Str(bytes) => bytes.clone(),
             Value::Ref(_) | Value::Native { .. } | Value::Unit => {
-                bail!("A value of type `{ty}` cannot be printed")
+                return Err(errors::Error::from(Errors::NotPrintable {
+                    ty: ty.to_string(),
+                }));
             }
         };
         if newline {
@@ -592,12 +619,15 @@ impl Vm {
     /// as another class gets an instance of it, `depth` levels down.
     fn construct_at(&mut self, program: &Program, class: &str, depth: usize) -> Result<Instance> {
         if depth > MAX_NESTED_DEFAULTS {
-            bail!("The defaults of `{class}` build instances without end");
+            return Err(errors::Error::from(Errors::InstancesWithoutEnd {
+                class: class.to_string(),
+            }));
         }
-        let definition = program
-            .classes
-            .get(class)
-            .ok_or_else(|| anyhow!("Unknown native class `{class}`"))?;
+        let definition = program.classes.get(class).ok_or_else(|| {
+            errors::Error::from(Errors::UnknownNativeClass {
+                class: class.to_string(),
+            })
+        })?;
         let mut fields = Vec::new();
         for field in &definition.fields {
             fields.push(match &field.default {

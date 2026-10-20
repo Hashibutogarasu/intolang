@@ -28,6 +28,15 @@ impl From<std::num::ParseFloatError> for Error {
     }
 }
 
+impl From<std::alloc::LayoutError> for Error {
+    fn from(error: std::alloc::LayoutError) -> Self {
+        Errors::Internal {
+            message: format!("Invalid memory layout: {error}"),
+        }
+        .into()
+    }
+}
+
 impl From<std::ffi::NulError> for Error {
     fn from(error: std::ffi::NulError) -> Self {
         Errors::InvalidCString {

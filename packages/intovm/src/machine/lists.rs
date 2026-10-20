@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use errors::{Errors, Result};
 use std::rc::Rc;
 
 use super::Vm;
@@ -7,7 +7,9 @@ use crate::value::Value;
 fn handle(args: &[Value]) -> Result<usize> {
     match args.first() {
         Some(Value::Int(handle)) if *handle > 0 => Ok(*handle as usize - 1),
-        other => Err(anyhow!("{other:?} is not a list")),
+        other => Err(errors::Error::from(Errors::NotAList {
+            value: format!("{:?}", other),
+        })),
     }
 }
 
@@ -15,21 +17,21 @@ fn index(args: &[Value]) -> Result<Option<usize>> {
     let number = args
         .get(1)
         .and_then(Value::int)
-        .ok_or_else(|| anyhow!("The list call is missing its index"))?;
+        .ok_or_else(|| errors::Error::from(Errors::ListMissingIndex))?;
     Ok(usize::try_from(number).ok())
 }
 
 fn item(args: &[Value], position: usize) -> Result<Value> {
     args.get(position)
         .cloned()
-        .ok_or_else(|| anyhow!("The list call is missing its item"))
+        .ok_or_else(|| errors::Error::from(Errors::ListMissingItem))
 }
 
 fn items<'a>(vm: &'a mut Vm, args: &[Value]) -> Result<&'a mut Vec<Value>> {
     let position = handle(args)?;
     vm.lists
         .get_mut(position)
-        .ok_or_else(|| anyhow!("The list was freed"))
+        .ok_or_else(|| errors::Error::from(Errors::ListFreed))
 }
 
 /// The list functions of `list.c`, on lists that hold the values the program

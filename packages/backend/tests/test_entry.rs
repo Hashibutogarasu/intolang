@@ -30,7 +30,7 @@ pub fun assertOwned(value: Object) {
         )
 }
 
-fn lower(test: &str) -> anyhow::Result<String> {
+fn lower(test: &str) -> errors::Result<String> {
     let workspace = Workspace::with_packages(&[helpers()])?;
     backend::lower_test(
         r#"import "intolang://builtin/tests/assert";

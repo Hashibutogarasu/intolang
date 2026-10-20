@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow, bail};
+use errors::{Errors, Result};
 use std::ffi::CString;
 
 use super::vm::Vm;
@@ -43,16 +43,22 @@ impl Vm {
                 .fields
                 .get(index)
                 .cloned()
-                .ok_or_else(|| anyhow!("Unknown field index {index}")),
+                .ok_or_else(|| {
+                    errors::Error::from(Errors::UnknownFieldIndexVm {
+                        index: index.to_string(),
+                    })
+                }),
             Value::Native { ptr, class } => {
                 let layout = self.layout_of(class);
-                let field = layout
-                    .fields
-                    .get(index)
-                    .ok_or_else(|| anyhow!("Unknown field index {index} of `{class}`"))?;
+                let field = layout.fields.get(index).ok_or_else(|| {
+                    errors::Error::from(Errors::UnknownFieldIndexOf {
+                        index: index.to_string(),
+                        class: class.to_string(),
+                    })
+                })?;
                 Ok(unsafe { read_field(*ptr, field) })
             }
-            _ => bail!("The value holds no instance"),
+            _ => return Err(errors::Error::from(Errors::ValueNoInstance)),
         }
     }
 
@@ -69,23 +75,33 @@ impl Vm {
                 let slot = self
                     .heap
                     .get_mut(*reference)
-                    .ok_or_else(|| anyhow!("Dangling reference {reference}"))?
+                    .ok_or_else(|| {
+                        errors::Error::from(Errors::DanglingReference {
+                            reference: reference.to_string(),
+                        })
+                    })?
                     .fields
                     .get_mut(index)
-                    .ok_or_else(|| anyhow!("Unknown field index {index}"))?;
+                    .ok_or_else(|| {
+                        errors::Error::from(Errors::UnknownFieldIndexVm {
+                            index: index.to_string(),
+                        })
+                    })?;
                 *slot = value;
                 Ok(())
             }
             Value::Native { ptr, class } => {
                 let layout = self.layout_of(class);
-                let field = layout
-                    .fields
-                    .get(index)
-                    .ok_or_else(|| anyhow!("Unknown field index {index} of `{class}`"))?;
+                let field = layout.fields.get(index).ok_or_else(|| {
+                    errors::Error::from(Errors::UnknownFieldIndexOf {
+                        index: index.to_string(),
+                        class: class.to_string(),
+                    })
+                })?;
                 unsafe { write_field(*ptr, field, &value, &mut self.retained_strings, &raw_of) };
                 Ok(())
             }
-            _ => bail!("The value holds no instance"),
+            _ => return Err(errors::Error::from(Errors::ValueNoInstance)),
         }
     }
 
@@ -94,7 +110,7 @@ impl Vm {
         match value {
             Value::Ref(reference) => Ok(self.instance(*reference)?.class.clone()),
             Value::Native { class, .. } => Ok(class.clone()),
-            _ => bail!("The value holds no instance"),
+            _ => return Err(errors::Error::from(Errors::ValueNoInstance)),
         }
     }
 
@@ -108,7 +124,7 @@ impl Vm {
             Value::Int(number) => Ok(*number as usize),
             Value::Native { ptr, .. } => Ok(*ptr),
             Value::Unit => Ok(0),
-            Value::Float(_) => bail!("Floating point arguments are not supported in native calls"),
+            Value::Float(_) => return Err(errors::Error::from(Errors::FloatArgument)),
             Value::Str(bytes) => {
                 let text = CString::new(
                     bytes
@@ -181,7 +197,10 @@ impl Vm {
             return Ok(None);
         };
         if args.len() > MAX_ARGUMENTS {
-            bail!("`{symbol}` takes more than {MAX_ARGUMENTS} arguments");
+            return Err(errors::Error::from(Errors::TooManyNativeArguments {
+                symbol: symbol.to_string(),
+                max: MAX_ARGUMENTS,
+            }));
         }
         let mut strings = Vec::new();
         let mut buffers = Vec::new();
@@ -189,8 +208,13 @@ impl Vm {
             .iter()
             .map(|argument| self.to_raw(argument, &mut strings, &mut buffers))
             .collect::<Result<Vec<_>>>()?;
-        let returned = unsafe { invoke(function, &raw, returns_of(return_type)) }
-            .ok_or_else(|| anyhow!("`{symbol}` takes more than {MAX_ARGUMENTS} arguments"))?;
+        let returned =
+            unsafe { invoke(function, &raw, returns_of(return_type)) }.ok_or_else(|| {
+                errors::Error::from(Errors::TooManyNativeArguments {
+                    symbol: symbol.to_string(),
+                    max: MAX_ARGUMENTS,
+                })
+            })?;
         for text in strings {
             let _ = text.into_raw();
         }

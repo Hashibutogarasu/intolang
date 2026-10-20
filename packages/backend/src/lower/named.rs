@@ -1,5 +1,5 @@
-use anyhow::{Result, anyhow};
 use ast::{Item, Program, Stmt};
+use errors::{Errors, Result};
 use parser::PathLexeme;
 use std::path::Path;
 
@@ -89,8 +89,10 @@ fn lower_entry(
         }
     }
     if let Some(name) = test {
-        let body = test_body(&program, name)
-            .ok_or_else(|| anyhow!("{source_path}: no function `{name}` to run as a test"))?;
+        let body = test_body(&program, name).ok_or_else(|| Errors::NoTestFunction {
+            path: source_path.to_string(),
+            name: name.to_string(),
+        })?;
         lowerer.lower_block(body)?;
     }
     lowerer.finish_program()?;

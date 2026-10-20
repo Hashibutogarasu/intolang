@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use errors::{Context, Errors, Result};
 
 use super::execution::Execution;
 use super::workspace::Workspace;
@@ -15,7 +15,10 @@ pub fn eval_run(source: &str) -> Result<Execution> {
     let output = std::process::Command::new(&executable)
         .current_dir(workspace.path())
         .output()
-        .with_context(|| format!("Could not run {}", executable.display()))?;
+        .map_err(|error| Errors::ToolNotRun {
+            tool: executable.display().to_string(),
+            reason: error.to_string(),
+        })?;
     Ok(Execution {
         stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
         stderr: String::from_utf8_lossy(&output.stderr).into_owned(),

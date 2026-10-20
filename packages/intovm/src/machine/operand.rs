@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow, bail};
+use errors::{Errors, Result};
 use native::{NativeArg, Operand};
 
 use super::arith::constant;
@@ -10,15 +10,17 @@ impl Vm {
         let frame = self
             .frames
             .last()
-            .ok_or_else(|| anyhow!("No running frame"))?;
+            .ok_or_else(|| errors::Error::from(Errors::NoFrame))?;
         let found = if frame.shares(name) {
             self.globals.get(name)
         } else {
             frame.locals.get(name)
         };
-        found
-            .cloned()
-            .ok_or_else(|| anyhow!("Native value `{name}` has no storage"))
+        found.cloned().ok_or_else(|| {
+            errors::Error::from(Errors::NativeValueNoStorage {
+                name: name.to_string(),
+            })
+        })
     }
 
     pub(super) fn store(&mut self, name: &str, value: Value) {
@@ -48,7 +50,9 @@ impl Vm {
             NativeArg::Field { slot, index, .. } => {
                 let holder = self.load_slot(slot)?;
                 if self.class_of(&holder).is_err() {
-                    bail!("`{slot}` holds no instance");
+                    return Err(errors::Error::from(Errors::NoInstance {
+                        slot: slot.to_string(),
+                    }));
                 }
                 self.read_instance_field(&holder, *index)
             }

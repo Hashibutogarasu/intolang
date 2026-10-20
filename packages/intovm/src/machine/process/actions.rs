@@ -1,4 +1,4 @@
-use anyhow::{Result, bail};
+use errors::{Errors, Result};
 
 use super::table::{ProcessInfo, ProcessState, ProcessTable};
 
@@ -67,7 +67,9 @@ impl ProcessTable {
         };
         if process.state == ProcessState::Running {
             let Some(time) = process.exits_at else {
-                bail!("Waiting for process {pid}, which never exits: deadlock");
+                return Err(errors::Error::from(Errors::ProcessDeadlock {
+                    pid: pid.to_string(),
+                }));
             };
             self.clock_ms = self.clock_ms.max(time);
             self.refresh();

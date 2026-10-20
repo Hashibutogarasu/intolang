@@ -2,10 +2,7 @@ use errors::{Domain, Error, Layer};
 use testing::eval;
 
 fn failure(source: &str) -> Error {
-    eval(source)
-        .unwrap_err()
-        .downcast::<Error>()
-        .expect("the failure is an error of the toolchain")
+    eval(source).unwrap_err()
 }
 
 fn has_into_layer(error: &Error) -> bool {

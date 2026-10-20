@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use errors::{Errors, Result};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -25,19 +25,18 @@ impl Workspace {
         ));
         let workspace = Self { root };
         std::fs::create_dir_all(&workspace.root)
-            .with_context(|| format!("Could not create {}", workspace.root.display()))?;
+            .map_err(|error| Errors::file_action("create", &workspace.root, error))?;
         for package in packages {
             let directory = workspace.root.join(&package.alias);
             std::fs::create_dir_all(&directory)
-                .with_context(|| format!("Could not create {}", directory.display()))?;
+                .map_err(|error| Errors::file_action("create", &directory, error))?;
             std::fs::write(directory.join("into-package.json"), package.manifest())?;
             for (path, contents) in &package.files {
                 let target = directory.join(path);
                 if let Some(parent) = target.parent() {
                     std::fs::create_dir_all(parent)?;
                 }
-                std::fs::write(&target, contents)
-                    .with_context(|| format!("Could not write {}", target.display()))?;
+                std::fs::write(&target, contents).map_err(|error| Errors::write(&target, error))?;
             }
         }
         Ok(workspace)
