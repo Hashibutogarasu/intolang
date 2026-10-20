@@ -3,6 +3,8 @@ mod assets;
 mod binary;
 mod events;
 mod frame;
+#[cfg(target_arch = "wasm32")]
+mod heap;
 mod lists;
 mod memory;
 mod memory_access;

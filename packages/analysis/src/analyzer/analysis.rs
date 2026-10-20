@@ -35,11 +35,11 @@ fn builtin_functions(packages_dir: &Path, sources: &dyn SourceProvider) -> Vec<M
     let Ok(Some(builtin)) = Package::find_by_alias(packages_dir, moduler::BUILTIN_ALIAS) else {
         return Vec::new();
     };
-    let Ok(entries) = std::fs::read_dir(builtin.join(BUILTIN_FUNCTIONS)) else {
+    let Ok(entries) = package::read_dir(&builtin.join(BUILTIN_FUNCTIONS)) else {
         return Vec::new();
     };
     let mut files: Vec<PathBuf> = entries
-        .filter_map(|entry| Some(entry.ok()?.path()))
+        .into_iter()
         .filter(|path| {
             path.extension()
                 .is_some_and(|extension| extension == "into")

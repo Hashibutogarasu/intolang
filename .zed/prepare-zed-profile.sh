@@ -12,7 +12,7 @@ cargo build --release --target wasm32-wasip2 --manifest-path "$extension/Cargo.t
 cp "$extension/target/wasm32-wasip2/release/into_zed.wasm" "$extension/extension.wasm"
 
 mkdir -p "$extension/grammars"
-nix develop "$root#llvm" -c tree-sitter build --wasm --output "$extension/grammars/into.wasm" "$extension/grammars/tree-sitter-into"
+nix develop "$root#llvm" -c tree-sitter build --wasm --output "$extension/grammars/into.wasm" "$root/packages/tree-sitter-into"
 
 mkdir -p "$installed"
 ln -sfn "$extension" "$installed/into"

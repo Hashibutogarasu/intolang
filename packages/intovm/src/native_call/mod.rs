@@ -1,3 +1,7 @@
+#[cfg(not(target_arch = "wasm32"))]
+mod dl;
+#[cfg(target_arch = "wasm32")]
+#[path = "dl_unsupported.rs"]
 mod dl;
 mod invoke;
 mod layout;

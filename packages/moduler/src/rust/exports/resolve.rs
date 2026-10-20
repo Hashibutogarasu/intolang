@@ -15,7 +15,7 @@ pub fn resolve(program: &Program, packages_dir: &Path) -> Result<HashSet<String>
     let mut imported_functions = HashSet::new();
     for loaded in &modules {
         let info_path = loaded.package().root.join("src/main/into-info.into");
-        let info = std::fs::read_to_string(&info_path).map_err(|_| Errors::PackageNoInfo {
+        let info = package::read_to_string(&info_path).map_err(|_| Errors::PackageNoInfo {
             alias: loaded.module.alias.clone(),
         })?;
         let info = info

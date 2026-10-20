@@ -10,6 +10,6 @@ pub struct FileSystem;
 
 impl SourceProvider for FileSystem {
     fn read(&self, path: &Path) -> Option<String> {
-        std::fs::read_to_string(path).ok()
+        package::read_to_string(path).ok()
     }
 }

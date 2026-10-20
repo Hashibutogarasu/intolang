@@ -1,0 +1,34 @@
+{
+  "name": "playground",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "wasm": "nix develop ../..#playground -c pnpm wasm:build",
+    "wasm:build": "cargo build -p wasm --release --target wasm32-unknown-unknown && wasm-bindgen --target web --out-dir public/wasm --out-name wasm $CARGO_TARGET_DIR/wasm32-unknown-unknown/release/wasm.wasm",
+    "grammar": "nix develop ../..#playground -c pnpm grammar:build",
+    "grammar:build": "mkdir -p public/tree-sitter && tree-sitter build --wasm ../../packages/tree-sitter-into --output public/tree-sitter/into.wasm && cp ../../packages/tree-sitter-into/queries/highlights.scm node_modules/web-tree-sitter/web-tree-sitter.wasm public/tree-sitter/",
+    "predev": "pnpm wasm && pnpm grammar",
+    "dev": "next dev",
+    "prebuild": "pnpm wasm && pnpm grammar",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
+    "monaco-editor": "^0.57.0",
+    "next": "16.4.2",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "web-tree-sitter": "^0.27.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.2",
+    "typescript": "^5"
+  },
+  "packageManager": "pnpm@12.11.2"
+}

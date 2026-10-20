@@ -5,6 +5,7 @@ use std::path::Path;
 use std::str::FromStr;
 
 use super::built_config::BuiltConfig;
+use crate::vfs::Vfs;
 
 pub const MANIFEST_FILE: &str = "into-package.json";
 
@@ -34,11 +35,17 @@ pub struct Manifest {
 
 impl Manifest {
     pub fn load(path: &Path) -> Result<Self> {
+        Self::load_in(&*crate::vfs::current(), path)
+    }
+
+    pub fn load_in(files: &dyn Vfs, path: &Path) -> Result<Self> {
         let contents =
-            std::fs::read_to_string(path).map_err(|error| Errors::PackageManifestNotFound {
-                path: path.display().to_string(),
-                reason: error.to_string(),
-            })?;
+            files
+                .read_to_string(path)
+                .map_err(|error| Errors::PackageManifestNotFound {
+                    path: path.display().to_string(),
+                    reason: error.to_string(),
+                })?;
         contents.parse().map_err(|error: serde_json::Error| {
             Errors::PackageManifestInvalid {
                 path: path.display().to_string(),

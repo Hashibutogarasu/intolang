@@ -68,7 +68,7 @@ pub fn definition(
 
 fn native_definition(root: &PathBuf, native: &NativeRef) -> Option<Location> {
     let file = root.join(&native.source_path);
-    let text = std::fs::read_to_string(&file).ok()?;
+    let text = package::read_to_string(&file).ok()?;
     Some(Location {
         uri: path_to_uri(&real(&file)),
         range: locate_symbol(&text, &native.target).unwrap_or_default(),
