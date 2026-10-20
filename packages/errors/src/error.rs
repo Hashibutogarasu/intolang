@@ -50,9 +50,10 @@ impl Error {
 
     /// Add the Into language layer. Errors of the toolchain itself do not go through the
     /// Into language, so they drop it.
+    /// An Into language layer that is there already is kept: it names the innermost place.
     pub fn with_into(mut self, trace: IntoLangStackTrace) -> Self {
         if self.kind.domain() == Domain::IntoLang {
-            self.trace.into = Some(trace);
+            self.trace.into.get_or_insert(trace);
         }
         self
     }

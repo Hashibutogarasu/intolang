@@ -1,4 +1,5 @@
 use ast::Expr;
+use errors::{Errors, Result};
 use native::{CastAssign, FunctionCall, FunctionDefinition, FunctionReturn, NativeArg, Operand};
 use parser::Hex;
 use std::mem;
@@ -26,30 +27,27 @@ impl Lowerer<'_> {
     }
 
     /// The type the function returns, `Void` for none.
-    fn runtime_return_type(&self, function: &UserFunction) -> Result<Type, String> {
+    fn runtime_return_type(&self, function: &UserFunction) -> Result<Type> {
         match function.return_type.as_deref() {
             None => Ok(Type::Void),
-            Some(written) => {
-                parse_type(written, &self.env.type_params).map_err(|error| error.to_string())
-            }
+            Some(written) => parse_type(written, &self.env.type_params),
         }
     }
 
     /// The parameters of the function in order, the receiver first.
-    fn runtime_params(&self, function: &UserFunction) -> Result<Vec<(String, Type)>, String> {
+    fn runtime_params(&self, function: &UserFunction) -> Result<Vec<(String, Type)>> {
         let mut params = Vec::new();
         if let (Some(class), false) = (&function.receiver, function.is_static) {
             params.push(("this".to_owned(), Type::Named(class.clone())));
         }
         for param in &function.params {
             let written = param.ty.as_ref().ok_or_else(|| {
-                format!(
-                    "The parameter `{}` of `{}` needs a type",
-                    param.name, function.name
-                )
+                errors::Error::from(Errors::ParameterNeedsType {
+                    param: param.name.clone(),
+                    function: function.name.clone(),
+                })
             })?;
-            let ty = parse_type(written.as_str(), &self.env.type_params)
-                .map_err(|error| error.to_string())?;
+            let ty = parse_type(written.as_str(), &self.env.type_params)?;
             params.push((param.name.clone(), ty));
         }
         Ok(params)
@@ -62,24 +60,29 @@ impl Lowerer<'_> {
         function: &UserFunction,
         receiver: Option<String>,
         args: &[Expr],
-    ) -> Result<Option<(String, Type)>, String> {
+    ) -> Result<Option<(String, Type)>> {
         self.define_runtime_function(function)?;
         let params = self.runtime_params(function)?;
         let mut arguments: Vec<Expr> = receiver.into_iter().map(Expr::ident).collect();
         arguments.extend_from_slice(args);
         if arguments.len() > params.len() {
-            return Err(format!(
-                "Function `{}` expects {} argument(s) but received {}",
-                function.name,
-                params.len(),
-                arguments.len()
-            ));
+            return Err(Errors::FunctionArgumentCount {
+                function: function.name.clone(),
+                expected: params.len(),
+                received: arguments.len(),
+            }
+            .into());
         }
         let offset = params.len() - function.params.len();
         for param in &function.params[arguments.len().saturating_sub(offset)..] {
             match param.default_argument() {
                 Some(default) => arguments.push(default),
-                None => return Err(format!("Missing required argument `{}`", param.name)),
+                None => {
+                    return Err(Errors::MissingArgument {
+                        name: param.name.clone(),
+                    }
+                    .into());
+                }
             }
         }
         let mut native = Vec::new();
@@ -106,17 +109,13 @@ impl Lowerer<'_> {
     }
 
     /// The argument that passes `argument` to a parameter of type `ty`.
-    pub(crate) fn runtime_argument(
-        &mut self,
-        argument: &Expr,
-        ty: &Type,
-    ) -> Result<NativeArg, String> {
+    pub(crate) fn runtime_argument(&mut self, argument: &Expr, ty: &Type) -> Result<NativeArg> {
         if let Expr::Lambda { params, body } = argument {
             if !Self::is_function_type(ty) {
-                return Err(format!(
-                    "A lambda cannot stand where a `{}` is expected",
-                    ty.name()
-                ));
+                return Err(Errors::LambdaNotAllowed {
+                    expected: ty.name(),
+                }
+                .into());
             }
             return Ok(NativeArg::Slot(
                 self.lower_lambda_value(params, body, ty, None)?,
@@ -130,10 +129,11 @@ impl Lowerer<'_> {
             let fits =
                 actual == Some(Type::String) || (*ty == Type::Path && actual == Some(Type::Path));
             if !fits {
-                return Err(format!(
-                    "Expected a `{}` argument but received `{argument}`",
-                    ty.name()
-                ));
+                return Err(Errors::ExpectedArgumentType {
+                    expected: ty.name(),
+                    argument: argument.to_string(),
+                }
+                .into());
             }
             return Ok(match self.lower_text(argument, None)? {
                 Text::Const(text) => NativeArg::from(text.as_str()),
@@ -151,10 +151,11 @@ impl Lowerer<'_> {
         let (_, built, native) =
             self.declaration_value(argument, Some(ty.clone()), &env.type_params, &slot)?;
         if !native {
-            return Err(format!(
-                "Expected a `{}` argument but received `{argument}`",
-                ty.name()
-            ));
+            return Err(Errors::ExpectedArgumentType {
+                expected: ty.name(),
+                argument: argument.to_string(),
+            }
+            .into());
         }
         self.state
             .values
@@ -163,23 +164,35 @@ impl Lowerer<'_> {
     }
 
     /// The slot that holds `value` converted to the scalar type `ty`.
-    pub fn scalar_slot(&mut self, value: &Expr, ty: &Type) -> Result<String, String> {
+    pub fn scalar_slot(&mut self, value: &Expr, ty: &Type) -> Result<String> {
         let declared = self.type_of(value)?;
         if !is_scalar(&declared) && declared != Type::Boolean {
-            return Err(format!("Expected a `{}` but received `{value}`", ty.name()));
+            return Err(Errors::ExpectedType {
+                expected: ty.name(),
+                received: value.to_string(),
+            }
+            .into());
         }
         let numeric = self.lower_numeric(value)?;
         let received = match &numeric.kind {
             Kind::Typed(received) => received.clone(),
             Kind::IntLiteral => {
                 if !ty.is_numeric() {
-                    return Err(format!("Expected a `{}` but received `{value}`", ty.name()));
+                    return Err(Errors::ExpectedType {
+                        expected: ty.name(),
+                        received: value.to_string(),
+                    }
+                    .into());
                 }
                 ty.clone()
             }
             Kind::FloatLiteral => {
                 if !ty.is_float() {
-                    return Err(format!("Expected a `{}` but received `{value}`", ty.name()));
+                    return Err(Errors::ExpectedType {
+                        expected: ty.name(),
+                        received: value.to_string(),
+                    }
+                    .into());
                 }
                 ty.clone()
             }
@@ -190,11 +203,11 @@ impl Lowerer<'_> {
         }
         let convertible = (is_scalar(&received) || received == Type::Boolean) && is_scalar(ty);
         if !convertible || (received == Type::Char) != (*ty == Type::Char) {
-            return Err(format!(
-                "Expected a `{}` but received a `{}`",
-                ty.name(),
-                received.name()
-            ));
+            return Err(Errors::ExpectedTypeReceived {
+                expected: ty.name(),
+                received: received.name(),
+            }
+            .into());
         }
         let converted = self.fresh_slot(ty);
         emit::cast_assign(
@@ -210,7 +223,7 @@ impl Lowerer<'_> {
     }
 
     /// Put the definition of a function called at run time in the output, once.
-    fn define_runtime_function(&mut self, function: &UserFunction) -> Result<(), String> {
+    fn define_runtime_function(&mut self, function: &UserFunction) -> Result<()> {
         if !self.state.defined_functions.insert(function.name.clone()) {
             return Ok(());
         }
@@ -244,9 +257,7 @@ impl Lowerer<'_> {
         }
         self.state.returning.push(return_type);
         self.state.scopes.push(Vec::new());
-        let lowered = self
-            .lower_block(&function.body)
-            .map_err(|error| error.to_string());
+        let lowered = self.lower_block(&function.body);
         let owned = self.state.scopes.pop().unwrap_or_default();
         let released = match lowered {
             Ok(()) => self.release_scope(&owned, None),
@@ -265,7 +276,7 @@ impl Lowerer<'_> {
 
     /// Compute the value of a `return` of an inlined function into a slot of
     /// its own, and give the name of the slot.
-    pub(crate) fn materialize_return(&mut self, expression: &Expr) -> Result<String, String> {
+    pub(crate) fn materialize_return(&mut self, expression: &Expr) -> Result<String> {
         let slot = format!("__return{}", self.state.temp_counter);
         self.state.temp_counter += 1;
         if self.is_text(expression) {
@@ -285,7 +296,10 @@ impl Lowerer<'_> {
         let env = self.env;
         let (_, ty, native) = self.declaration_value(expression, None, &env.type_params, &slot)?;
         if !native {
-            return Err(format!("Unsupported return value `{expression}`"));
+            return Err(Errors::UnsupportedReturnValue {
+                expression: expression.to_string(),
+            }
+            .into());
         }
         self.state
             .values
@@ -294,20 +308,26 @@ impl Lowerer<'_> {
     }
 
     /// Lower `return value;` inside a function called at run time.
-    pub fn lower_function_return(&mut self, value: Option<&Expr>) -> Result<(), String> {
+    pub fn lower_function_return(&mut self, value: Option<&Expr>) -> Result<()> {
         let Some(ty) = self.state.returning.last().cloned() else {
             return Ok(());
         };
         let operand = match value {
             None if ty == Type::Void => None,
-            None => return Err(format!("`return` needs a `{}` value", ty.name())),
+            None => {
+                return Err(Errors::ReturnNeedsValue { ty: ty.name() }.into());
+            }
             Some(_) if ty == Type::Void => {
-                return Err("A function that returns nothing cannot return a value".to_owned());
+                return Err(Errors::VoidReturnsValue.into());
             }
             Some(value) if is_scalar(&ty) => Some(Operand::Slot(self.scalar_slot(value, &ty)?)),
             Some(value) if matches!(ty, Type::String | Type::Path) => {
                 if !self.is_text(value) {
-                    return Err(format!("Expected a `{}` but received `{value}`", ty.name()));
+                    return Err(Errors::ExpectedType {
+                        expected: ty.name(),
+                        received: value.to_string(),
+                    }
+                    .into());
                 }
                 Some(match self.lower_text(value, None)? {
                     Text::Const(text) => Operand::Str(text.into_bytes()),

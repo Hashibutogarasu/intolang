@@ -1,5 +1,5 @@
-use anyhow::Result;
 use ast::{Path, Stmt};
+use errors::Result;
 use types::MessageTag;
 
 use crate::context::{Lowerer, Ownership};
@@ -15,14 +15,14 @@ impl Lowerer<'_> {
         let names = self.state.scopes.pop().unwrap_or_default();
         lowered?;
         self.release_scope(&names, None)
-            .map_err(|message| self.diagnostic(line, &message))
+            .map_err(|error| self.diagnostic(line, error))
     }
 
     /// Destroy what the outermost scope still owns once the program ends.
     pub fn finish_program(&mut self) -> Result<()> {
         let names = self.state.scopes.pop().unwrap_or_default();
         self.release_scope(&names, None)
-            .map_err(|message| self.diagnostic(0, &message))
+            .map_err(|error| self.diagnostic(0, error))
     }
 
     /// Destroy what the scopes between a `break` and its loop own, without
@@ -38,7 +38,7 @@ impl Lowerer<'_> {
             .rev()
             .try_for_each(|names| self.release_scope(names, None));
         self.state.values = snapshot;
-        released.map_err(|message| self.diagnostic(line, &message))
+        released.map_err(|error| self.diagnostic(line, error))
     }
 
     /// Start tracking a binding that was just declared in the current scope.
@@ -86,7 +86,7 @@ impl Lowerer<'_> {
 
     /// Release the bindings of one scope in reverse declaration order, except
     /// `keep`, which the scope hands to its caller.
-    pub fn release_scope(&mut self, names: &[String], keep: Option<&str>) -> Result<(), String> {
+    pub fn release_scope(&mut self, names: &[String], keep: Option<&str>) -> Result<()> {
         names
             .iter()
             .rev()
@@ -94,7 +94,7 @@ impl Lowerer<'_> {
             .try_for_each(|name| self.release_binding(name))
     }
 
-    fn release_binding(&mut self, name: &str) -> Result<(), String> {
+    fn release_binding(&mut self, name: &str) -> Result<()> {
         let Some(variable) = self.state.values.get(name) else {
             return Ok(());
         };
@@ -128,7 +128,7 @@ impl Lowerer<'_> {
         }
     }
 
-    fn destroy_binding(&mut self, name: &str) -> Result<(), String> {
+    fn destroy_binding(&mut self, name: &str) -> Result<()> {
         let callee = Path::from(vec![name.to_owned(), DESTROY.to_owned()]);
         self.inline_call(&callee, &[], 0)
     }

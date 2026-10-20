@@ -1,4 +1,5 @@
 use ast::{Expr, Path};
+use errors::{Errors, Result};
 use native::NativeLink;
 use std::collections::HashSet;
 use types::{MessageTag, Type};
@@ -71,7 +72,7 @@ impl<'a> Lowerer<'a> {
     /// The key of the function a call with `args` runs, when several functions
     /// share `key` and differ in the types of their parameters: the one whose
     /// parameters fit the arguments best, preferring identical types.
-    pub fn pick_overload(&self, key: &str, args: &[Expr]) -> Result<String, String> {
+    pub fn pick_overload(&self, key: &str, args: &[Expr]) -> Result<String> {
         let env = self.env;
         let Some(candidates) = env.overloads.get(key) else {
             return Ok(key.to_owned());
@@ -116,15 +117,15 @@ impl<'a> Lowerer<'a> {
                 .iter()
                 .map(|ty| ty.as_ref().map_or_else(|| "?".to_owned(), Type::name))
                 .collect();
-            format!(
-                "No overload of `{key}` accepts ({}); the choices are {}",
-                given.join(", "),
-                candidates
+            errors::Error::from(Errors::NoOverload {
+                key: key.to_string(),
+                given: given.join(", "),
+                choices: candidates
                     .iter()
                     .map(|candidate| format!("`{}`", candidate.key))
                     .collect::<Vec<_>>()
-                    .join(", ")
-            )
+                    .join(", "),
+            })
         })
     }
 
@@ -143,10 +144,13 @@ impl<'a> Lowerer<'a> {
     /// Walk the member chain of a method call path, emitting a call for each
     /// intermediate member into a temporary. Returns the name holding the final
     /// receiver and its type.
-    pub fn resolve_receiver(&mut self, path: &Path) -> Result<(String, Type), String> {
+    pub fn resolve_receiver(&mut self, path: &Path) -> Result<(String, Type)> {
         let segments = path.segments();
         if segments.len() < 2 {
-            return Err(format!("`{path}` is not a method call"));
+            return Err(Errors::NotAMethodCall {
+                path: path.to_string(),
+            }
+            .into());
         }
         let env = self.env;
         let receiver = &segments[0];
@@ -156,7 +160,11 @@ impl<'a> Lowerer<'a> {
             .values
             .get(receiver)
             .map(|variable| variable.ty.clone())
-            .ok_or_else(|| format!("Unknown receiver `{receiver}`"))?;
+            .ok_or_else(|| {
+                errors::Error::from(Errors::UnknownReceiver {
+                    name: receiver.clone(),
+                })
+            })?;
         for segment in &segments[1..segments.len() - 1] {
             let declares_field = env
                 .class_fields
@@ -184,7 +192,10 @@ impl<'a> Lowerer<'a> {
                 continue;
             }
             let link = env.native_links.get(&key).ok_or_else(|| {
-                format!("Undefined member `{segment}` on `{}`", current_type.name())
+                errors::Error::from(Errors::UndefinedMember {
+                    member: segment.clone(),
+                    ty: current_type.name(),
+                })
             })?;
             let temporary = format!("__member{}", self.state.temp_counter);
             self.state.temp_counter += 1;
@@ -211,7 +222,7 @@ impl<'a> Lowerer<'a> {
         &mut self,
         path: &Path,
         args: &[Expr],
-    ) -> Result<(&'a NativeLink, Vec<Expr>), String> {
+    ) -> Result<(&'a NativeLink, Vec<Expr>)> {
         let (receiver, receiver_type) = self.resolve_receiver(path)?;
         let key = self.method_key(base_type_name(&receiver_type.name()), path.last());
         let key = self.pick_overload(&key, args)?;
@@ -219,7 +230,7 @@ impl<'a> Lowerer<'a> {
             .env
             .native_links
             .get(&key)
-            .ok_or_else(|| format!("Undefined method `{key}`"))?;
+            .ok_or_else(|| errors::Error::from(Errors::UndefinedMethod { key: key.clone() }))?;
         let mut combined = vec![Expr::ident(receiver)];
         combined.extend_from_slice(args);
         Ok((link, combined))

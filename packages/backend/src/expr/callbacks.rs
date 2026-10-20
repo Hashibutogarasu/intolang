@@ -1,4 +1,5 @@
 use ast::{Expr, Param, Stmt, TypeRef};
+use errors::{Errors, Result};
 use native::{FunctionRef, IndirectCall};
 use types::Type;
 
@@ -33,31 +34,30 @@ impl Lowerer<'_> {
         body: &[Stmt],
         expected: &Type,
         target: Option<&str>,
-    ) -> Result<String, String> {
+    ) -> Result<String> {
         let expected = expected.referent();
         let types = expected.arguments();
         if params.len() != types.len() {
-            return Err(format!(
-                "`{}` takes {} parameter(s) but the lambda declares {}",
-                expected.name(),
-                types.len(),
-                params.len()
-            ));
+            return Err(Errors::LambdaParameterCount {
+                name: expected.name(),
+                expected: types.len(),
+                declared: params.len(),
+            }
+            .into());
         }
         let mut declared = Vec::new();
         for (param, ty) in params.iter().zip(types) {
             let written = match &param.ty {
                 Some(written) => {
-                    let own = parse_type(written.as_str(), &self.env.type_params)
-                        .map_err(|error| error.to_string())?;
+                    let own = parse_type(written.as_str(), &self.env.type_params)?;
                     if !ty.is_assignable_to(&own) {
-                        return Err(format!(
-                            "The parameter `{}` is a `{}` but `{}` passes a `{}`",
-                            param.name,
-                            own.name(),
-                            expected.name(),
-                            ty.name()
-                        ));
+                        return Err(Errors::LambdaParameterType {
+                            param: param.name.clone(),
+                            own: own.name(),
+                            expected: expected.name(),
+                            passed: ty.name(),
+                        }
+                        .into());
                     }
                     written.clone()
                 }
@@ -85,14 +85,14 @@ impl Lowerer<'_> {
                 })
                 .collect();
             if !borrowed.is_empty() {
-                return Err(format!(
-                    "A lambda inside a function cannot use the names of that function: {}",
-                    borrowed
+                return Err(Errors::LambdaCapturesFunctionNames {
+                    names: borrowed
                         .iter()
                         .map(|name| format!("`{name}`"))
                         .collect::<Vec<_>>()
-                        .join(", ")
-                ));
+                        .join(", "),
+                }
+                .into());
             }
         }
         let name = format!("__lambda_{}", self.state.temp_counter);
@@ -114,7 +114,7 @@ impl Lowerer<'_> {
 
     /// Lower `name(args)` when `name` holds a function. Returns whether it
     /// did.
-    pub fn lower_indirect_call(&mut self, name: &str, args: &[Expr]) -> Result<bool, String> {
+    pub fn lower_indirect_call(&mut self, name: &str, args: &[Expr]) -> Result<bool> {
         let Some(variable) = self.state.values.get(name) else {
             return Ok(false);
         };
@@ -125,11 +125,12 @@ impl Lowerer<'_> {
         self.ensure_usable(name)?;
         let types = function_type.referent().arguments().to_vec();
         if args.len() != types.len() {
-            return Err(format!(
-                "`{name}` takes {} argument(s) but received {}",
-                types.len(),
-                args.len()
-            ));
+            return Err(Errors::ArgumentCount {
+                name: name.to_string(),
+                expected: types.len(),
+                received: args.len(),
+            }
+            .into());
         }
         let mut native = Vec::new();
         for (argument, ty) in args.iter().zip(&types) {

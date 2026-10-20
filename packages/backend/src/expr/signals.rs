@@ -1,4 +1,5 @@
 use ast::{Expr, Path, Stmt, StmtKind};
+use errors::{Errors, Result};
 use std::collections::HashSet;
 use types::{ComparisonOperator, Literal, MessageTag, Type};
 
@@ -20,24 +21,28 @@ impl Lowerer<'_> {
         callee: &Path,
         args: &[Expr],
         assigned_to: &str,
-    ) -> Result<RuntimeCall, String> {
+    ) -> Result<RuntimeCall> {
         if callee.last() != ON || self.chain_type(callee).is_none_or(|ty| !is_signal(&ty)) {
             return Ok(RuntimeCall::NotRuntime);
         }
         self.ensure_usable(callee.first())?;
         let [number, Expr::Lambda { params, body }] = args else {
-            return Err("`on` of a Signal expects a signal number and a lambda".to_owned());
+            return Err(Errors::SignalOnArguments.into());
         };
         let [param] = params.as_slice() else {
-            return Err("The handler of a signal takes the signal number".to_owned());
+            return Err(Errors::SignalHandlerParameter.into());
         };
         if !self.env.events.contains_key(SIGNAL_EVENT) {
-            return Err(format!(
-                "Receiving signals needs the `{SIGNAL_EVENT}` event: import \"ps://events\""
-            ));
+            return Err(Errors::SignalEventMissing {
+                event: SIGNAL_EVENT.to_string(),
+            }
+            .into());
         }
         if self.state.destroyed_events.contains(SIGNAL_EVENT) {
-            return Err(format!("`{SIGNAL_EVENT}` was destroyed"));
+            return Err(Errors::Destroyed {
+                name: SIGNAL_EVENT.to_string(),
+            }
+            .into());
         }
         let number = self.signal_number(number)?;
         let only_this_signal = Stmt {
@@ -84,7 +89,7 @@ impl Lowerer<'_> {
 
     /// The signal number a literal or a static constant such as
     /// `Signal.SIGTERM` stands for.
-    fn signal_number(&self, number: &Expr) -> Result<i32, String> {
+    fn signal_number(&self, number: &Expr) -> Result<i32> {
         let literal = match number {
             Expr::Literal(literal) => Some(literal),
             Expr::Path(path) => self
@@ -93,11 +98,15 @@ impl Lowerer<'_> {
             _ => None,
         };
         match literal {
-            Some(Literal::Int(value)) => i32::try_from(*value)
-                .map_err(|_| format!("`{number}` is not a valid signal number")),
-            _ => Err(format!(
-                "The signal `{number}` must be a number or a constant such as Signal.SIGTERM"
-            )),
+            Some(Literal::Int(value)) => i32::try_from(*value).map_err(|_| {
+                errors::Error::from(Errors::InvalidSignalNumber {
+                    number: number.to_string(),
+                })
+            }),
+            _ => Err(Errors::SignalNotNumber {
+                number: number.to_string(),
+            }
+            .into()),
         }
     }
 }

@@ -74,7 +74,7 @@ fn lower_entry(
     }
     lowerer
         .register_default_handlers()
-        .map_err(|message| lowerer.diagnostic(0, &message))?;
+        .map_err(|message| lowerer.diagnostic(0, message))?;
     for item in &program.items {
         match item {
             Item::Import(decl) => lowerer.lower_import(decl),

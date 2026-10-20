@@ -1,4 +1,5 @@
 use ast::{Expr, Param, Path, Stmt, StmtKind};
+use errors::{Errors, Result};
 use native::OwnershipChange;
 use std::collections::{HashMap, HashSet};
 use types::{Literal, MessageTag, Storage, Type};
@@ -25,29 +26,34 @@ impl<'a> Lowerer<'a> {
         receiver: Option<String>,
         args: &[Expr],
         depth: usize,
-    ) -> Result<Returned, String> {
+    ) -> Result<Returned> {
         if self.is_runtime_function(function) {
             return self.call_runtime_function(function, receiver, args);
         }
         if depth > MAX_INLINE_DEPTH {
-            return Err(format!(
-                "Recursive call to `{}` is not supported",
-                function.name
-            ));
+            return Err(Errors::RecursiveCall {
+                function: function.name.clone(),
+            }
+            .into());
         }
         let mut arguments = args.to_vec();
         if arguments.len() > function.params.len() {
-            return Err(format!(
-                "Function `{}` expects {} argument(s) but received {}",
-                function.name,
-                function.params.len(),
-                arguments.len()
-            ));
+            return Err(Errors::FunctionArgumentCount {
+                function: function.name.clone(),
+                expected: function.params.len(),
+                received: arguments.len(),
+            }
+            .into());
         }
         for param in &function.params[arguments.len()..] {
             match param.default_argument() {
                 Some(default) => arguments.push(default),
-                None => return Err(format!("Missing required argument `{}`", param.name)),
+                None => {
+                    return Err(Errors::MissingArgument {
+                        name: param.name.clone(),
+                    }
+                    .into());
+                }
             }
         }
         let mut substitutions: Vec<(String, Expr)> = Vec::new();
@@ -57,10 +63,16 @@ impl<'a> Lowerer<'a> {
                 substitutions.push(("this".to_owned(), Expr::ident(receiver)))
             }
             (Some(_), None) => {
-                return Err(format!("Method `{}` requires a receiver", function.name));
+                return Err(Errors::MethodNeedsReceiver {
+                    function: function.name.clone(),
+                }
+                .into());
             }
             (None, Some(_)) => {
-                return Err(format!("Function `{}` is not a method", function.name));
+                return Err(Errors::NotAMethod {
+                    function: function.name.clone(),
+                }
+                .into());
             }
             (None, None) => {}
         }
@@ -104,7 +116,7 @@ impl<'a> Lowerer<'a> {
         depth: usize,
         views: &mut Vec<(String, Tracking)>,
         returned: &mut Returned,
-    ) -> Result<(), String> {
+    ) -> Result<()> {
         for (param, argument) in function.params.iter().zip(arguments) {
             let argument = self.convert_argument(argument, param);
             let argument = self.evaluate_argument(argument, &param.name, &function.body)?;
@@ -170,12 +182,7 @@ impl<'a> Lowerer<'a> {
     /// Compute an argument that is not a name or a literal once, into a slot,
     /// because the body of the function mentions its parameter where the
     /// argument would otherwise be computed again for each mention.
-    fn evaluate_argument(
-        &mut self,
-        argument: Expr,
-        param: &str,
-        body: &[Stmt],
-    ) -> Result<Expr, String> {
+    fn evaluate_argument(&mut self, argument: Expr, param: &str, body: &[Stmt]) -> Result<Expr> {
         let receiver = called_paths(body)
             .iter()
             .any(|path| path.is_member() && path.first() == param);
@@ -215,7 +222,10 @@ impl<'a> Lowerer<'a> {
             }
             return Ok(Expr::Literal(Literal::String(value)));
         }
-        Err(format!("Unsupported argument `{argument}`"))
+        Err(Errors::UnsupportedArgument {
+            argument: argument.to_string(),
+        }
+        .into())
     }
 
     /// A name for text known while lowering, so that the body of a function
@@ -247,7 +257,7 @@ impl<'a> Lowerer<'a> {
         param: &Param,
         argument: Expr,
         views: &mut Vec<(String, Tracking)>,
-    ) -> Result<Expr, String> {
+    ) -> Result<Expr> {
         let argument = self.materialize_argument(argument)?;
         let reference_param = param
             .ty
@@ -268,10 +278,11 @@ impl<'a> Lowerer<'a> {
         self.ensure_usable(&name)?;
         let variable = &self.state.values[&name];
         if value_param && variable.ty.is_reference() {
-            return Err(format!(
-                "`{name}` is a reference; pass `{name}.copy()` where `{}` expects an owned value",
-                param.name
-            ));
+            return Err(Errors::ReferenceNeedsCopy {
+                name: name.clone(),
+                param: param.name.clone(),
+            }
+            .into());
         }
         if reference_param && !variable.tracking.reference {
             views.push((name.clone(), variable.tracking.clone()));
@@ -284,7 +295,7 @@ impl<'a> Lowerer<'a> {
 
     /// Lower an ownership call used as an argument into a temporary binding
     /// that the call's scope owns.
-    pub fn materialize_argument(&mut self, argument: Expr) -> Result<Expr, String> {
+    pub fn materialize_argument(&mut self, argument: Expr) -> Result<Expr> {
         let Expr::Call { callee, args } = &argument else {
             return Ok(argument);
         };
@@ -311,12 +322,7 @@ impl<'a> Lowerer<'a> {
 
     /// Lower the statements of an inlined body as one scope. What the scope
     /// returns is handed to the caller instead of being destroyed.
-    fn inline_block(
-        &mut self,
-        body: &[Stmt],
-        depth: usize,
-        returned: &mut Returned,
-    ) -> Result<(), String> {
+    fn inline_block(&mut self, body: &[Stmt], depth: usize, returned: &mut Returned) -> Result<()> {
         self.state.scopes.push(Vec::new());
         let lowered = body
             .iter()
@@ -332,7 +338,7 @@ impl<'a> Lowerer<'a> {
         stmt: &Stmt,
         depth: usize,
         returned: &mut Returned,
-    ) -> Result<(), String> {
+    ) -> Result<()> {
         match &stmt.kind {
             StmtKind::Break | StmtKind::Return(None) => Ok(()),
             StmtKind::Throw(message) => {
@@ -344,11 +350,11 @@ impl<'a> Lowerer<'a> {
                     Some(name) if self.state.values.contains_key(name) => name.to_owned(),
                     _ => self.materialize_return(expression)?,
                 };
-                let variable = self
-                    .state
-                    .values
-                    .get(&name)
-                    .ok_or_else(|| format!("Unsupported return value `{name}`"))?;
+                let variable = self.state.values.get(&name).ok_or_else(|| {
+                    errors::Error::from(Errors::UnsupportedReturnValue {
+                        expression: name.clone(),
+                    })
+                })?;
                 let ty = variable.ty.clone();
                 if let Some(frame) = self.state.frames.last()
                     && frame.returns_reference
@@ -356,15 +362,13 @@ impl<'a> Lowerer<'a> {
                         .iter()
                         .any(|names| names.contains(&name))
                 {
-                    return Err(format!("returns a reference to a local (`{name}`)"));
+                    return Err(Errors::ReturnsLocalReference { name }.into());
                 }
                 *returned = Some((name, ty));
                 Ok(())
             }
             StmtKind::Declaration(declaration) => self.inline_declaration(declaration),
-            StmtKind::While { .. } | StmtKind::Assign { .. } => {
-                self.lower_stmt(stmt).map_err(|error| error.to_string())
-            }
+            StmtKind::While { .. } | StmtKind::Assign { .. } => self.lower_stmt(stmt),
             StmtKind::If {
                 condition,
                 then_body,
@@ -378,14 +382,14 @@ impl<'a> Lowerer<'a> {
                     _ => self.inline_call(callee, args, depth),
                 }
             }
-            other => Err(format!(
-                "Unsupported statement in function body: `{}`",
-                describe(other)
-            )),
+            other => Err(Errors::UnsupportedStatement {
+                statement: describe(other),
+            }
+            .into()),
         }
     }
 
-    fn inline_declaration(&mut self, declaration: &ast::Declaration) -> Result<(), String> {
+    fn inline_declaration(&mut self, declaration: &ast::Declaration) -> Result<()> {
         let Some(value) = &declaration.value else {
             return Ok(());
         };
@@ -394,8 +398,7 @@ impl<'a> Lowerer<'a> {
             .annotation
             .as_ref()
             .map(|ty| parse_type(ty.as_str(), &none))
-            .transpose()
-            .map_err(|error| error.to_string())?;
+            .transpose()?;
         let annotation = match (declaration.pointer, annotation) {
             (true, None) => Some(Type::Pointer),
             (_, annotation) => annotation,
@@ -434,7 +437,7 @@ impl<'a> Lowerer<'a> {
         else_body: Option<&[Stmt]>,
         depth: usize,
         returned: &mut Returned,
-    ) -> Result<(), String> {
+    ) -> Result<()> {
         self.materialize_assigned_texts(then_body);
         self.materialize_assigned_texts(else_body.unwrap_or_default());
         let folded = fold_comparison(condition);
@@ -452,8 +455,10 @@ impl<'a> Lowerer<'a> {
             }
             other => {
                 self.begin_boolean_branch(MessageTag::IfBegin, other)
-                    .map_err(|message| {
-                        format!("Unsupported if condition in function body: {message}")
+                    .map_err(|error| {
+                        errors::Error::from(Errors::UnsupportedIfCondition {
+                            reason: error.kind().to_string(),
+                        })
                     })?;
             }
         }
@@ -466,10 +471,13 @@ impl<'a> Lowerer<'a> {
         Ok(())
     }
 
-    fn inline_print(&mut self, newline: bool, args: &[Expr]) -> Result<(), String> {
+    fn inline_print(&mut self, newline: bool, args: &[Expr]) -> Result<()> {
         let [argument] = args else {
             let text = args.iter().map(ToString::to_string).collect::<Vec<_>>();
-            return Err(format!("Unsupported print argument `{}`", text.join(", ")));
+            return Err(Errors::UnsupportedPrintArgument {
+                argument: text.join(", "),
+            }
+            .into());
         };
         if self.print_compile_time(argument, newline) {
             return Ok(());
@@ -485,9 +493,7 @@ impl<'a> Lowerer<'a> {
                     | Expr::Not(_)
             )
         {
-            return self
-                .lower_print(0, newline, args)
-                .map_err(|error| error.to_string());
+            return self.lower_print(0, newline, args);
         }
         if let Some(variable) = argument
             .as_ident()
@@ -505,15 +511,13 @@ impl<'a> Lowerer<'a> {
             self.print_literal(literal, newline);
             return Ok(());
         }
-        Err(format!("Unsupported print argument `{argument}`"))
+        Err(Errors::UnsupportedPrintArgument {
+            argument: argument.to_string(),
+        }
+        .into())
     }
 
-    pub fn inline_call(
-        &mut self,
-        callee: &Path,
-        args: &[Expr],
-        depth: usize,
-    ) -> Result<(), String> {
+    pub fn inline_call(&mut self, callee: &Path, args: &[Expr], depth: usize) -> Result<()> {
         let env = self.env;
         if callee.is_member() {
             if !matches!(
@@ -530,10 +534,9 @@ impl<'a> Lowerer<'a> {
                         .inline_user_function(inner, None, args, depth + 1)
                         .map(|_| ());
                 }
-                let link = env
-                    .native_links
-                    .get(&key)
-                    .ok_or_else(|| format!("Undefined static method `{key}`"))?;
+                let link = env.native_links.get(&key).ok_or_else(|| {
+                    errors::Error::from(Errors::UndefinedStaticMethod { key: key.clone() })
+                })?;
                 return self.emit_link_call(MessageTag::LinkAssign, link, args.to_vec(), "", false);
             }
             let (receiver, receiver_type) = self.resolve_receiver(callee)?;
@@ -567,7 +570,7 @@ impl<'a> Lowerer<'a> {
                     self.apply_receiver_call(&receiver, method);
                     return Ok(());
                 }
-                return Err(format!("Undefined method `{key}`"));
+                return Err(Errors::UndefinedMethod { key }.into());
             };
             let mut combined = vec![Expr::ident(receiver.clone())];
             combined.extend_from_slice(args);
@@ -591,10 +594,11 @@ impl<'a> Lowerer<'a> {
                 .inline_user_function(inner, None, args, depth + 1)
                 .map(|_| ());
         }
-        let link = env
-            .native_links
-            .get(&key)
-            .ok_or_else(|| format!("Undefined function `{name}`"))?;
+        let link = env.native_links.get(&key).ok_or_else(|| {
+            errors::Error::from(Errors::UndefinedFunction {
+                key: name.to_string(),
+            })
+        })?;
         self.emit_link_call(MessageTag::LinkAssign, link, args.to_vec(), "", false)
     }
 }

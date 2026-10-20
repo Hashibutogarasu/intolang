@@ -1,4 +1,5 @@
 use ast::{Expr, Path};
+use errors::{Errors, Result};
 use std::collections::HashSet;
 use types::{Literal, Type};
 
@@ -22,7 +23,7 @@ fn spelled(text: &str) -> Type {
 
 impl Lowerer<'_> {
     /// The type an expression has, without emitting anything.
-    pub fn type_of(&self, expression: &Expr) -> Result<Type, String> {
+    pub fn type_of(&self, expression: &Expr) -> Result<Type> {
         match expression {
             Expr::Literal(literal) => Ok(literal_type(literal)),
             Expr::Path(path) => self.path_type(path),
@@ -39,11 +40,11 @@ impl Lowerer<'_> {
                 match (left.is_numeric(), right.is_numeric()) {
                     (true, true) if left.is_float() || !right.is_float() => Ok(left),
                     (true, true) => Ok(right),
-                    _ => Err(format!(
-                        "Arithmetic needs numbers but received `{}` and `{}`",
-                        left.name(),
-                        right.name()
-                    )),
+                    _ => Err(Errors::ArithmeticNeedsNumbers {
+                        left: left.name(),
+                        right: right.name(),
+                    }
+                    .into()),
                 }
             }
             Expr::Cast { ty, .. } => Ok(spelled(ty.as_str())),
@@ -51,12 +52,12 @@ impl Lowerer<'_> {
             Expr::Object(_) => Ok(Type::Named("Json".to_owned())),
             Expr::Compare { .. } | Expr::Logical { .. } | Expr::Not(_) => Ok(Type::Boolean),
             Expr::Thread { .. } => Ok(Type::Named(THREAD.to_owned())),
-            Expr::Lambda { .. } => Err("A lambda has no type here".to_owned()),
-            Expr::Await(_) => Err("`await` has no value".to_owned()),
+            Expr::Lambda { .. } => Err(Errors::LambdaHasNoType.into()),
+            Expr::Await(_) => Err(Errors::AwaitHasNoValue.into()),
         }
     }
 
-    fn path_type(&self, path: &Path) -> Result<Type, String> {
+    fn path_type(&self, path: &Path) -> Result<Type> {
         if let Some(field) = self.static_field(path) {
             return Ok(spelled(&field.ty));
         }
@@ -89,7 +90,11 @@ impl Lowerer<'_> {
                         current = self.bind_arguments(&current, read);
                         continue;
                     }
-                    return Err(format!("`{class}` has no field `{segment}`"));
+                    return Err(Errors::NoField {
+                        class,
+                        field: segment.clone(),
+                    }
+                    .into());
                 };
                 let written = self.written_type(&field.ty);
                 current = self.bind_arguments(&current, written);
@@ -102,10 +107,13 @@ impl Lowerer<'_> {
         {
             return Ok(Type::Named(EVENT.to_owned()));
         }
-        Err(format!("Unknown name `{path}`"))
+        Err(Errors::UnknownName {
+            path: path.to_string(),
+        }
+        .into())
     }
 
-    fn call_type(&self, callee: &Path, args: &[Expr]) -> Result<Type, String> {
+    fn call_type(&self, callee: &Path, args: &[Expr]) -> Result<Type> {
         let env = self.env;
         if !callee.is_member() {
             let name = callee.first();
@@ -124,7 +132,11 @@ impl Lowerer<'_> {
             .values
             .get(&segments[0])
             .map(|variable| variable.ty.clone())
-            .ok_or_else(|| format!("Unknown receiver `{}`", segments[0]))?;
+            .ok_or_else(|| {
+                errors::Error::from(Errors::UnknownReceiver {
+                    name: segments[0].clone(),
+                })
+            })?;
         for (position, segment) in segments[1..].iter().enumerate() {
             let class = base_type_name(&current.name()).to_owned();
             if matches!(segment.as_str(), COPY | MOVE | BORROW) {
@@ -186,7 +198,7 @@ impl Lowerer<'_> {
         ty.substitute(&bindings)
     }
 
-    fn function_type(&self, key: &str) -> Result<Type, String> {
+    fn function_type(&self, key: &str) -> Result<Type> {
         let env = self.env;
         if let Some(function) = env.user_functions.get(key) {
             return Ok(function
@@ -197,6 +209,9 @@ impl Lowerer<'_> {
         if let Some(link) = env.native_links.get(key) {
             return Ok(self.written_type(&link.return_type));
         }
-        Err(format!("Undefined function `{key}`"))
+        Err(Errors::UndefinedFunction {
+            key: key.to_string(),
+        }
+        .into())
     }
 }

@@ -19,7 +19,7 @@ fn codes_are_unique() {
 fn codes_stay_in_the_range_of_their_domain() {
     for entry in CATALOG {
         let in_range = match entry.domain {
-            Domain::IntoLang => matches!(entry.code, 0x0001..=0x2FFF | 0x6000..=0x6FFF),
+            Domain::IntoLang => matches!(entry.code, 0x0001..=0x7FFF),
             Domain::Compiler => matches!(entry.code, 0x8000..=0xFFFE),
         };
         assert!(

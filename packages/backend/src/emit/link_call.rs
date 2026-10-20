@@ -1,4 +1,5 @@
 use ast::Expr;
+use errors::{Errors, Result};
 use native::{LinkCall, NativeArg, NativeLink};
 use types::{Literal, MessageTag};
 
@@ -17,7 +18,7 @@ impl Lowerer<'_> {
         mut args: Vec<Expr>,
         assigned_to: &str,
         has_receiver: bool,
-    ) -> Result<(), String> {
+    ) -> Result<()> {
         let mut handed_over = Vec::new();
         for arg in &mut args {
             let moves = matches!(
@@ -32,17 +33,22 @@ impl Lowerer<'_> {
         let receivers = usize::from(has_receiver);
         let provided = args.len().saturating_sub(receivers);
         if provided > link.params.len() {
-            return Err(format!(
-                "Function `{}` expects {} argument(s) but received {}",
-                link.target,
-                link.params.len(),
-                provided
-            ));
+            return Err(Errors::FunctionArgumentCount {
+                function: link.target.clone(),
+                expected: link.params.len(),
+                received: provided,
+            }
+            .into());
         }
         for param in &link.params[provided..] {
             match param.default_argument() {
                 Some(default) => args.push(default),
-                None => return Err(format!("Missing required argument `{}`", param.name)),
+                None => {
+                    return Err(Errors::MissingArgument {
+                        name: param.name.clone(),
+                    }
+                    .into());
+                }
             }
         }
         let mut native = Vec::new();
@@ -62,8 +68,7 @@ impl Lowerer<'_> {
             let written = param.and_then(|param| param.ty.as_ref());
             native.push(match (computed, written) {
                 (true, Some(written)) => {
-                    let ty = parse_type(written.as_str(), &self.env.type_params)
-                        .map_err(|error| error.to_string())?;
+                    let ty = parse_type(written.as_str(), &self.env.type_params)?;
                     self.runtime_argument(arg, &ty)?
                 }
                 _ => self.native_arg(arg)?,
@@ -85,25 +90,40 @@ impl Lowerer<'_> {
         Ok(())
     }
 
-    pub fn native_arg(&self, arg: &Expr) -> Result<NativeArg, String> {
+    pub fn native_arg(&self, arg: &Expr) -> Result<NativeArg> {
         match arg {
             Expr::Literal(Literal::String(value)) => Ok(NativeArg::from(value.as_str())),
-            Expr::Literal(Literal::Int(number)) => i32::try_from(*number)
-                .map(NativeArg::Int)
-                .map_err(|_| format!("Unsupported native argument `{arg}`")),
+            Expr::Literal(Literal::Int(number)) => {
+                i32::try_from(*number).map(NativeArg::Int).map_err(|_| {
+                    errors::Error::from(Errors::UnsupportedNativeArgument {
+                        arg: arg.to_string(),
+                    })
+                })
+            }
             Expr::Literal(Literal::Bool(flag)) => Ok(NativeArg::Int(i32::from(*flag))),
             Expr::Literal(Literal::Char(value)) => i32::try_from(u32::from(*value))
                 .map(NativeArg::Int)
-                .map_err(|_| format!("Unsupported native argument `{arg}`")),
+                .map_err(|_| {
+                    errors::Error::from(Errors::UnsupportedNativeArgument {
+                        arg: arg.to_string(),
+                    })
+                }),
             Expr::Path(path) if path.is_member() => {
                 if let Some(field) = self.static_field(path) {
                     return match field.default_literal() {
-                        Some(Literal::Int(number)) => i32::try_from(*number)
-                            .map(NativeArg::Int)
-                            .map_err(|_| format!("Unsupported native argument `{arg}`")),
+                        Some(Literal::Int(number)) => {
+                            i32::try_from(*number).map(NativeArg::Int).map_err(|_| {
+                                errors::Error::from(Errors::UnsupportedNativeArgument {
+                                    arg: arg.to_string(),
+                                })
+                            })
+                        }
                         Some(Literal::String(value)) => Ok(NativeArg::from(value.as_str())),
                         Some(Literal::Bool(flag)) => Ok(NativeArg::Int(i32::from(*flag))),
-                        _ => Err(format!("Static field `{arg}` has no constant default")),
+                        _ => Err(Errors::StaticFieldNoDefault {
+                            field: arg.to_string(),
+                        }
+                        .into()),
                     };
                 }
                 if let [name, member] = path.segments()
@@ -132,7 +152,11 @@ impl Lowerer<'_> {
                     .get(path.first())
                     .and_then(|variants| variants.get(&variant))
                     .map(|value| NativeArg::Int(*value))
-                    .ok_or_else(|| format!("Undefined enum variant `{arg}`"))
+                    .ok_or_else(|| {
+                        errors::Error::from(Errors::UndefinedEnumVariant {
+                            arg: arg.to_string(),
+                        })
+                    })
             }
             Expr::Path(path) => {
                 let name = path.first();
@@ -140,10 +164,16 @@ impl Lowerer<'_> {
                 match self.state.values.get(name) {
                     Some(variable) if variable.native => Ok(NativeArg::Slot(name.to_owned())),
                     Some(variable) => Ok(NativeArg::from(variable.value.as_str())),
-                    None => Err(format!("Unsupported native argument `{arg}`")),
+                    None => Err(Errors::UnsupportedNativeArgument {
+                        arg: arg.to_string(),
+                    }
+                    .into()),
                 }
             }
-            _ => Err(format!("Unsupported native argument `{arg}`")),
+            _ => Err(Errors::UnsupportedNativeArgument {
+                arg: arg.to_string(),
+            }
+            .into()),
         }
     }
 }

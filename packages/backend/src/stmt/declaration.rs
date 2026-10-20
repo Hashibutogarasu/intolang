@@ -1,5 +1,5 @@
-use anyhow::Result;
 use ast::Declaration;
+use errors::Result;
 use native::OwnershipChange;
 use types::{Storage, Type};
 
@@ -39,7 +39,7 @@ impl Lowerer<'_> {
             .as_ref()
             .map(|ty| parse_type(ty.as_str(), &env.type_params))
             .transpose()
-            .map_err(|error| self.diagnostic(line, &error.to_string()))?;
+            .map_err(|error| self.diagnostic(line, error))?;
         let annotation = match (declaration.pointer, annotation) {
             (true, None) => Some(Type::Pointer),
             (_, annotation) => annotation,
@@ -47,7 +47,7 @@ impl Lowerer<'_> {
         self.state.pending_tracking = None;
         let (value, ty, native) = self
             .declaration_value(rhs, annotation, &env.type_params, &declaration.name)
-            .map_err(|message| self.diagnostic(line, &message))?;
+            .map_err(|error| self.diagnostic(line, error))?;
         let mut tracking = self.state.pending_tracking.take().unwrap_or_default();
         tracking.reference |= ty.is_reference();
         self.state.values.insert(

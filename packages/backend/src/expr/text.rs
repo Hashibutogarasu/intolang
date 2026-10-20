@@ -1,4 +1,5 @@
 use ast::{Expr, Stmt};
+use errors::{Errors, Result};
 use native::NativeLink;
 use parser::Hex;
 use types::{ArithmeticOperator, ComparisonOperator, Literal, MessageTag, Type};
@@ -53,16 +54,18 @@ impl<'a> Lowerer<'a> {
         matches!(self.type_of(expression), Ok(Type::String))
     }
 
-    fn string_link(&self, key: &str) -> Result<&'a NativeLink, String> {
+    fn string_link(&self, key: &str) -> Result<&'a NativeLink> {
         let env = self.env;
-        env.native_links
-            .get(key)
-            .ok_or_else(|| format!("`{key}` is not available; import \"intolang://builtin/std\""))
+        env.native_links.get(key).ok_or_else(|| {
+            errors::Error::from(Errors::NotAvailable {
+                key: key.to_string(),
+            })
+        })
     }
 
     /// Lower a `String` expression. A concatenation of known text stays known
     /// text; otherwise the result goes to `target`, or to a new slot.
-    pub fn lower_text(&mut self, expression: &Expr, target: Option<&str>) -> Result<Text, String> {
+    pub fn lower_text(&mut self, expression: &Expr, target: Option<&str>) -> Result<Text> {
         match expression {
             Expr::Literal(Literal::String(value)) => Ok(Text::Const(value.clone())),
             Expr::Literal(Literal::Char(value)) => Ok(Text::Const(value.to_string())),
@@ -79,7 +82,7 @@ impl<'a> Lowerer<'a> {
         }
     }
 
-    fn concat(&mut self, left: Text, right: Text, target: Option<&str>) -> Result<Text, String> {
+    fn concat(&mut self, left: Text, right: Text, target: Option<&str>) -> Result<Text> {
         if let (Text::Const(left), Text::Const(right)) = (&left, &right) {
             return Ok(Text::Const(format!("{left}{right}")));
         }
@@ -98,19 +101,23 @@ impl<'a> Lowerer<'a> {
         Ok(Text::Slot(destination))
     }
 
-    fn text_operand(&mut self, expression: &Expr) -> Result<Text, String> {
+    fn text_operand(&mut self, expression: &Expr) -> Result<Text> {
         if let Some(name) = expression.as_ident() {
             self.ensure_usable(name)?;
-            let variable = self
-                .state
-                .values
-                .get(name)
-                .ok_or_else(|| format!("Unknown name `{name}`"))?;
+            let variable = self.state.values.get(name).ok_or_else(|| {
+                errors::Error::from(Errors::UnknownName {
+                    path: name.to_string(),
+                })
+            })?;
             return match (variable.native, &variable.ty) {
                 (false, _) => Ok(Text::Const(variable.value.clone())),
                 (true, Type::String | Type::Path) => Ok(Text::Slot(name.to_owned())),
                 (true, Type::Char) => self.char_text(name),
-                (true, other) => Err(format!("`{name}` is a `{}`, not text", other.name())),
+                (true, other) => Err(Errors::NotText {
+                    value: name.to_string(),
+                    ty: other.name(),
+                }
+                .into()),
             };
         }
         if let Expr::Path(path) = expression
@@ -118,7 +125,11 @@ impl<'a> Lowerer<'a> {
         {
             return match ty {
                 Type::String | Type::Path => Ok(Text::Slot(slot)),
-                other => Err(format!("`{expression}` is a `{}`, not text", other.name())),
+                other => Err(Errors::NotText {
+                    value: expression.to_string(),
+                    ty: other.name(),
+                }
+                .into()),
             };
         }
         if let Expr::Path(path) = expression
@@ -142,13 +153,20 @@ impl<'a> Lowerer<'a> {
             return match (native, ty) {
                 (true, Type::String | Type::Path) => Ok(Text::Slot(temporary)),
                 (false, Type::String | Type::Path) => Ok(Text::Const(value)),
-                (_, other) => Err(format!("`{expression}` is a `{}`, not text", other.name())),
+                (_, other) => Err(Errors::NotText {
+                    value: expression.to_string(),
+                    ty: other.name(),
+                }
+                .into()),
             };
         }
-        Err(format!("Unsupported text operand `{expression}`"))
+        Err(Errors::UnsupportedTextOperand {
+            operand: expression.to_string(),
+        }
+        .into())
     }
 
-    fn char_text(&mut self, slot: &str) -> Result<Text, String> {
+    fn char_text(&mut self, slot: &str) -> Result<Text> {
         let link = self.string_link(FROM_CHAR)?;
         let destination = self.fresh_slot(&Type::String);
         self.emit_link_call(
@@ -168,15 +186,16 @@ impl<'a> Lowerer<'a> {
         left: &Expr,
         op: ComparisonOperator,
         right: &Expr,
-    ) -> Result<String, String> {
+    ) -> Result<String> {
         if !matches!(op, ComparisonOperator::Equal | ComparisonOperator::NotEqual) {
-            return Err("Texts can only be compared with `==` and `!=`".to_owned());
+            return Err(Errors::TextCompareOperator.into());
         }
         for side in [left, right] {
             if !(self.is_text(side) || matches!(self.type_of(side), Ok(Type::Char))) {
-                return Err(format!(
-                    "A text can only be compared with a text, not `{side}`"
-                ));
+                return Err(Errors::TextCompareOperand {
+                    side: side.to_string(),
+                }
+                .into());
             }
         }
         let left = self.lower_text(left, None)?;

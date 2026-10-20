@@ -9,6 +9,13 @@ impl Errors {
         }
     }
 
+    /// A name, type or call error of the Into program that has no variant of its own yet.
+    pub fn semantic(message: impl Into<String>) -> Self {
+        Self::Semantic {
+            message: message.into(),
+        }
+    }
+
     /// The record of a lowered message, named by its tag or kind, has too few fields.
     pub fn malformed_record(kind: &str) -> Self {
         Self::MalformedRecord {

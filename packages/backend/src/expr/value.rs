@@ -1,4 +1,5 @@
 use ast::{Expr, Path};
+use errors::{Errors, Result};
 use native::{CastAssign, NativeLink, Operand};
 use std::collections::HashSet;
 use types::{Literal, MessageTag, Type};
@@ -26,7 +27,7 @@ impl<'a> Lowerer<'a> {
         annotation: Option<Type>,
         type_params: &HashSet<String>,
         assigned_to: &str,
-    ) -> Result<Bound, String> {
+    ) -> Result<Bound> {
         match rhs {
             Expr::Call { callee, args } => {
                 let bound =
@@ -56,9 +57,11 @@ impl<'a> Lowerer<'a> {
             Expr::Literal(literal) => return self.literal_value(literal, annotation, assigned_to),
             Expr::Path(path) => {
                 if let Some(field) = self.static_field(path) {
-                    let literal = field
-                        .default_literal()
-                        .ok_or_else(|| format!("Static field `{rhs}` has no constant default"))?;
+                    let literal = field.default_literal().ok_or_else(|| {
+                        errors::Error::from(Errors::StaticFieldNoDefault {
+                            field: rhs.to_string(),
+                        })
+                    })?;
                     return self.literal_value(literal, annotation, assigned_to);
                 }
                 if let Some(event) = path
@@ -67,7 +70,10 @@ impl<'a> Lowerer<'a> {
                     .filter(|name| self.env.events.contains_key(*name))
                 {
                     if self.state.destroyed_events.contains(event) {
-                        return Err(format!("`{event}` was destroyed"));
+                        return Err(Errors::Destroyed {
+                            name: event.to_string(),
+                        }
+                        .into());
                     }
                     let (value, ty, native) = event_value(event);
                     let ty = resolve_annotation(ty, annotation)?;
@@ -125,10 +131,7 @@ impl<'a> Lowerer<'a> {
             }
             Expr::Lambda { params, body } => {
                 let Some(expected) = annotation.filter(Self::is_function_type) else {
-                    return Err(
-                        "A lambda needs a callback type; annotate the binding, such as `Callback<String>`"
-                            .into(),
-                    );
+                    return Err(Errors::LambdaNeedsCallbackType.into());
                 };
                 self.lower_lambda_value(params, body, &expected, Some(assigned_to))?;
                 return Ok((expected.name(), expected, true));
@@ -140,7 +143,7 @@ impl<'a> Lowerer<'a> {
                 return Ok((value, ty, native));
             }
             Expr::Await(_) => {
-                return Err("`await` can only be used as a statement".into());
+                return Err(Errors::AwaitOnlyStatement.into());
             }
             Expr::Object(entries) => {
                 let object = self.lower_object(entries, assigned_to)?;
@@ -156,8 +159,7 @@ impl<'a> Lowerer<'a> {
                 return Ok((ty.name(), ty, true));
             }
             Expr::Cast { value, ty } => {
-                let target =
-                    parse_type(ty.as_str(), type_params).map_err(|error| error.to_string())?;
+                let target = parse_type(ty.as_str(), type_params)?;
                 if self.is_class_type(&target) {
                     let Some(class) = target.class_name() else {
                         unreachable!("a class type has a class name")
@@ -168,10 +170,16 @@ impl<'a> Lowerer<'a> {
                 }
                 let value = self.lower_numeric(rhs)?;
                 let Kind::Typed(ty) = value.kind else {
-                    return Err(format!("`{rhs}` is not a typed value"));
+                    return Err(Errors::NotTypedValue {
+                        value: rhs.to_string(),
+                    }
+                    .into());
                 };
                 let Operand::Slot(slot) = value.operand else {
-                    return Err(format!("`{rhs}` is not a typed value"));
+                    return Err(Errors::NotTypedValue {
+                        value: rhs.to_string(),
+                    }
+                    .into());
                 };
                 emit::assign(&mut self.state.output, assigned_to, &ty, "p", &slot);
                 let ty = resolve_annotation(ty, annotation)?;
@@ -204,7 +212,7 @@ impl<'a> Lowerer<'a> {
         annotation: Option<Type>,
         type_params: &HashSet<String>,
         assigned_to: &str,
-    ) -> Result<Option<Bound>, String> {
+    ) -> Result<Option<Bound>> {
         let env = self.env;
         if callee.is_member() {
             match self.lower_event_call(callee, args, assigned_to)? {
@@ -219,7 +227,12 @@ impl<'a> Lowerer<'a> {
                     let ty = resolve_annotation(ty, annotation)?;
                     return Ok(Some((value, ty, native)));
                 }
-                RuntimeCall::Done => return Err(format!("`{callee}` does not return a value")),
+                RuntimeCall::Done => {
+                    return Err(Errors::NoReturnValue {
+                        callee: callee.to_string(),
+                    }
+                    .into());
+                }
             }
             if let Some((class, method)) = self.static_receiver(callee) {
                 let key = self.method_key(&class, &method);
@@ -230,10 +243,9 @@ impl<'a> Lowerer<'a> {
                         .inlined_value(returned, &key, annotation, assigned_to)
                         .map(Some);
                 }
-                let link = env
-                    .native_links
-                    .get(&key)
-                    .ok_or_else(|| format!("Undefined static method `{key}`"))?;
+                let link = env.native_links.get(&key).ok_or_else(|| {
+                    errors::Error::from(Errors::UndefinedStaticMethod { key: key.clone() })
+                })?;
                 self.emit_link_call(
                     MessageTag::LinkAssign,
                     link,
@@ -249,14 +261,22 @@ impl<'a> Lowerer<'a> {
             if let Some(result) =
                 self.lower_list_method(&receiver, &receiver_type, method, args, assigned_to)?
             {
-                let ty = result.ok_or_else(|| format!("`{callee}` does not return a value"))?;
+                let ty = result.ok_or_else(|| {
+                    errors::Error::from(Errors::NoReturnValue {
+                        callee: callee.to_string(),
+                    })
+                })?;
                 let ty = resolve_annotation(ty, annotation)?;
                 return Ok(Some((ty.name(), ty, true)));
             }
             if let Some(result) =
                 self.lower_pointer_method(&receiver, &receiver_type, method, args, assigned_to)?
             {
-                let ty = result.ok_or_else(|| format!("`{callee}` does not return a value"))?;
+                let ty = result.ok_or_else(|| {
+                    errors::Error::from(Errors::NoReturnValue {
+                        callee: callee.to_string(),
+                    })
+                })?;
                 let ty = resolve_annotation(ty, annotation)?;
                 return Ok(Some((ty.name(), ty, true)));
             }
@@ -281,7 +301,7 @@ impl<'a> Lowerer<'a> {
             let link = env
                 .native_links
                 .get(&key)
-                .ok_or_else(|| format!("Undefined method `{key}`"))?;
+                .ok_or_else(|| errors::Error::from(Errors::UndefinedMethod { key: key.clone() }))?;
             let mut combined = vec![Expr::ident(receiver.clone())];
             combined.extend_from_slice(args);
             self.emit_link_call(MessageTag::LinkAssign, link, combined, assigned_to, true)?;
@@ -295,7 +315,10 @@ impl<'a> Lowerer<'a> {
         let class = base_type_name(function);
         if env.class_fields.contains_key(class) {
             if env.classes.get(class).is_some_and(|info| info.is_abstract) {
-                return Err(format!("Cannot instantiate the abstract class `{class}`"));
+                return Err(Errors::AbstractClassInstantiated {
+                    class: class.to_string(),
+                }
+                .into());
             }
             let constructor = self.pick_overload(&format!("{class}.new"), args)?;
             if let Some(link) = env.native_links.get(&constructor) {
@@ -323,7 +346,9 @@ impl<'a> Lowerer<'a> {
         }
         if env.imported_functions.contains(function) {
             let link = env.native_links.get(&key).ok_or_else(|| {
-                format!("Imported function `{function}` has no #[link] attribute")
+                errors::Error::from(Errors::ImportedFunctionNoLink {
+                    function: function.to_string(),
+                })
             })?;
             self.emit_link_call(
                 MessageTag::LinkAssign,
@@ -343,7 +368,7 @@ impl<'a> Lowerer<'a> {
         key: &str,
         annotation: Option<Type>,
         assigned_to: &str,
-    ) -> Result<Bound, String> {
+    ) -> Result<Bound> {
         let reference = self
             .env
             .user_functions
@@ -358,9 +383,11 @@ impl<'a> Lowerer<'a> {
         });
         let ty = match inferred {
             Some(inferred) => resolve_annotation(inferred, annotation)?,
-            None => {
-                annotation.ok_or_else(|| format!("Function `{key}` does not return a value"))?
-            }
+            None => annotation.ok_or_else(|| {
+                errors::Error::from(Errors::FunctionNoReturnValue {
+                    key: key.to_string(),
+                })
+            })?,
         };
         if let Some((value, _)) = returned {
             emit::assign(&mut self.state.output, assigned_to, &ty, "p", &value);
@@ -378,7 +405,7 @@ impl<'a> Lowerer<'a> {
         right: &Expr,
         annotation: Option<Type>,
         assigned_to: &str,
-    ) -> Result<Bound, String> {
+    ) -> Result<Bound> {
         let ty = self.lower_binary_into(left, op, right, annotation.as_ref(), assigned_to)?;
         Ok((ty.name(), ty, true))
     }
@@ -388,7 +415,7 @@ impl<'a> Lowerer<'a> {
         literal: &Literal,
         annotation: Option<Type>,
         assigned_to: &str,
-    ) -> Result<Bound, String> {
+    ) -> Result<Bound> {
         let (inferred, native) = match literal {
             Literal::String(_) => (Type::String, None),
             Literal::Char(value) => (Type::Char, Some(u32::from(*value).to_string())),
@@ -415,7 +442,7 @@ fn linked_value(
     link: &NativeLink,
     type_params: &HashSet<String>,
     annotation: Option<Type>,
-) -> Result<Bound, String> {
+) -> Result<Bound> {
     let inferred = parse_type(&link.return_type, type_params).unwrap_or(Type::Void);
     let ty = resolve_annotation(inferred, annotation)?;
     Ok((ty.name(), ty, true))
