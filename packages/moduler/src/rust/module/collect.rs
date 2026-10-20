@@ -82,7 +82,7 @@ pub fn collect_modules_from(
     let mut modules = Vec::new();
     let mut seen = HashSet::new();
     let provided = Package::find_by_alias(packages_dir, BUILTIN_ALIAS)?
-        .is_some_and(|package| package.join(IMPLICIT_MODULE_FILE).is_file());
+        .is_some_and(|package| package::is_file(&package.join(IMPLICIT_MODULE_FILE)));
     if provided {
         let imports: String = IMPLICIT_MODULES
             .iter()

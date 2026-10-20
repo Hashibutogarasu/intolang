@@ -3,14 +3,21 @@ use std::path::Path;
 
 use super::package::Package;
 use crate::manifest::MANIFEST_FILE;
+use crate::vfs::{Vfs, current};
 
 impl Package {
     pub fn children(directory: &Path) -> Result<Vec<Package>> {
+        Package::children_in(&*current(), directory)
+    }
+
+    pub fn children_in(files: &dyn Vfs, directory: &Path) -> Result<Vec<Package>> {
         let mut packages = Vec::new();
-        for entry in std::fs::read_dir(directory).map_err(|error| Errors::read(directory, error))? {
-            let path = entry?.path();
-            if path.is_dir()
-                && let Ok(package) = Package::load(&path)
+        for path in files
+            .read_dir(directory)
+            .map_err(|error| Errors::read(directory, error))?
+        {
+            if files.is_dir(&path)
+                && let Ok(package) = Package::load_in(files, &path)
             {
                 packages.push(package);
             }
@@ -19,15 +26,27 @@ impl Package {
     }
 
     pub fn find_by_alias(directory: &Path, alias: &str) -> Result<Option<Package>> {
-        Ok(Package::children(directory)?
+        Package::find_by_alias_in(&*current(), directory, alias)
+    }
+
+    pub fn find_by_alias_in(
+        files: &dyn Vfs,
+        directory: &Path,
+        alias: &str,
+    ) -> Result<Option<Package>> {
+        Ok(Package::children_in(files, directory)?
             .into_iter()
             .find(|package| package.manifest.alias.as_deref() == Some(alias)))
     }
 
     pub fn enclosing(path: &Path) -> Option<Package> {
+        Package::enclosing_in(&*current(), path)
+    }
+
+    pub fn enclosing_in(files: &dyn Vfs, path: &Path) -> Option<Package> {
         path.ancestors()
             .skip(1)
-            .find(|ancestor| ancestor.join(MANIFEST_FILE).is_file())
-            .and_then(|root| Package::load(root).ok())
+            .find(|ancestor| files.is_file(&ancestor.join(MANIFEST_FILE)))
+            .and_then(|root| Package::load_in(files, root).ok())
     }
 }

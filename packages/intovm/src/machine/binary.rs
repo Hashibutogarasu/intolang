@@ -6,11 +6,15 @@ use super::Vm;
 use super::memory_access::address_of;
 use crate::value::Value;
 
+#[cfg(not(target_arch = "wasm32"))]
 unsafe extern "C" {
     fn malloc(size: usize) -> *mut c_void;
     fn calloc(count: usize, size: usize) -> *mut c_void;
     fn free(pointer: *mut c_void);
 }
+
+#[cfg(target_arch = "wasm32")]
+use super::heap::{calloc, free, malloc};
 
 /// The layout `binary.c` gives a `Binary`, so that native code can take the
 /// instances the VM makes.

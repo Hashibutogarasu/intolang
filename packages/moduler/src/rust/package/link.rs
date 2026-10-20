@@ -10,6 +10,11 @@ pub fn link_directory(source: &Path, link: &Path) -> Result<()> {
     let linked = std::os::unix::fs::symlink(source, link);
     #[cfg(windows)]
     let linked = std::os::windows::fs::symlink_dir(source, link);
+    #[cfg(not(any(unix, windows)))]
+    let linked = Err::<(), _>(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "links are not supported on this platform",
+    ));
     linked.map_err(|error| {
         Errors::file_action(
             "link",

@@ -30,5 +30,8 @@ impl SourceProvider for Buffers {
 }
 
 pub fn real(path: &Path) -> PathBuf {
+    if !package::is_real() {
+        return path.to_path_buf();
+    }
     std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }

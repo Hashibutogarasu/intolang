@@ -33,7 +33,7 @@ pub fn module_exports(info: &Program, loaded: &LoadedModule) -> Result<HashSet<S
             .root
             .join("src/main")
             .join(format!("{}.into", spec.path));
-        if module_source.is_file() {
+        if package::is_file(&module_source) {
             if spec.path == module.name {
                 names.extend(public_items(&loaded.program));
             }

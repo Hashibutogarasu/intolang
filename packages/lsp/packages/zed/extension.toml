@@ -9,7 +9,7 @@ repository = "https://github.com/Hashibutogarasu/intolang"
 [grammars.into]
 repository = "https://github.com/Hashibutogarasu/intolang"
 rev = "587b4dd83de7042ef20fd59acab831e8d4fdeda2"
-path = "packages/lsp/packages/zed/grammars/tree-sitter-into"
+path = "packages/tree-sitter-into"
 
 [language_servers.into-lsp]
 name = "Into Language Server"

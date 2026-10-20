@@ -17,7 +17,7 @@ pub fn import_path(decl: &UseDecl, packages_dir: &Path) -> Result<Option<PathBuf
     let path = package
         .join("src/main")
         .join(format!("{}.into", spec.module));
-    Ok(path.is_file().then_some(path))
+    Ok(package::is_file(&path).then_some(path))
 }
 
 /// The package an `import` or `export` names and the file that declares the
@@ -49,7 +49,7 @@ fn target(packages_dir: &Path, alias: &str, module: &str) -> Result<Option<Impor
     let mut path = module;
     let file = loop {
         let candidate = found.join("src/main").join(format!("{path}.into"));
-        if candidate.is_file() {
+        if package::is_file(&candidate) {
             break Some(candidate);
         }
         match path.rsplit_once('/') {
@@ -59,7 +59,7 @@ fn target(packages_dir: &Path, alias: &str, module: &str) -> Result<Option<Impor
     };
     let file = file.or_else(|| {
         let info = found.join(INFO_FILE);
-        info.is_file().then_some(info)
+        package::is_file(&info).then_some(info)
     });
     Ok(Some(ImportTarget { package, file }))
 }
@@ -67,7 +67,7 @@ fn target(packages_dir: &Path, alias: &str, module: &str) -> Result<Option<Impor
 /// Whether the package exports names under `module` without a source file for
 /// it, as the builtin package does for `std`.
 fn exported_without_file(root: &Path, alias: &str, module: &str) -> bool {
-    let Ok(info) = std::fs::read_to_string(root.join(INFO_FILE)) else {
+    let Ok(info) = package::read_to_string(&root.join(INFO_FILE)) else {
         return false;
     };
     let Ok(program) = info.parse::<Program>() else {
@@ -94,7 +94,7 @@ fn resolves(decl: &UseDecl, packages_dir: &Path) -> Result<bool> {
     let file = package
         .join("src/main")
         .join(format!("{}.into", spec.module));
-    Ok(file.is_file() || exported_without_file(&package.root, &spec.alias, &spec.module))
+    Ok(package::is_file(&file) || exported_without_file(&package.root, &spec.alias, &spec.module))
 }
 
 /// The imports of `program` that name no package or no module, with the
