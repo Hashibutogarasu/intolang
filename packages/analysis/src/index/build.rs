@@ -209,19 +209,73 @@ impl Builder<'_> {
                         stmt.line,
                     )
                 });
+                if let Some(value) = &declaration.value {
+                    self.expression(value);
+                }
             }
             StmtKind::If {
+                condition,
                 then_body,
                 else_body,
-                ..
             } => {
+                self.expression(condition);
                 self.block(then_body);
                 if let Some(body) = else_body {
                     self.block(body);
                 }
             }
-            StmtKind::While { body, .. } | StmtKind::Init(body) => self.block(body),
-            _ => {}
+            StmtKind::While { condition, body } => {
+                self.expression(condition);
+                self.block(body);
+            }
+            StmtKind::Init(body) => self.block(body),
+            StmtKind::Assign { value, .. } | StmtKind::Throw(value) | StmtKind::Expr(value) => {
+                self.expression(value);
+            }
+            StmtKind::Return(Some(value)) => self.expression(value),
+            StmtKind::Return(None) | StmtKind::Unload(_) | StmtKind::Break => {}
+        }
+    }
+
+    /// The names the callbacks and threads inside `expr` declare.
+    fn expression(&mut self, expr: &Expr) {
+        match expr {
+            Expr::Lambda { params, body } => {
+                for param in params {
+                    self.push(Symbol {
+                        signature: signature::param(param),
+                        ty: param.ty.as_ref().map(ToString::to_string),
+                        local: true,
+                        ..self.symbol(
+                            &param.name,
+                            SymbolKind::Variable,
+                            param.name_span.0,
+                            param.name_span.0.line,
+                        )
+                    });
+                }
+                self.block(body);
+            }
+            Expr::Thread { body } => self.block(body),
+            Expr::Await(inner) | Expr::Not(inner) => self.expression(inner),
+            Expr::Cast { value, .. } => self.expression(value),
+            Expr::Call { args, .. } | Expr::Array(args) => {
+                for arg in args {
+                    self.expression(arg);
+                }
+            }
+            Expr::Binary { left, right, .. }
+            | Expr::Logical { left, right, .. }
+            | Expr::Compare { left, right, .. } => {
+                self.expression(left);
+                self.expression(right);
+            }
+            Expr::Object(entries) => {
+                for (_, value) in entries {
+                    self.expression(value);
+                }
+            }
+            Expr::Literal(_) | Expr::Path(_) => {}
         }
     }
 }

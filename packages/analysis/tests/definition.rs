@@ -193,6 +193,47 @@ fn an_if_that_begins_a_statement_jumps_nowhere() {
 }
 
 #[test]
+fn a_name_in_a_callback_jumps_to_its_parameter_and_its_declarations() {
+    let source = r#"now into listener = started.on((code, name) => {
+    into doubled = code;
+    show(doubled, name);
+});
+"#;
+    assert_eq!(
+        jump(source, "code;", 0),
+        Some(names(source, "code, name", 0, 4))
+    );
+    assert_eq!(
+        jump(source, "name);", 0),
+        Some(names(source, "name)", 0, 4))
+    );
+    assert_eq!(
+        jump(source, "doubled,", 0),
+        Some(names(source, "doubled =", 0, 7))
+    );
+}
+
+#[test]
+fn a_name_in_a_thread_jumps_to_its_declaration_in_the_same_scope() {
+    let source = r#"now into watcher = thread {
+    into frames = 0;
+    while (frames < 3) {
+        into step = frames;
+        frames = step + 1;
+    }
+};
+"#;
+    assert_eq!(
+        jump(source, "frames <", 0),
+        Some(names(source, "frames =", 0, 6))
+    );
+    assert_eq!(
+        jump(source, "step + 1", 0),
+        Some(names(source, "step =", 0, 4))
+    );
+}
+
+#[test]
 fn a_break_outside_a_loop_jumps_nowhere() {
     let source = r#"init {
     if (1 == 1) {
