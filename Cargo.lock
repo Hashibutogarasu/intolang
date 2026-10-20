@@ -222,6 +222,7 @@ name = "codegen"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "errors",
  "llvm-sys",
  "moduler",
  "native",
@@ -484,6 +485,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bundle",
+ "errors",
  "native",
  "parser",
  "types",
@@ -570,8 +572,8 @@ dependencies = [
 name = "moduler"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "ast",
+ "errors",
  "native",
  "serde",
  "serde_json",
@@ -583,8 +585,8 @@ dependencies = [
 name = "native"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "ast",
+ "errors",
  "parser",
  "serde_json",
  "types",

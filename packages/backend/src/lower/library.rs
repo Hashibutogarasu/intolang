@@ -1,5 +1,5 @@
-use anyhow::Result;
 use ast::Program;
+use errors::Result;
 use moduler::NativeFunction;
 use parser::PathLexeme;
 use std::path::Path;

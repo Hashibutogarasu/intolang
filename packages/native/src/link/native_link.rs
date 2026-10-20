@@ -1,5 +1,5 @@
-use anyhow::{Result, anyhow, bail};
 use ast::{FunctionDecl, Param};
+use errors::{Errors, Result};
 use parser::LanguageLexeme;
 use std::path::{Component, Path};
 use types::Language;
@@ -31,27 +31,27 @@ impl NativeLink {
         };
         let arguments = attribute.string_args().filter(|args| args.len() == 3);
         let Some([language, source, target]) = arguments.as_deref() else {
-            bail!(
-                "link attribute expects language, source path, and target function (line {})",
-                attribute.line
-            );
+            return Err(Errors::LinkAttributeArguments {
+                line: attribute.line,
+            }
+            .into());
         };
         let language = language
             .parse::<LanguageLexeme>()
-            .map_err(|_| anyhow!("Unsupported link language `{language}`"))?;
+            .map_err(|_| Errors::unsupported("link language", language))?;
         let source_path = Path::new(source);
         if source_path.is_absolute()
             || source_path
                 .components()
                 .any(|component| matches!(component, Component::ParentDir))
         {
-            bail!(
-                "Native source path must remain inside the imported package: {}",
-                source_path.display()
-            );
+            return Err(Errors::NativeSourceOutside {
+                path: source_path.display().to_string(),
+            }
+            .into());
         }
         if target.is_empty() {
-            bail!("Link target function cannot be empty");
+            return Err(Errors::LinkTargetEmpty.into());
         }
         Ok(Some(Self {
             language: language.into(),

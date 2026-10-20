@@ -1,5 +1,6 @@
 mod catalog;
 mod context;
+mod convert;
 mod error;
 mod errors;
 mod io;

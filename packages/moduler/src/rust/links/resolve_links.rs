@@ -1,5 +1,5 @@
-use anyhow::Result;
 use ast::{FunctionDecl, Program, overload_key};
+use errors::Result;
 use native::NativeLink;
 use std::collections::HashMap;
 use std::path::Path;

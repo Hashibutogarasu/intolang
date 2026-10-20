@@ -9,6 +9,13 @@ impl Errors {
         }
     }
 
+    /// The record of a lowered message, named by its tag or kind, has too few fields.
+    pub fn malformed_record(kind: &str) -> Self {
+        Self::MalformedRecord {
+            kind: kind.to_string(),
+        }
+    }
+
     /// `text` names something the language does not support, such as an operator.
     pub fn unsupported(kind: &str, text: &str) -> Self {
         Self::Unsupported {

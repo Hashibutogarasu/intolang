@@ -1,10 +1,12 @@
-use anyhow::Result;
+use errors::{Errors, Result};
 use std::path::{Path, PathBuf};
 
 /// Locate a package directory by its manifest `alias`. The directory name is
 /// not required to match the alias.
 pub fn find_by_alias(packages_dir: &Path, alias: &str) -> Result<Option<PathBuf>> {
-    for entry in std::fs::read_dir(packages_dir)? {
+    for entry in
+        std::fs::read_dir(packages_dir).map_err(|error| Errors::read(packages_dir, error))?
+    {
         let entry = entry?;
         if !entry.path().is_dir() {
             continue;

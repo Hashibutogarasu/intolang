@@ -1,4 +1,4 @@
-use anyhow::{Error, Result};
+use errors::{Error, Result};
 use parser::Hex;
 use std::fmt;
 use std::str::FromStr;

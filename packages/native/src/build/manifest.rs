@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use errors::{Errors, Result};
 use std::path::{Path, PathBuf};
 
 /// Locate a package directory by its manifest `alias`. The directory name is
@@ -28,17 +28,18 @@ pub fn package_dir(packages_dir: &Path, alias: &str) -> PathBuf {
 /// package root.
 pub fn native_dependencies(package: &Path, source: &Path) -> Result<Vec<String>> {
     let manifest = package.join("into-package.json");
-    let contents = std::fs::read_to_string(&manifest).with_context(|| {
-        format!(
-            "Could not read native package manifest {}",
-            manifest.display()
-        )
-    })?;
-    let value: serde_json::Value = serde_json::from_str(&contents)
-        .with_context(|| format!("Invalid JSON in {}", manifest.display()))?;
-    let relative = source
-        .strip_prefix(package)
-        .with_context(|| format!("Native source {} is outside its package", source.display()))?;
+    let contents =
+        std::fs::read_to_string(&manifest).map_err(|error| Errors::read(&manifest, error))?;
+    let value: serde_json::Value =
+        serde_json::from_str(&contents).map_err(|error| Errors::Json {
+            message: format!("Invalid JSON in {}: {error}", manifest.display()),
+        })?;
+    let relative =
+        source
+            .strip_prefix(package)
+            .map_err(|_| Errors::NativeSourceOutsidePackage {
+                path: source.display().to_string(),
+            })?;
     let key = relative.to_string_lossy().replace('\\', "/");
     Ok(value
         .get("nativeDependencies")

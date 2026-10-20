@@ -1,4 +1,4 @@
-use anyhow::{Context, Error, Result, bail};
+use errors::{Error, Errors, Result};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Digest, Sha256};
 use std::fmt;
@@ -23,8 +23,7 @@ impl PackageHash {
         files.sort();
         let mut digest = Sha256::new();
         for (relative, path) in &files {
-            let contents = std::fs::read(path)
-                .with_context(|| format!("Could not read {}", path.display()))?;
+            let contents = std::fs::read(path).map_err(|error| Errors::read(path, error))?;
             digest.update(relative.as_bytes());
             digest.update([0]);
             digest.update((contents.len() as u64).to_le_bytes());
@@ -44,9 +43,7 @@ fn collect_files(
     prefix: &str,
     files: &mut Vec<(String, std::path::PathBuf)>,
 ) -> Result<()> {
-    for entry in std::fs::read_dir(directory)
-        .with_context(|| format!("Could not read {}", directory.display()))?
-    {
+    for entry in std::fs::read_dir(directory).map_err(|error| Errors::read(directory, error))? {
         let entry = entry?;
         let name = entry.file_name();
         if is_excluded(&name) {
@@ -66,11 +63,14 @@ impl FromStr for PackageHash {
     type Err = Error;
 
     fn from_str(text: &str) -> Result<Self> {
+        let invalid = || Errors::PackageHashInvalid {
+            text: text.to_string(),
+        };
         let Some(hex) = text.strip_prefix(PREFIX) else {
-            bail!("`{text}` is not a package hash");
+            return Err(invalid().into());
         };
         if hex.len() != DIGEST_LENGTH || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-            bail!("`{text}` is not a package hash");
+            return Err(invalid().into());
         }
         Ok(Self(hex.to_ascii_lowercase()))
     }
@@ -83,13 +83,13 @@ impl fmt::Display for PackageHash {
 }
 
 impl Serialize for PackageHash {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         serializer.collect_str(self)
     }
 }
 
 impl<'de> Deserialize<'de> for PackageHash {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
         let text = String::deserialize(deserializer)?;
         text.parse().map_err(serde::de::Error::custom)
     }

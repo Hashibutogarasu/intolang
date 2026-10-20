@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use errors::{Errors, Result};
 use std::path::{Path, PathBuf};
 
 use crate::lock::LockFile;
@@ -39,8 +39,13 @@ impl Project {
     }
 
     pub(super) fn canonical_root(&self) -> Result<PathBuf> {
-        std::fs::canonicalize(&self.root)
-            .with_context(|| format!("Could not find project directory: {}", self.root.display()))
+        std::fs::canonicalize(&self.root).map_err(|error| {
+            Errors::ProjectDirectoryNotFound {
+                path: self.root.display().to_string(),
+                reason: error.to_string(),
+            }
+            .into()
+        })
     }
 
     pub(super) fn load_lock(&self) -> Result<Option<LockFile>> {
@@ -52,12 +57,11 @@ pub(super) fn write_pending(target: &Path, text: &str) -> Result<PathBuf> {
     let mut name = target.file_name().unwrap_or_default().to_os_string();
     name.push(PENDING_SUFFIX);
     let pending = target.with_file_name(name);
-    std::fs::write(&pending, text)
-        .with_context(|| format!("Could not write {}", pending.display()))?;
+    std::fs::write(&pending, text).map_err(|error| Errors::write(&pending, error))?;
     Ok(pending)
 }
 
 pub(super) fn commit(pending: &Path, target: &Path) -> Result<()> {
     std::fs::rename(pending, target)
-        .with_context(|| format!("Could not update {}", target.display()))
+        .map_err(|error| Errors::file_action("update", target, error).into())
 }

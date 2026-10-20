@@ -7,7 +7,7 @@ edition = "2024"
 path = "src/rust/lib.rs"
 
 [dependencies]
-anyhow = "1.0.104"
+errors = { version = "0.1.0", path = "../errors" }
 ast = { version = "0.1.0", path = "../ast" }
 native = { version = "0.1.0", path = "../native" }
 serde = { version = "1.0.229", features = ["derive"] }

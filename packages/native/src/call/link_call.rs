@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, anyhow};
+use errors::{Error, Errors, Result};
 use parser::{LanguageLexeme, Record};
 use types::{Language, MessageTag};
 
@@ -48,7 +48,7 @@ impl TryFrom<&Record> for LinkCall {
             args @ ..,
         ] = record.fields()
         else {
-            return Err(anyhow!("Malformed native call record"));
+            return Err(Errors::malformed_record("native call").into());
         };
         Ok(Self {
             package_alias: alias.clone(),

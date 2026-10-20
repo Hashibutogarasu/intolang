@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, anyhow};
+use errors::{Error, Errors, Result};
 use parser::Record;
 use types::MessageTag;
 
@@ -29,7 +29,7 @@ impl TryFrom<&Record> for FunctionDefinition {
 
     fn try_from(record: &Record) -> Result<Self> {
         let [name, return_type, params @ ..] = record.fields() else {
-            return Err(anyhow!("Malformed NATIVE_FUNCTION_BEGIN record"));
+            return Err(Errors::malformed_record("NATIVE_FUNCTION_BEGIN").into());
         };
         let params = params
             .iter()
@@ -37,7 +37,12 @@ impl TryFrom<&Record> for FunctionDefinition {
                 field
                     .split_once(':')
                     .map(|(name, ty)| (name.to_owned(), ty.to_owned()))
-                    .ok_or_else(|| anyhow!("Malformed function parameter `{field}`"))
+                    .ok_or_else(|| {
+                        Errors::MalformedParameter {
+                            field: field.clone(),
+                        }
+                        .into()
+                    })
             })
             .collect::<Result<_>>()?;
         Ok(Self {

@@ -1,5 +1,5 @@
-use anyhow::{Error, Result, bail};
 use ast::UseDecl;
+use errors::{Error, Errors, Result};
 use std::fmt;
 use std::str::FromStr;
 
@@ -15,10 +15,16 @@ impl FromStr for ExportSpec {
 
     fn from_str(uri: &str) -> Result<Self> {
         let Some((alias, path)) = uri.split_once("://") else {
-            bail!("`{uri}` is not a module URI");
+            return Err(Errors::NotModuleUri {
+                uri: uri.to_string(),
+            }
+            .into());
         };
         if alias.is_empty() || path.is_empty() {
-            bail!("`{uri}` does not name an export");
+            return Err(Errors::ExportNameMissing {
+                uri: uri.to_string(),
+            }
+            .into());
         }
         Ok(Self {
             alias: alias.to_owned(),

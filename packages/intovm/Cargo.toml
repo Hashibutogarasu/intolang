@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0.104"
 bundle = { version = "0.1.0", path = "../bundle" }
+errors = { version = "0.1.0", path = "../errors" }
 native = { version = "0.1.0", path = "../native" }
 parser = { version = "0.1.0", path = "../parser" }
 types = { version = "0.1.0", path = "../types" }

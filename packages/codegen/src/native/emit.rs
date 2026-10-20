@@ -25,7 +25,7 @@ impl TryFrom<&Record> for NativeEmit {
             .iter()
             .skip(1)
             .map(|field| field.parse())
-            .collect::<Result<_>>()?;
+            .collect::<std::result::Result<Vec<_>, errors::Error>>()?;
         Ok(Self {
             event: record.get(0).to_owned(),
             args,

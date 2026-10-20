@@ -1,4 +1,4 @@
-use anyhow::{Result, bail};
+use errors::{Errors, Result};
 
 use super::manifest::ProjectManifest;
 use super::project::{Project, commit, write_pending};
@@ -15,7 +15,10 @@ impl Project {
         let locked = lock.remove(alias.as_str());
         let installed = is_installed(&destination);
         if declared.is_none() && locked.is_none() && !installed {
-            bail!("Package `{alias}` is not installed");
+            return Err(Errors::PackageNotInstalled {
+                alias: alias.to_string(),
+            }
+            .into());
         }
 
         let pending_manifest = write_pending(&self.manifest_path(), &manifest.to_string())?;

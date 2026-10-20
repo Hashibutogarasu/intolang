@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, anyhow};
+use errors::{Error, Errors, Result};
 use parser::Record;
 use types::MessageTag;
 
@@ -27,7 +27,7 @@ impl TryFrom<&Record> for StateCheck {
 
     fn try_from(record: &Record) -> Result<Self> {
         let [slot, property, expected, ..] = record.fields() else {
-            return Err(anyhow!("Malformed NATIVE_IF_STATE record"));
+            return Err(Errors::malformed_record("NATIVE_IF_STATE").into());
         };
         Ok(Self {
             slot: slot.clone(),

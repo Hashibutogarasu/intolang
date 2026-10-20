@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, anyhow};
+use errors::{Errors, Result};
 use std::path::Path;
 
 use super::manifest::ProjectManifest;
@@ -14,22 +14,26 @@ impl Project {
     /// Installs the package at `source`. Builtin packages are never linked or
     /// copied: they are referenced from the compiler's `embedded` packages.
     pub fn install(&self, source: &Path, embedded: &Path) -> Result<PackageInfo> {
-        let source = std::fs::canonicalize(source)
-            .with_context(|| format!("Could not find package directory: {}", source.display()))?;
+        let source =
+            std::fs::canonicalize(source).map_err(|error| Errors::PackageDirectoryNotFound {
+                path: source.display().to_string(),
+                reason: error.to_string(),
+            })?;
         let manifest_path = source.join(PACKAGE_MANIFEST);
-        let package_manifest: serde_json::Value =
-            serde_json::from_slice(&std::fs::read(&manifest_path).with_context(|| {
-                format!(
-                    "Could not read package manifest: {}",
-                    manifest_path.display()
-                )
-            })?)
-            .with_context(|| format!("Invalid package manifest: {}", manifest_path.display()))?;
+        let package_manifest: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(&manifest_path).map_err(|error| Errors::read(&manifest_path, error))?,
+        )
+        .map_err(|error| Errors::PackageManifestInvalid {
+            path: manifest_path.display().to_string(),
+            reason: error.to_string(),
+        })?;
         let field = |key: &str| {
             package_manifest
                 .get(key)
                 .and_then(serde_json::Value::as_str)
-                .ok_or_else(|| anyhow!("Package manifest must define `{key}`"))
+                .ok_or_else(|| Errors::PackageManifestMissing {
+                    key: key.to_string(),
+                })
         };
         if is_builtin(field("alias")?) {
             return self.install_builtin(embedded);
@@ -60,12 +64,13 @@ impl Project {
 
     fn install_builtin(&self, embedded: &Path) -> Result<PackageInfo> {
         let alias = PackageAlias::try_from(BUILTIN_ALIAS)?;
-        let root = find_by_alias(embedded, BUILTIN_ALIAS)?
-            .ok_or_else(|| anyhow!("The compiler does not embed the `{BUILTIN_ALIAS}` package"))?;
+        let root =
+            find_by_alias(embedded, BUILTIN_ALIAS)?.ok_or_else(|| Errors::PackageNotEmbedded {
+                alias: BUILTIN_ALIAS.to_string(),
+            })?;
         let manifest_path = root.join(PACKAGE_MANIFEST);
         let package_manifest: serde_json::Value = serde_json::from_slice(
-            &std::fs::read(&manifest_path)
-                .with_context(|| format!("Could not read {}", manifest_path.display()))?,
+            &std::fs::read(&manifest_path).map_err(|error| Errors::read(&manifest_path, error))?,
         )?;
         let package = PackageInfo::new(alias.as_str(), root, &package_manifest);
 

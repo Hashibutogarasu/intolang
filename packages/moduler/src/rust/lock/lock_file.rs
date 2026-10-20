@@ -1,4 +1,4 @@
-use anyhow::{Context, Error, Result, bail};
+use errors::{Error, Errors, Result};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::path::Path;
@@ -31,14 +31,15 @@ impl LockFile {
         let contents = match std::fs::read_to_string(path) {
             Ok(contents) => contents,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-            Err(error) => {
-                return Err(error).with_context(|| format!("Could not read {}", path.display()));
-            }
+            Err(error) => return Err(Errors::read(path, error).into()),
         };
-        contents
-            .parse()
-            .map(Some)
-            .with_context(|| format!("Invalid lock file: {}", path.display()))
+        contents.parse().map(Some).map_err(|error: Error| {
+            Errors::LockInvalid {
+                path: path.display().to_string(),
+                reason: error.kind().to_string(),
+            }
+            .into()
+        })
     }
 
     pub fn get(&self, alias: &str) -> Option<&PackageInfo> {
@@ -68,7 +69,10 @@ impl FromStr for LockFile {
     fn from_str(text: &str) -> Result<Self> {
         let lock: LockFile = serde_json::from_str(text)?;
         if lock.version != SUPPORTED_VERSION {
-            bail!("Unsupported lock file version {}", lock.version);
+            return Err(Errors::LockVersionUnsupported {
+                version: lock.version,
+            }
+            .into());
         }
         Ok(lock)
     }

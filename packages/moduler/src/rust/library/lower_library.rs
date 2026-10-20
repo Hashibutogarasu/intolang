@@ -1,5 +1,5 @@
-use anyhow::{Context, Result, bail};
 use ast::{Expr, FunctionDecl, Program, Stmt, StmtKind};
+use errors::{Errors, Result};
 use std::path::Path;
 use types::Literal;
 
@@ -12,19 +12,19 @@ pub fn lower_library(
     entry: &Path,
     _packages_dir: &Path,
 ) -> Result<Vec<NativeFunction>> {
-    let module_root = entry.parent().context("Library entry has no parent")?;
+    let module_root = entry.parent().ok_or(Errors::LibraryNoParent)?;
     let mut functions = Vec::new();
     for module in exported_modules(program)? {
         let module_path = module_root.join(format!("{module}.into"));
         let module_source = std::fs::read_to_string(&module_path)
-            .with_context(|| format!("Could not read exported module {}", module_path.display()))?;
+            .map_err(|error| Errors::read(&module_path, error))?;
         let module_program = module_source
             .parse::<Program>()
-            .with_context(|| format!("Could not parse {}", module_path.display()))?;
+            .map_err(|error| error.bound_to(&module_path.display().to_string()))?;
         functions.extend(public_functions(&module_program));
     }
     if functions.is_empty() {
-        bail!("Library entry exports no public functions");
+        return Err(Errors::LibraryNoPublicFunctions.into());
     }
     Ok(functions)
 }
@@ -33,19 +33,25 @@ fn exported_modules(program: &Program) -> Result<Vec<String>> {
     let mut modules = Vec::new();
     for decl in program.exports() {
         let Ok(spec) = ExportSpec::try_from(decl) else {
-            bail!("Invalid library export URI: {}", decl.uri);
+            return Err(Errors::LibraryExportUriInvalid {
+                uri: decl.uri.clone(),
+            }
+            .into());
         };
         if spec
             .path
             .split('/')
             .any(|part| part == ".." || part.is_empty())
         {
-            bail!("Invalid library export module: {}", decl.uri);
+            return Err(Errors::LibraryExportModuleInvalid {
+                uri: decl.uri.clone(),
+            }
+            .into());
         }
         modules.push(spec.path);
     }
     if modules.is_empty() {
-        bail!("Library entry does not export any modules");
+        return Err(Errors::LibraryNoExports.into());
     }
     Ok(modules)
 }

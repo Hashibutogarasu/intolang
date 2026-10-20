@@ -296,7 +296,7 @@ impl Program {
                     .iter()
                     .skip(1)
                     .map(|field| field.parse())
-                    .collect::<Result<_>>()?,
+                    .collect::<std::result::Result<Vec<_>, errors::Error>>()?,
             }),
             MessageTag::EventOff => self.instructions.push(Instr::EventOff {
                 event: record.get(0).to_owned(),

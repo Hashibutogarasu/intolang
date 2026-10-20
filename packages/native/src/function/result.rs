@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, anyhow};
+use errors::{Error, Errors, Result};
 use parser::Record;
 use types::MessageTag;
 
@@ -27,7 +27,7 @@ impl TryFrom<&Record> for FunctionReturn {
 
     fn try_from(record: &Record) -> Result<Self> {
         let [ty, operand, ..] = record.fields() else {
-            return Err(anyhow!("Malformed NATIVE_RETURN record"));
+            return Err(Errors::malformed_record("NATIVE_RETURN").into());
         };
         Ok(Self {
             ty: ty.clone(),

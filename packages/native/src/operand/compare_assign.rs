@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, anyhow};
+use errors::{Error, Errors, Result};
 use parser::{ComparisonLexeme, Record};
 use types::MessageTag;
 
@@ -28,7 +28,7 @@ impl TryFrom<&Record> for CompareAssign {
 
     fn try_from(record: &Record) -> Result<Self> {
         let [target, left, operator, operand, type_name, ..] = record.fields() else {
-            return Err(anyhow!("Malformed NATIVE_COMPARE record"));
+            return Err(Errors::malformed_record("NATIVE_COMPARE").into());
         };
         Ok(Self {
             target: target.clone(),
