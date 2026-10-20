@@ -36,6 +36,30 @@ print(mem1);
 }
 
 #[test]
+fn assigning_a_constant_again_has_its_own_code() {
+    let error = failure(
+        r#"import "intolang://builtin/std";
+const now into mem1 = 1;
+mem1 = 2;
+"#,
+    );
+    assert_eq!(error.code(), Some(0x10AB));
+    assert!(has_into_layer(&error));
+    assert!(error.to_string().contains("`mem1` is a constant"));
+}
+
+#[test]
+fn a_constant_without_now_or_late_cannot_be_assigned_again() {
+    let error = failure(
+        r#"import "intolang://builtin/std";
+const into mem1 = 1;
+mem1 = 2;
+"#,
+    );
+    assert_eq!(error.code(), Some(0x10AB));
+}
+
+#[test]
 fn a_destroyed_binding_has_the_ownership_code() {
     let error = failure(
         r#"

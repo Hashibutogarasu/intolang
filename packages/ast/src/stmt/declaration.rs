@@ -25,9 +25,10 @@ impl Declaration {
             ),
             (
                 Some(Keyword::Const),
-                Some(Keyword::Now),
+                Some(Keyword::Now | Keyword::Late),
                 Some(Keyword::Into)
-            ) | (Some(Keyword::Now | Keyword::Late), Some(Keyword::Into), _)
+            ) | (Some(Keyword::Const), Some(Keyword::Into), _)
+                | (Some(Keyword::Now | Keyword::Late), Some(Keyword::Into), _)
                 | (Some(Keyword::Into), _, _)
         )
     }

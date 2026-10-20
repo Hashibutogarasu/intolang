@@ -298,6 +298,8 @@ declare_errors! {
         NativeCallArgument { symbol: String } = 0x10A9,
         #[error("The import `{uri}` names no package or module")]
         ImportNotFound { uri: String } = 0x10AA,
+        #[error("`{name}` is a constant and cannot be assigned again")]
+        AssignToConstant { name: String } = 0x10AB,
         #[error("Variable `{name}` is out of scope here")]
         VariableOutOfScope { name: String } = 0x1040,
         #[error("Variable `{name}` was unloaded")]
