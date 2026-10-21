@@ -10,6 +10,21 @@ fn parses_keywords_both_ways() {
 }
 
 #[test]
+fn lists_every_keyword_once() {
+    let spellings: Vec<String> = KeywordLexeme::all()
+        .map(|lexeme| lexeme.to_string())
+        .collect();
+    for spelling in &spellings {
+        let lexeme: KeywordLexeme = spelling.parse().unwrap();
+        assert_eq!(&lexeme.to_string(), spelling);
+    }
+    let mut unique = spellings.clone();
+    unique.sort();
+    unique.dedup();
+    assert_eq!(unique.len(), spellings.len());
+}
+
+#[test]
 fn converts_punctuation_through_char() {
     let punct: Punct = PunctLexeme::try_from('{').unwrap().into();
     assert_eq!(punct, Punct::LeftBrace);

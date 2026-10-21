@@ -13,6 +13,7 @@ dependencies = [
  "ipc",
  "moduler",
  "package",
+ "parser",
  "tokenizer",
  "types",
 ]

@@ -4,9 +4,9 @@ use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 
 use ipc::{
-    Diagnostic, Documentation, Handler, Hover, InitializeResult, IpcError, Location,
-    MemoryTransport, Notification, Position, Range, Reply, Request, Severity, Symbol, SymbolKind,
-    TextEdit, memory_pair, serve,
+    CompletionItem, CompletionKind, Diagnostic, Documentation, Handler, Hover, InitializeResult,
+    IpcError, Location, MemoryTransport, Notification, Position, Range, Reply, Request, Severity,
+    Symbol, SymbolKind, TextEdit, memory_pair, serve,
 };
 use lsp::{Bridge, Server};
 
@@ -64,6 +64,35 @@ impl Handler for Scripted {
                     name_range: range(0, 3),
                 },
             ])),
+            Request::Completion(_) => Ok(Reply::Completion(vec![
+                CompletionItem {
+                    label: "alpha".into(),
+                    kind: CompletionKind::Function,
+                    detail: Some("pub fun alpha()".into()),
+                    documentation: None,
+                    range: range(0, 1),
+                    text: "alpha".into(),
+                    snippet: false,
+                },
+                CompletionItem {
+                    label: "deep".into(),
+                    kind: CompletionKind::Folder,
+                    detail: None,
+                    documentation: None,
+                    range: range(0, 1),
+                    text: "deep/".into(),
+                    snippet: false,
+                },
+                CompletionItem {
+                    label: "(a) => { }".into(),
+                    kind: CompletionKind::Snippet,
+                    detail: None,
+                    documentation: None,
+                    range: range(0, 0),
+                    text: "(${1:a}) => {\n\t$0\n}".into(),
+                    snippet: true,
+                },
+            ])),
             Request::Format(_) => Ok(Reply::Format(vec![TextEdit {
                 range: range(0, 3),
                 text: "formatted".into(),
@@ -72,12 +101,16 @@ impl Handler for Scripted {
     }
 
     fn notify(&mut self, notification: Notification) -> Vec<Notification> {
-        let (uri, version) = match notification {
+        let (uri, version, unused) = match notification {
             Notification::DocumentOpen(open) => {
                 self.log.opened.lock().unwrap().push(open.uri.clone());
-                (open.uri, Some(open.version))
+                (open.uri, Some(open.version), open.text.contains("unused"))
             }
-            Notification::DocumentChange(change) => (change.uri, Some(change.version)),
+            Notification::DocumentChange(change) => (
+                change.uri,
+                Some(change.version),
+                change.text.contains("unused"),
+            ),
             Notification::DocumentClose(close) => {
                 return vec![Notification::Diagnostics {
                     uri: close.uri,
@@ -87,19 +120,45 @@ impl Handler for Scripted {
             }
             _ => return Vec::new(),
         };
-        vec![Notification::Diagnostics {
-            uri,
-            version,
-            diagnostics: vec![Diagnostic {
-                range: range(1, 2),
-                severity: Severity::Error,
-                code: Some(0x1234),
-                message: "bad".into(),
+        let mut diagnostics = vec![Diagnostic {
+            range: range(1, 2),
+            severity: Severity::Error,
+            code: Some(0x1234),
+            message: "bad".into(),
+            related: Vec::new(),
+            expected: Vec::new(),
+            found: None,
+            hint: Some("try again".into()),
+            unnecessary: false,
+        }];
+        if unused {
+            diagnostics.push(Diagnostic {
+                range: range(0, 6),
+                severity: Severity::Hint,
+                code: None,
+                message: "faded".into(),
                 related: Vec::new(),
                 expected: Vec::new(),
                 found: None,
-                hint: Some("try again".into()),
-            }],
+                hint: None,
+                unnecessary: true,
+            });
+            diagnostics.push(Diagnostic {
+                range: range(0, 6),
+                severity: Severity::Information,
+                code: None,
+                message: "underlined".into(),
+                related: Vec::new(),
+                expected: Vec::new(),
+                found: None,
+                hint: None,
+                unnecessary: false,
+            });
+        }
+        vec![Notification::Diagnostics {
+            uri,
+            version,
+            diagnostics,
         }]
     }
 }

@@ -444,10 +444,25 @@ editor ── LSP (stdio) ── into-lsp ── ipc (stdio) ── intolang-ipc
   the declared or inferred type of `a`, then the parents, then `Object`). The
   primitive types are classes of `primitives.into` in the builtin package, so
   they resolve like any class.
+- `analysis` also answers `analysis/completion`. Completion asks small providers (`CompletionProvider`, in `completion/`) for
+  candidates: the reserved words and values the `parser::Registry` holds (the
+  one place that spells them), the names in scope, the members after a dot, a
+  snippet for a callback named after the event or `Callback` arguments, and the
+  folders and modules of the packages inside the address of an `import` or
+  `export`. Variables that nothing reads (`0x10AC`) and imports whose names
+  nothing uses (`0x10AD`) are `Hint` diagnostics marked `unnecessary`, which the
+  language server tags so that editors fade them; a parameter of a function
+  without a body is not checked. Every place the name of a `T&` binding or of an
+  `x.borrow()` result stands is an `Information` diagnostic (`0x10AE`), which
+  every editor underlines, so no editor needs a setting of its own. The messages
+  of these diagnostics are variants of `errors::Errors`; nothing else words them.
 - The strings and the keywords of `import` and `export` resolve to the package
   (`moduler::import_target`, `export_target`): hover shows its name, alias,
-  version, licence and location, and the definition is the module, or
-  `into-info.into` for a module that has no file. The name of a function with
+  version, licence and location. The definition depends on where the cursor
+  lies in the address: the scheme (for `intolang://` also the package alias after
+  it) opens the `into-package.json` of the package, a segment of the path opens
+  the folder or the module file up to that segment, and the keyword opens the
+  module, or `into-info.into` for a module that has no file. The name of a function with
   `#[link]`, and the strings of the attribute, jump to the C or C++ source at
   the definition of the symbol (`foreign::locate_symbol`); a call still jumps to
   the Into declaration.

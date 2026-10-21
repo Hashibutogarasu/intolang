@@ -3,7 +3,7 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 use crate::protocol::{
-    Diagnostic, DocumentChange, DocumentClose, DocumentOpen, DocumentQuery, Hover,
+    CompletionItem, Diagnostic, DocumentChange, DocumentClose, DocumentOpen, DocumentQuery, Hover,
     InitializeParams, InitializeResult, Location, Symbol, TextEdit,
 };
 
@@ -22,6 +22,8 @@ pub enum Request {
     DocumentSymbol(DocumentQuery),
     #[serde(rename = "analysis/format")]
     Format(DocumentQuery),
+    #[serde(rename = "analysis/completion")]
+    Completion(DocumentQuery),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -52,6 +54,7 @@ pub enum Reply {
     Hover(Option<Hover>),
     DocumentSymbol(Vec<Symbol>),
     Format(Vec<TextEdit>),
+    Completion(Vec<CompletionItem>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

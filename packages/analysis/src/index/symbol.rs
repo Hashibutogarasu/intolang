@@ -9,6 +9,12 @@ pub struct NativeRef {
 }
 
 #[derive(Debug, Clone)]
+pub struct ParamInfo {
+    pub name: String,
+    pub ty: Option<String>,
+}
+
+#[derive(Debug, Clone)]
 pub struct Symbol {
     pub name: String,
     pub kind: SymbolKind,
@@ -23,6 +29,9 @@ pub struct Symbol {
     pub local: bool,
     pub owner: usize,
     pub native: Option<NativeRef>,
+    pub params: Vec<ParamInfo>,
+    pub reference: bool,
+    pub track_use: bool,
 }
 
 #[derive(Debug, Default)]
@@ -54,6 +63,26 @@ impl Index {
                 symbol.local && symbol.owner == owner && symbol.name == name && symbol.line <= line
             })
             .max_by_key(|symbol| symbol.line)
+    }
+
+    /// The values, parameters and declarations visible at the 1 based `line`.
+    pub fn visible_at(&self, line: usize) -> impl Iterator<Item = &Symbol> {
+        let owner = self.owner_at(line);
+        self.symbols
+            .iter()
+            .filter(move |symbol| symbol.local && symbol.owner == owner && symbol.line <= line)
+    }
+
+    pub fn top_levels(&self) -> impl Iterator<Item = &Symbol> {
+        self.symbols
+            .iter()
+            .filter(|symbol| !symbol.local && symbol.container.is_none())
+    }
+
+    pub fn members(&self, container: &str) -> impl Iterator<Item = &Symbol> {
+        self.symbols
+            .iter()
+            .filter(move |symbol| symbol.container.as_deref() == Some(container))
     }
 
     pub fn top_level(&self, name: &str) -> Option<&Symbol> {

@@ -1,9 +1,16 @@
 mod common;
 
 use common::{position_of, session, session_with};
-use ipc::{Position, Request, Severity};
+use ipc::{Diagnostic, Position, Request, Severity};
 
 const URI: &str = "file:///project/src/main/diagnostics.into";
+
+fn problems(diagnostics: Vec<Diagnostic>) -> Vec<Diagnostic> {
+    diagnostics
+        .into_iter()
+        .filter(|diagnostic| diagnostic.severity != Severity::Hint)
+        .collect()
+}
 
 #[test]
 fn a_syntax_error_covers_the_token_where_the_parser_stopped() {
@@ -30,7 +37,7 @@ fn an_unterminated_string_is_reported_on_its_line() {
 #[test]
 fn an_error_of_lowering_is_reported_on_the_line_it_happened() {
     let source = "init {\n    into message: Int32 = \"Hello World!\";\n}\n";
-    let diagnostics = session().open(URI, source);
+    let diagnostics = problems(session().open(URI, source));
     assert_eq!(diagnostics.len(), 1);
     let error = &diagnostics[0];
     assert_eq!(error.code, Some(0x100A));
@@ -54,7 +61,7 @@ fn every_syntax_error_is_reported() {
 #[test]
 fn every_error_of_lowering_is_reported() {
     let source = "init {\n    into first: Int32 = \"one\";\n    into second: Int32 = \"two\";\n}\n";
-    let diagnostics = session().open(URI, source);
+    let diagnostics = problems(session().open(URI, source));
     let lines = diagnostics
         .iter()
         .map(|error| error.range.start.line)

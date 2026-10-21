@@ -1,12 +1,14 @@
 use std::path::{Path, PathBuf};
 
 use ipc::{Location, Position, Range};
+use moduler::ImportTarget;
+use package::MANIFEST_FILE;
 
 use crate::analyzer::Analysis;
 use crate::foreign::locate_symbol;
-use crate::index::{NativeRef, Resolved, resolve};
+use crate::index::{ModulePart, NativeRef, Resolved, resolve};
 use crate::text::{LineIndex, path_to_uri};
-use crate::workspace::real;
+use crate::workspace::{SOURCE_EXTENSION, SOURCE_ROOT, real};
 
 pub fn definition(
     analysis: &Analysis,
@@ -54,15 +56,40 @@ pub fn definition(
             uri: uri.to_owned(),
             range: line_index.range(target),
         }],
-        Some(Resolved::Module { target, .. }) => target
-            .file
-            .iter()
-            .map(|file| Location {
-                uri: path_to_uri(&real(file)),
-                range: Range::new(Position::new(0, 0), Position::new(0, 0)),
-            })
-            .collect(),
+        Some(Resolved::Module { target, part, .. }) => module_locations(&target, &part),
         None => Vec::new(),
+    }
+}
+
+fn start_of(path: &Path) -> Location {
+    Location {
+        uri: path_to_uri(&real(path)),
+        range: Range::new(Position::new(0, 0), Position::new(0, 0)),
+    }
+}
+
+fn module_locations(target: &ImportTarget, part: &ModulePart) -> Vec<Location> {
+    match part {
+        ModulePart::Whole => target.file.iter().map(|file| start_of(file)).collect(),
+        ModulePart::Scheme => vec![start_of(&target.package.root.join(MANIFEST_FILE))],
+        ModulePart::Path { prefix } => {
+            let sources = target.package.root.join(SOURCE_ROOT);
+            let mut path = prefix.as_str();
+            loop {
+                let file = sources.join(format!("{path}.{SOURCE_EXTENSION}"));
+                if package::is_file(&file) {
+                    return vec![start_of(&file)];
+                }
+                let directory = sources.join(path);
+                if package::is_dir(&directory) {
+                    return vec![start_of(&directory)];
+                }
+                match path.rsplit_once('/') {
+                    Some((parent, _)) => path = parent,
+                    None => return target.file.iter().map(|file| start_of(file)).collect(),
+                }
+            }
+        }
     }
 }
 

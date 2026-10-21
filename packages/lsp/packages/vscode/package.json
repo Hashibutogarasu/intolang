@@ -1,7 +1,7 @@
 {
   "name": "intolang-vscode",
   "displayName": "Into",
-  "description": "Language support for Into: diagnostics, hover documentation and go to definition",
+  "description": "Language support for Into: diagnostics, completion, hover documentation and go to definition",
   "version": "0.1.0",
   "publisher": "hashibutogarasu",
   "license": "MIT",

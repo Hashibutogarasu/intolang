@@ -10,6 +10,16 @@ type Position = { line: number; column: number };
 type Range = { start: Position; end: Position };
 type Location = { uri: string; range: Range };
 
+type CompletionItem = {
+  label: string;
+  kind: string;
+  detail: string | null;
+  documentation: { markdown: string } | null;
+  range: Range;
+  text: string;
+  snippet: boolean;
+};
+
 type Reply<T> = { ok: { type: string; value: T } } | { error: { code: number; message: string } };
 
 /** The text of line `lineNumber` of the model, or "" past its end. */
@@ -168,12 +178,67 @@ export async function registerLanguage(monaco: typeof Monaco, engine: Engine): P
         return edits.map((edit) => ({ range: toMonacoRange(model, edit.range), text: edit.text }));
       },
     }),
+    monaco.languages.registerCompletionItemProvider(LANGUAGE, {
+      triggerCharacters: [".", "/", ":", '"'],
+      async provideCompletionItems(model, position) {
+        if (!isProgram(model)) {
+          return { suggestions: [] };
+        }
+        const items = (await ask<CompletionItem[]>("analysis/completion", model, position)) ?? [];
+        const kinds = monaco.languages.CompletionItemKind;
+        const kindOf: Record<string, Monaco.languages.CompletionItemKind> = {
+          keyword: kinds.Keyword,
+          function: kinds.Function,
+          class: kinds.Class,
+          field: kinds.Field,
+          enum: kinds.Enum,
+          variant: kinds.EnumMember,
+          event: kinds.Event,
+          macro: kinds.Function,
+          variable: kinds.Variable,
+          module: kinds.Module,
+          folder: kinds.Folder,
+          snippet: kinds.Snippet,
+        };
+        return {
+          suggestions: items.map((item) => ({
+            label: item.label,
+            kind: kindOf[item.kind] ?? kinds.Text,
+            detail: item.detail ?? undefined,
+            documentation: item.documentation ? { value: item.documentation.markdown } : undefined,
+            insertText: item.text,
+            insertTextRules: item.snippet ? monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet : undefined,
+            range: toMonacoRange(model, item.range),
+            command: item.text.endsWith("/") ? { id: "editor.action.triggerSuggest", title: "Suggest" } : undefined,
+          })),
+        };
+      },
+    }),
   );
 
   return { dispose: () => disposables.forEach((disposable) => disposable.dispose()) };
 }
 
-type Diagnostic = { range: Range; severity: "error" | "warning"; message: string; code: number | null };
+type Diagnostic = {
+  range: Range;
+  severity: "error" | "warning" | "information" | "hint";
+  message: string;
+  code: number | null;
+  unnecessary?: boolean;
+};
+
+function markerSeverity(monaco: typeof Monaco, severity: Diagnostic["severity"]): Monaco.MarkerSeverity {
+  switch (severity) {
+    case "error":
+      return monaco.MarkerSeverity.Error;
+    case "warning":
+      return monaco.MarkerSeverity.Warning;
+    case "information":
+      return monaco.MarkerSeverity.Info;
+    case "hint":
+      return monaco.MarkerSeverity.Hint;
+  }
+}
 
 /**
  * Keeps the analyzer's copy of the program and the red lines of the editor in
@@ -201,7 +266,8 @@ export function followDocument(monaco: typeof Monaco, engine: Engine, model: Mon
       "into",
       diagnostics.map((diagnostic) => ({
         ...toMonacoRange(model, diagnostic.range),
-        severity: diagnostic.severity === "error" ? monaco.MarkerSeverity.Error : monaco.MarkerSeverity.Warning,
+        severity: markerSeverity(monaco, diagnostic.severity),
+        tags: diagnostic.unnecessary ? [monaco.MarkerTag.Unnecessary] : undefined,
         message: diagnostic.message,
         code: diagnostic.code === null ? undefined : String(diagnostic.code),
       })),
