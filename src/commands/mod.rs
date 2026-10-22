@@ -5,6 +5,7 @@ mod format;
 mod inex;
 mod install;
 mod new;
+mod package_task;
 mod root;
 mod target;
 mod uninstall;

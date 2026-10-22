@@ -59,6 +59,14 @@ impl Progress {
         }
     }
 
+    /// Print one finished line above the bar without ending the work.
+    pub fn println(&self, message: &str) {
+        match &self.bar {
+            Some(bar) => bar.println(message),
+            None => report(message),
+        }
+    }
+
     pub fn finish(self, message: &str) {
         self.done.set(true);
         match &self.bar {

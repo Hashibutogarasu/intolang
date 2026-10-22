@@ -1,9 +1,10 @@
 use clap::{ArgMatches, Args as ClapArgs, Command as ClapCommand};
 use errors::Result;
 use moduler::Project;
-use progress::Progress;
+use std::path::Path;
 
 use crate::commands::command::{Command, arguments};
+use crate::commands::package_task::{Operation, Outcome, PackageStatus, PackageTask};
 
 #[derive(ClapArgs)]
 struct UninstallArgs {
@@ -13,6 +14,34 @@ struct UninstallArgs {
 }
 
 pub(super) struct Uninstall;
+
+struct UninstallTask {
+    packages: Vec<String>,
+}
+
+impl PackageTask for UninstallTask {
+    type Item = String;
+
+    fn operation(&self) -> Operation {
+        Operation::Uninstall
+    }
+
+    fn detect(&self, _project: &Project, _embedded: &Path) -> Result<Vec<String>> {
+        Ok(self.packages.clone())
+    }
+
+    fn label(&self, alias: &String) -> Outcome {
+        Outcome::new(PackageStatus::Removing, alias)
+    }
+
+    fn handle(&self, project: &Project, _embedded: &Path, alias: String) -> Result<Outcome> {
+        let package = project.uninstall(&alias)?;
+        Ok(Outcome::new(
+            PackageStatus::Removed,
+            format!("{} {}", package.alias, package.version),
+        ))
+    }
+}
 
 impl Command for Uninstall {
     fn command(&self) -> ClapCommand {
@@ -29,15 +58,10 @@ impl Command for Uninstall {
 
     fn execute(&self, matches: &ArgMatches) -> Result<()> {
         let args = arguments::<UninstallArgs>(matches)?;
-        let progress = Progress::start("Looking for the project", args.packages.len() as u64);
         let project = Project::new(std::env::current_dir()?);
-        let mut removed = Vec::new();
-        for alias in &args.packages {
-            progress.step(&format!("Removing {alias}"));
-            let package = project.uninstall(alias)?;
-            removed.push(format!("{} {}", package.alias, package.version));
+        UninstallTask {
+            packages: args.packages,
         }
-        progress.finish(&format!("Removed {}", removed.join(", ")));
-        Ok(())
+        .run(&project, Path::new(""))
     }
 }
