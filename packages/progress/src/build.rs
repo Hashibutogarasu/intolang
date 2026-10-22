@@ -3,7 +3,7 @@ use indicatif::{ProgressBar, ProgressDrawTarget};
 use std::cell::{Cell, RefCell};
 use std::time::Duration;
 
-use crate::report::report;
+use crate::report::{DONE, format_line, report};
 use crate::style::{failed, finished, running};
 use crate::{FAILED, PENDING, line};
 
@@ -62,7 +62,7 @@ impl Progress {
     /// Print one finished line above the bar without ending the work.
     pub fn println(&self, message: &str) {
         match &self.bar {
-            Some(bar) => bar.println(message),
+            Some(bar) => bar.println(format_line(DONE, message)),
             None => report(message),
         }
     }

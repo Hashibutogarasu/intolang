@@ -12,18 +12,23 @@ pub(crate) const FAILED: &str = "✗";
 /// The mark of a line whose work goes on.
 pub(crate) const PENDING: &str = " ";
 
-pub(crate) fn line(mark: &str, message: &str) {
+/// The text of one line, `[mark] [thread/main] [HH:MM SS.cc] message`.
+pub(crate) fn format_line(mark: &str, message: &str) -> String {
     let mark = if mark == DONE {
         style(mark).green()
     } else {
         style(mark).red()
     };
-    eprintln!(
+    format!(
         "[{mark}] [{}] [{}] {}",
         style(thread_label()).green(),
         style(now()).white(),
         style(message).white()
-    );
+    )
+}
+
+pub(crate) fn line(mark: &str, message: &str) {
+    eprintln!("{}", format_line(mark, message));
 }
 
 /// Print one failed line, `[✗] [thread/main] [HH:MM SS.cc] message`, to stderr.
