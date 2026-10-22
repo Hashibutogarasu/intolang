@@ -53,7 +53,7 @@ impl Project {
         Ok(package)
     }
 
-    fn install_builtin(&self, embedded: &Path) -> Result<PackageInfo> {
+    pub(super) fn install_builtin(&self, embedded: &Path) -> Result<PackageInfo> {
         let alias = PackageAlias::try_from(BUILTIN_ALIAS)?;
         let found = Package::find_by_alias(embedded, BUILTIN_ALIAS)?.ok_or_else(|| {
             Errors::PackageNotEmbedded {

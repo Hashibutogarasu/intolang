@@ -9,5 +9,6 @@ mod package_task;
 mod root;
 mod target;
 mod uninstall;
+mod update;
 
 pub(crate) use root::run;

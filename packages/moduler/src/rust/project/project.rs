@@ -17,6 +17,11 @@ pub struct Restoration {
     pub installed: bool,
 }
 
+pub struct Update {
+    pub package: PackageInfo,
+    pub updated: bool,
+}
+
 impl Project {
     pub fn new(root: impl Into<PathBuf>) -> Self {
         Self { root: root.into() }

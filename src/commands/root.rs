@@ -10,6 +10,7 @@ use crate::commands::format::{self, Format};
 use crate::commands::install::Install;
 use crate::commands::new::New;
 use crate::commands::uninstall::Uninstall;
+use crate::commands::update::Update;
 
 // The global arguments, used when no subcommand is given.
 #[derive(Args)]
@@ -60,6 +61,7 @@ impl Command for Root {
             Box::new(New),
             Box::new(Install),
             Box::new(Uninstall),
+            Box::new(Update),
         ]
     }
 

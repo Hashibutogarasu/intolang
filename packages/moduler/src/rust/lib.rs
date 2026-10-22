@@ -28,5 +28,5 @@ pub use package::{
     BUILTIN_ALIAS, BUILTIN_SCHEME, PackageAlias, PackageHash, PackageInfo, is_builtin,
     is_installed, link_directory, remove_installed,
 };
-pub use project::{Project, Restoration};
+pub use project::{Project, Restoration, Update};
 pub use spec::{ExportSpec, ImportSpec};

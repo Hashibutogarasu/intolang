@@ -9,6 +9,7 @@ use std::path::Path;
 pub(super) enum Operation {
     Install,
     Uninstall,
+    Update,
 }
 
 /// Where a package or a whole task stands. Every message the install and
@@ -23,6 +24,8 @@ pub(super) enum PackageStatus {
     UpToDate,
     Removing,
     Removed,
+    Updating,
+    Updated,
     /// Every package of the task has been handled.
     Complete(Operation),
 }
@@ -32,14 +35,18 @@ impl fmt::Display for PackageStatus {
         let text = match self {
             Self::Begin(Operation::Install) => "Starting the install",
             Self::Begin(Operation::Uninstall) => "Starting the uninstall",
+            Self::Begin(Operation::Update) => "Starting the update",
             Self::Installing => "Installing",
             Self::Restoring => "Restoring",
             Self::Installed => "Installed",
             Self::UpToDate => "Up to date",
             Self::Removing => "Removing",
             Self::Removed => "Removed",
+            Self::Updating => "Updating",
+            Self::Updated => "Updated",
             Self::Complete(Operation::Install) => "Install complete",
             Self::Complete(Operation::Uninstall) => "Uninstall complete",
+            Self::Complete(Operation::Update) => "Update complete",
         };
         f.write_str(text)
     }
